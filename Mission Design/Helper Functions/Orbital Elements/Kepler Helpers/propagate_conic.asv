@@ -1,0 +1,22 @@
+function [x2_cart_ck, x1_kep, M_2_ck] = propagate_conic(x1_cart, ToF, mu)
+%PROPAGATE_CONIC Summary of this function goes here
+%   Input state x_1 has to be in an inertial reference frame
+
+% Convert state to ke
+
+% Calculate Lagrange coefficients f, g, fdot, gdot
+
+
+% Check coefficients
+lagrange_ck = f * gdot - fdot * g;
+if abs(lagrange_ck - 1) > 1e-12
+    error("Lagrange coefficient accuracy %.3f is less than %.3f", abs(lagrange_ck - 1), 1e-12);
+end
+
+% Find final state
+rvec_2 = f * rvec_1 + g * vvec_1;
+vvec_2 = fdot * rvec_1 + gdot * vvec_1;
+
+x2_cart_ck = [rvec_2; vvec_2];
+
+end
