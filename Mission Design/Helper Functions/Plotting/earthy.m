@@ -5,7 +5,7 @@ function [] = earthy(R, Planet, opaque,c)
     
     % Earth texture image (URL to a suitable texture map)
     if (Planet == "Earth")
-        image_file = 'http://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Land_ocean_ice_2048.jpg/1024px-Land_ocean_ice_2048.jpg';
+        image_file = '1024px-Land_ocean_ice_2048.jpg';
     elseif (Planet == "Sun")
         image_file = 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Map_of_the_full_sun.jpg/1200px-Map_of_the_full_sun.jpg?20130316014523';
         image_file = 'https://stereo.gsfc.nasa.gov/img/stereoimages/preview/euvisdoCarringtonMap.jpg';
