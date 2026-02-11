@@ -30,11 +30,12 @@ u_max = 5e-6; % [km / s^2]
 
 % Problem Parameters
 N = 50;
+Nu = N - 1;
 
 nx = 6;
 nu = 3;
 
-t_k = linspace(t_span(1), t_span(2), N + 1);
+t_k = linspace(t_span(1), t_span(2), N);
 delta_t = t_k(2) - t_k(1);
 
 % Algorithm Parameters
@@ -47,36 +48,36 @@ r_c = 6728; % [km] ISS Keplerian circular orbit
 n = sqrt(mu / r_c ^ 3);
 
 %% Linearization
-f = @(t, x, u) CWH_EoM(t, x, u, mu, r_c);
-A = @(t, x, u) [zeros(3), eye(3); [3 * n ^ 2, 0, 0; 0, 0, 0; 0, 0, -n ^ 2], [0, 2 * n, 0; -2 * n, 0, 0; 0, 0, 0]];
-B = @(t, x, u) [zeros(nu); eye(nu)];
-c = @(t, x, u) f(t, x, u) - A(t, x, u) * x - B(t, x, u) * u;
+f = @(t, x, u, p) CWH_EoM(t, x, u, mu, r_c);
+A = @(t, x, u, p) [zeros(3), eye(3); [3 * n ^ 2, 0, 0; 0, 0, 0; 0, 0, -n ^ 2], [0, 2 * n, 0; -2 * n, 0, 0; 0, 0, 0]];
+B = @(t, x, u, p) [zeros(nu); eye(nu)];
+c = @(t, x, u, p) f(t, x, u, p) - A(t, x, u, p) * x - B(t, x, u, p) * u;
 
-x_ref = @(t) x_0;
-u_ref = @(t) zeros([nu, 1]);
+x_ref = x_0 .* ones([nx, N]);
+u_ref = zeros([nu, Nu]);
 
 %% Discretization
-[A_k, B_k, c_k] = discretize_dynamics_ZOH(f, A, B, c, N, t_span, x_ref, u_ref, tolerances);
+[A_k, B_k, E_k, c_k, Delta] = discretize_dynamics_ZOH(f, A, B, @(t, x, u, p) zeros([nx, 0]), c, N, t_k, x_ref, u_ref, [], tolerances);
 
 %% Test Discretization
 test_dyn = @(k, x, u) A_k(:, :, k) * x + B_k(:, :, k) * u + c_k(:, :, k);
-X_test = zeros([nx, N + 1]);
+X_test = zeros([nx, N]);
 X_test(:, 1) = x_0;
 
-for k = 1:N
-    X_test(:, k + 1) = test_dyn(k, X_test(:, k), u_ref(t_k(k)));
+for k = 1:Nu
+    X_test(:, k + 1) = test_dyn(k, X_test(:, k), u_ref(:, k));
 end
 
 %% Solve with CVX
 cvx_begin
-    variable X_sol(nx, N + 1)
-    variable U_sol(nu, N)
+    variable X_sol(nx, N)
+    variable U_sol(nu, Nu)
     minimize( sum(norms(U_sol, 2, 1) * delta_t) )
     subject to
         norms(U_sol, 2, 1) <= u_max;
         X_sol(:, 1) == x_0;
         X_sol(:, end) == x_f;
-        for k = 1:N
+        for k = 1:Nu
             X_sol(:, k + 1) == A_k(:, :, k) * X_sol(:, k) + B_k(:, :, k) * U_sol(:, k) + c_k(:, :, k);
         end
 cvx_end
@@ -84,7 +85,7 @@ cvx_end
 %% Plot Solution
 figure
 plot3(X_sol(1, :), X_sol(2, :), X_sol(3, :)); hold on
-quiver3(X_sol(1, 1:N), X_sol(2, 1:N), X_sol(3, 1:N), U_sol(1, :), U_sol(2, :), U_sol(3, :)); hold off
+quiver3(X_sol(1, 1:Nu), X_sol(2, 1:Nu), X_sol(3, 1:Nu), U_sol(1, :), U_sol(2, :), U_sol(3, :)); hold off
 title("Convex Minimum Fuel Control of Relative Orbit Transfer Near ISS")
 xlabel("r [km]")
 ylabel("\theta [km]")
@@ -121,10 +122,10 @@ nexttile
 
 u_mag = vecnorm(U_sol, 2, 1);
 
-plot(t_k(1:N), U_sol(1, :) * 1e6, DisplayName="u_r"); hold on
-plot(t_k(1:N), U_sol(2, :) * 1e6, DisplayName="u_\theta"); hold on
-plot(t_k(1:N), U_sol(3, :) * 1e6, DisplayName="u_n"); hold on
-plot(t_k(1:N), u_mag * 1e6, DisplayName="||u||"); hold off
+plot(t_k(1:Nu), U_sol(1, :) * 1e6, DisplayName="u_r"); hold on
+plot(t_k(1:Nu), U_sol(2, :) * 1e6, DisplayName="u_\theta"); hold on
+plot(t_k(1:Nu), U_sol(3, :) * 1e6, DisplayName="u_n"); hold on
+plot(t_k(1:Nu), u_mag * 1e6, DisplayName="||u||"); hold off
 title("RTN Frame Control History")
 xlabel("Time [s]")
 ylabel("Control [mm / s2]")
