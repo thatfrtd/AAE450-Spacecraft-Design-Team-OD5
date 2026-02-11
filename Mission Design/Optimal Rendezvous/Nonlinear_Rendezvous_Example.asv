@@ -13,20 +13,20 @@ char_star = load_charecteristic_values_Earth();
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = 3000; % [s]
+spacecraft_params.Isp = 1000; % [s]
 spacecraft_params.m_0 = 800; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = 1; % [N]
+spacecraft_params.F_max = 2; % [N]
 F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = 10000; % [km] semi-major axis
-e_c = 0.1; % [] eccentricity
-i_c = deg2rad(1e-3); % [rad] inclination
+a_c = 6728; % [km] semi-major axis
+e_c = 0; % [] eccentricity
+i_c = deg2rad(10); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu0_c = deg2rad(0); % [rad] true anomaly at epoch
-M0_c = eccentric_to_true_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
+M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
 % Initial conditions for spacecraft - specify orbit instead?
@@ -40,14 +40,14 @@ v_f = [0.2e-3; 0; 0]; % [km / s]
 x_f = [r_f / char_star.l; v_f / char_star.v];
 
 %% Initialize
-tf = 3600 / char_star.t;
+tf = 7200 / char_star.t;
 N = 50;
-t_k_actual = linspace(t0, tf, N);
+t_k_actual = linspace(0, tf, N);
 tspan = [0, tf];
 t_k = linspace(tspan(1), tspan(2), N);
 delta_t = t_k(2) - t_k(1);
 
-u_hold = "FOH";
+u_hold = "ZOH";
 Nu = (u_hold == "ZOH") * (N - 1) + (u_hold == "FOH") * N;
 
 parser = "CVX";
@@ -56,23 +56,32 @@ nu = 3;
 np = 0;
 
 % PTR algorithm parameters
-ptr_ops.iter_max = 20;
-ptr_ops.iter_min = 3;
-ptr_ops.Delta_min = 5e-3;
+ptr_ops.iter_max = 10;
+ptr_ops.iter_min = 1;
+ptr_ops.Delta_min = 5e-10;
 ptr_ops.w_vc = 5e4;
-ptr_ops.w_tr = ones(1, Nu) * 5e-4;
+ptr_ops.w_tr = ones(1, Nu) * 5e-2;
 ptr_ops.w_tr_p = 0;
 ptr_ops.update_w_tr = false;
 ptr_ops.delta_tol = 1e-2;
 ptr_ops.q = 2;
 ptr_ops.alpha_x = 1;
-ptr_ops.alpha_u = 0;
+ptr_ops.alpha_u = 1;
 ptr_ops.alpha_p = 0;
 
 scale = false;
 
+scale_hint.x_max = [max(x_0(1:3)) * ones([3, 1]); max(x_0(4:6)) * ones([3, 1]); spacecraft_params.m_0 / char_star.m];
+scale_hint.x_min = [-max(x_0(1:3)) * ones([3, 1]); -max(x_0(4:6)) * ones([3, 1]); spacecraft_params.m_0 / char_star.m * 0.95];
+scale_hint.u_max = [F_max_nd * ones([3, 1])];
+scale_hint.u_min = [zeros([3, 1])];
+scale_hint.p_max = [];
+scale_hint.p_min = [];
+
 %% Get Dynamics
-f = @(t, x, u, p) nonlinear_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
+%f = @(t, x, u, p) nonlinear_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
+f = @(t, x, u, p) linearized_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
+%f = @(t, x, u, p) CWH_relative_orbit_EoM(t, x, u, p, [a_c; spacecraft_params.Isp]);
 
 %% Specify Constraints
 state_convex_constraints = {};
@@ -99,19 +108,16 @@ initial_bc = @(x, p) x - x_0;
 terminal_bc = @(x, p, x_ref, p_ref) [x(1:6) - x_f; 0]; % Don't constrain final mass
 
 %% Specify Objective
-objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) x_0(7) - x(7, end);
+objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u)) * delta_t * char_star.F / (spacecraft_params.Isp * 9.81e-3) * 1000;
 
 %% Create Guess
 % Straight Line Initial Guess - Lambert better?
-
-x_0_guess = [x_cart_A(1:3); velA_plus_loc];
-
-guess.x = propagate_conic_array(x_0_guess, t_k, 1);
-guess.u = [ones([1, Nu]); zeros([2, Nu])];
+guess.x = linspace(0, 1, N) .* (x_0 - [x_f; x_0(7)]) + x_0;
+guess.u = ones([3, Nu]) * 1e-6;
 guess.p = [];
 
 %% Construct Problem Object
-problem = DeterministicProblem(x_0, x_cart_B, N, u_hold, tf, f, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = 1e-12, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous");
+problem = DeterministicProblem(x_0, x_f, N, u_hold, tf, f, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = 1e-12, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous");
 
 [problem, Delta_disc] = problem.discretize(guess.x, guess.u, guess.p);
 
@@ -147,42 +153,29 @@ grid on
 
 %% Extract Solution
 i = ptr_sol.converged_i + 1;
-x = ptr_sol.x(:, :, i);
-u_RTN = ptr_sol.u(:, :, i);
-u = pagemtimes(RTN_to_ECI_array(x(1:3, 1:Nu), x(4:6, 1:Nu)), reshape(u_RTN, 3, 1, []));
+x = ptr_sol.x(:, :, i) .* [char_star.l * ones(3, 1); char_star.v * ones(3, 1); char_star.m];
+u = ptr_sol.u(:, :, i) * char_star.F * 1000;
 
 [t_cont_sol, x_cont_sol, u_cont_sol] = problem.cont_prop(ptr_sol.u(:, :, i), ptr_sol.p(:, i));
-
-t_plot = linspace(t0, tf_actual, 360);
-x_cart_A_plot = ephemerisCall(planets_mat(planet_ID_A_i,:), t_plot * char_star.t);
-x_cart_B_plot = ephemerisCall(planets_mat(planet_ID_B_i,:), t_plot * char_star.t);
+t_cont_sol = t_cont_sol * char_star.t;
+x_cont_sol = x_cont_sol .* [char_star.l * ones(3, 1); char_star.v * ones(3, 1); char_star.m];
+u_cont_sol = u_cont_sol * char_star.F * 1000;
 
 %% Plot Trajectory
 figure
 plot_cartesian_orbit(x_cont_sol(1:3,:)', 'k', 0.4, 1); hold on
 quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(1, :), u(2, :), u(3, :), 1, "filled", Color = "red")
-plot_cartesian_orbit(guess.x(1:3, :)', 'g', 0.4, 1); hold on
-plot_cartesian_orbit(x_cart_A_plot(1:3, :)', 'b', 0.3, 1)
-plot_cartesian_orbit(x_cart_B_plot(1:3, :)', 'cyan', 0.3, 1)
-scatter3(x_cart_A_plot(1, 1), x_cart_A_plot(2, 1), x_cart_A_plot(3, 1), "green")
-scatter3(x_cart_B_plot(1, end), x_cart_B_plot(2, end), x_cart_B_plot(3, end), "red")
-plot3(0,0,0,'yo','MarkerFaceColor','y','MarkerSize',5,'DisplayName','Star');
-title('Optimal Solar Sail Transfer Trajectory')
-xlabel('X [AU]'); ylabel('Y [AU]'); zlabel('Z [AU]')
-legend('Spacecraft', "", "Thrust", 'Guess', "", sprintf("%s", cell2mat(planets_table.Name(planet_ID_A_i))), "", sprintf("%s", cell2mat(planets_table.Name(planet_ID_B_i))), "", "Start", "End", "Altaira", 'Location', 'northwest'); axis equal; grid on
-
+title('Optimal Rendezvous')
+xlabel('X [km]'); ylabel('Y [km]'); zlabel('Z [km]')
+legend('Spacecraft', "", "Thrust", 'Location', 'northwest'); axis equal; grid on
 
 %% Plot Control
-[alpha_disc, beta_disc, Gamma_disc] = alpha_beta_Gamma_from_u(u_RTN);
-[alpha_cont, beta_cont, Gamma_cont] = alpha_beta_Gamma_from_u(u_cont_sol);
-
 figure
-tiledlayout(1, 3)
 
-nexttile
 plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(1:3,:), LineWidth=1); hold on
 plot(t_cont_sol(1:end - (N - Nu)), vecnorm(u_cont_sol(1:3,:)), LineWidth=1)
 title("Control")
 xlabel("Time")
+ylabel("Force [N]")
 legend("\hat{r}", "\hat{\theta}", "\hat{h}", "||u||", Interpreter="latex")
 grid on
