@@ -31,13 +31,12 @@ x_keplerian_c(4) = x_keplerian_c(4) + Q_params.Theta_rot;
 
 % NONDIMENSIONALIZE (mu = 1)
 char_star = load_charecteristic_values(mu, x_keplerian_c(1));
-char_star.m = spacecraft_params.m_0;
-char_star.F = char_star.m * char_star.a;
 nd_scalar = [char_star.l; ones([5, 1]); char_star.m];
 x_keplerian_d_nd = x_keplerian_d ./ nd_scalar(1:6);
 x_keplerian_c_nd = x_keplerian_c ./ nd_scalar(1:6);
 F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
 r_p_min_nd = penalty_params.r_p_min / char_star.l;
+m_0_nd = spacecraft_params.m_0 / char_star.m;
 m_dry_nd = spacecraft_params.m_dry / char_star.m;
 
 % Get Modified Equinoctial elements
@@ -52,7 +51,7 @@ Q_stop = QLaw_stopping_condition(options.R_c, Q_params.W_oe);
 
 % Prepare integration
 tolerances = odeset(RelTol=options.integration_tolerance, AbsTol=options.integration_tolerance, Stats = "off");
-x_me_mass_nd = [x_me_d_nd; 1]; % [p, f, g, h, k, L, mass]
+x_me_mass_nd = [x_me_d_nd; m_0_nd]; % [p, f, g, h, k, L, mass]
 u_nd = zeros([3, 1]); % [F_T, F_R, F_N]
 alpha = 0;
 beta = 0;
