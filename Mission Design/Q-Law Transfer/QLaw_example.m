@@ -34,7 +34,7 @@ M_d = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_d, e_d), e_d);
 x0_d_keplerian = [a_d; e_d; i_d; Omega_d; omega_d; M_d];
 x0_d_cartesian = keplerian_to_cartesian(x0_d_keplerian, nu_d, mu_E);
 
-[l_star, t_star] = nondimensionalized_quantities(a_c, mu_E);
+char_star = load_charecteristic_values_Earth();
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
@@ -71,7 +71,7 @@ Qdot_opt_params.num_start_points = 10;
 Qdot_opt_params.strategy = "Best Start Points";
 Qdot_opt_params.plot_minQdot_vs_L = true;
 
-[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = true, iter_max = 1000);
+[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = true, iter_max = 200);
 
 if Qtransfer.converged
     fprintf("Q-Law Transfer Converged! Took %.3f Days Using %.3f kg Propellant\n", Qtransfer.dt / 60 / 60 / 24, Qtransfer.delta_m)

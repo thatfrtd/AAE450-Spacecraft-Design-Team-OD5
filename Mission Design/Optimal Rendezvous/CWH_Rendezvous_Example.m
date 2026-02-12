@@ -85,12 +85,14 @@ cvx_end
 %% Plot Solution
 figure
 plot3(X_sol(1, :), X_sol(2, :), X_sol(3, :)); hold on
-quiver3(X_sol(1, 1:Nu), X_sol(2, 1:Nu), X_sol(3, 1:Nu), U_sol(1, :), U_sol(2, :), U_sol(3, :)); hold off
+quiver3(X_sol(1, 1:Nu), X_sol(2, 1:Nu), X_sol(3, 1:Nu), U_sol(1, :), U_sol(2, :), U_sol(3, :)); hold on
+scatter3(x_0(1), x_0(2), x_0(3), 48, "green", "filled", "square"); hold on
+scatter3(x_f(1), x_f(2), x_f(3), 48, "red", "x"); hold off
 title("Convex Minimum Fuel Control of Relative Orbit Transfer Near ISS")
 xlabel("r [km]")
 ylabel("\theta [km]")
 zlabel("n [km]")
-legend("Trajectory", "Thrust", location = "eastoutside")
+legend("Trajectory", "Thrust", "Start", "End", location = "eastoutside")
 grid on
 
 figure
@@ -122,10 +124,10 @@ nexttile
 
 u_mag = vecnorm(U_sol, 2, 1);
 
-plot(t_k(1:Nu), U_sol(1, :) * 1e6, DisplayName="u_r"); hold on
-plot(t_k(1:Nu), U_sol(2, :) * 1e6, DisplayName="u_\theta"); hold on
-plot(t_k(1:Nu), U_sol(3, :) * 1e6, DisplayName="u_n"); hold on
-plot(t_k(1:Nu), u_mag * 1e6, DisplayName="||u||"); hold off
+stairs(t_k(1:Nu), U_sol(1, :) * 1e6, DisplayName="u_r"); hold on
+stairs(t_k(1:Nu), U_sol(2, :) * 1e6, DisplayName="u_\theta"); hold on
+stairs(t_k(1:Nu), U_sol(3, :) * 1e6, DisplayName="u_n"); hold on
+stairs(t_k(1:Nu), u_mag * 1e6, DisplayName="||u||"); hold off
 title("RTN Frame Control History")
 xlabel("Time [s]")
 ylabel("Control [mm / s2]")

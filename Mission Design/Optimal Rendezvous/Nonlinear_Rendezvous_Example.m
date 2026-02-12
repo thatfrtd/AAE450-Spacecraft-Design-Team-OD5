@@ -16,12 +16,12 @@ spacecraft_params = struct();
 spacecraft_params.Isp = 1000; % [s]
 spacecraft_params.m_0 = 800; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = 0.5; % [N]
+spacecraft_params.F_max = 4; % [N]
 F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = 6728; % [km] semi-major axis
-e_c = 0; % [] eccentricity
+e_c = 0.0; % [] eccentricity
 i_c = deg2rad(10); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
@@ -29,8 +29,11 @@ nu0_c = deg2rad(0); % [rad] true anomaly at epoch
 M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
+% Rendezvous time
+tf = 3600 / char_star.t; % [s] (nondimensionalized)
+
 % Initial conditions for spacecraft - specify orbit instead?
-r_0 = [-1.5; -0.5; 0.2]; % [km]
+r_0 = [-0.5; -0.5; 0.2]; % [km]
 v_0 = [3e-3; 0; 0]; % [km / s]
 x_0 = [r_0 / char_star.l; v_0 / char_star.v; spacecraft_params.m_0 / char_star.m];
 
@@ -40,14 +43,13 @@ v_f = [0.2e-3; 0; 0]; % [km / s]
 x_f = [r_f / char_star.l; v_f / char_star.v];
 
 %% Initialize
-tf = 3600*5 / char_star.t;
 N = 50;
 t_k_actual = linspace(0, tf, N);
 tspan = [0, tf];
 t_k = linspace(tspan(1), tspan(2), N);
 delta_t = t_k(2) - t_k(1);
 
-u_hold = "ZOH";
+u_hold = "FOH";
 Nu = (u_hold == "ZOH") * (N - 1) + (u_hold == "FOH") * N;
 
 parser = "CVX";
@@ -79,9 +81,9 @@ scale_hint.p_max = [];
 scale_hint.p_min = [];
 
 %% Get Dynamics
-%f = @(t, x, u, p) nonlinear_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
-%f = @(t, x, u, p) linearized_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
-f = @(t, x, u, p) CWH_relative_orbit_EoM(t, x, u, p, [a_c; spacecraft_params.Isp]);
+f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
+f_linearized = @(t, x, u, p) linearized_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
+f_CWH = @(t, x, u, p) CWH_relative_orbit_EoM(t, x, u, p, [a_c; spacecraft_params.Isp]);
 
 %% Specify Constraints
 state_convex_constraints = {};
@@ -117,7 +119,7 @@ guess.u = ones([3, Nu]) * 1e-6;
 guess.p = [];
 
 %% Construct Problem Object
-problem = DeterministicProblem(x_0, x_f, N, u_hold, tf, f, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = 1e-12, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous");
+problem = DeterministicProblem(x_0, x_f, N, u_hold, tf, f_CWH, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = 1e-12, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous");
 
 [problem, Delta_disc] = problem.discretize(guess.x, guess.u, guess.p);
 
@@ -156,6 +158,7 @@ i = ptr_sol.converged_i + 1;
 x = ptr_sol.x(:, :, i) .* [char_star.l * ones(3, 1); char_star.v * ones(3, 1); char_star.m];
 u = ptr_sol.u(:, :, i) * char_star.F * 1000;
 
+problem.cont.f = f_CWH;
 [t_cont_sol, x_cont_sol, u_cont_sol] = problem.cont_prop(ptr_sol.u(:, :, i), ptr_sol.p(:, i));
 t_cont_sol = t_cont_sol * char_star.t;
 x_cont_sol = x_cont_sol .* [char_star.l * ones(3, 1); char_star.v * ones(3, 1); char_star.m];

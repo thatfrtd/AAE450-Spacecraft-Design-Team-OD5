@@ -20,7 +20,7 @@ function [A_k, B_k_plus, B_k_minus, S_k, d_k, x] = integrate_error_discrete_FOH(
     sigma_plus = @(t) (t - tspan(1)) ./ (tspan(2) - tspan(1));
     sigma_minus = @(t) (tspan(2) - t) ./ (tspan(2) - tspan(1));
 
-    tolerances = odeset(RelTol=1e-3, AbsTol=1e-3, Stats = "off", InitialStep = 1 * (tspan(2) - tspan(1)), MaxStep = 1 * (tspan(2) - tspan(1)));
+    %tolerances = odeset(RelTol=1e-3, AbsTol=1e-3, Stats = "off", InitialStep = 1 * (tspan(2) - tspan(1)), MaxStep = 1 * (tspan(2) - tspan(1)));
 
     % Simulate    
     [~, y] = ode45(@(t, y) STM_diff_eq_FOH(t, y, A, B, S, f, u, s, sigma_plus, sigma_minus, nx, nu, np), tspan, y0, tolerances);

@@ -31,6 +31,8 @@ x_keplerian_c(4) = x_keplerian_c(4) + Q_params.Theta_rot;
 
 % NONDIMENSIONALIZE (mu = 1)
 char_star = load_charecteristic_values(mu, x_keplerian_c(1));
+char_star.m = spacecraft_params.m_0;
+char_star.F = char_star.m * char_star.a;
 nd_scalar = [char_star.l; ones([5, 1]); char_star.m];
 x_keplerian_d_nd = x_keplerian_d ./ nd_scalar(1:6);
 x_keplerian_c_nd = x_keplerian_c ./ nd_scalar(1:6);
