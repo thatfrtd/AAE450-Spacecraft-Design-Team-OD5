@@ -5,7 +5,7 @@
 % Created On: 11 February, 2026
 % Description: CWH Convex trajectory optimization with ZOH control. Computes 
 % a fuel optimal relative orbit transfer. You must have CVX installed
-% Created On: 12 February, 2026
+% Last Modified On: 12 February, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Initialization
@@ -81,12 +81,13 @@ figure
 plot3(X_sol(1, :), X_sol(2, :), X_sol(3, :)); hold on
 quiver3(X_sol(1, 1:Nu), X_sol(2, 1:Nu), X_sol(3, 1:Nu), U_sol(1, :), U_sol(2, :), U_sol(3, :)); hold on
 scatter3(x_0(1), x_0(2), x_0(3), 48, "green", "filled", "square"); hold on
-scatter3(x_f(1), x_f(2), x_f(3), 48, "red", "x"); hold off
+scatter3(x_f(1), x_f(2), x_f(3), 48, "red", "x"); hold on
+scatter3(0, 0, 0, 60, "blue", "filled", "diamond"); hold off
 title("Convex Minimum Fuel Control of Relative Orbit Transfer Near ISS")
 xlabel("r [km]")
 ylabel("\theta [km]")
 zlabel("n [km]")
-legend("Trajectory", "Thrust", "Start", "End", location = "eastoutside")
+legend("Trajectory", "Thrust", "Start", "End", "ISS", location = "eastoutside")
 grid on
 
 figure
