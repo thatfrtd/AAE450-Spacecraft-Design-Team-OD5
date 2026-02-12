@@ -3,49 +3,48 @@
 % CWH Rendezvous Example
 % Author: Travis Hastreiter 
 % Created On: 11 February, 2026
-% Description: CWH Convex Trajectory Optimization with ZOH control. You
-% must have CVX installed
-% Created On: 11 February, 2026
+% Description: CWH Convex trajectory optimization with ZOH control. Computes 
+% a fuel optimal relative orbit transfer. You must have CVX installed
+% Created On: 12 February, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Initialization
-% Physical Parameters
+% Physical parameters
 mu = 398600.4415; % [km2 / s3] Earth gravitational parameter
+u_max = 5e-6; % [km / s^2] Max control acceleration
 
+% Initial conditions
 r_0 = [-1.5; -0.5; 0.2]; % [km]
-r_f = [-0.25; 0; 0]; % [km]
-
 v_0 = [3e-3; 0; 0]; % [km / s]
-v_f = [0.2e-3; 0; 0]; % [km / s]
-
 x_0 = [r_0; v_0];
+
+% Terminal conditions
+r_f = [-0.25; 0; 0]; % [km]
+v_f = [0.2e-3; 0; 0]; % [km / s]
 x_f = [r_f; v_f];
 
-t_0 = 0; % [s]
+% Time for relative orbit transfer
 t_f = 3600; % [s]
 
-t_span = [t_0, t_f];
-
-u_max = 5e-6; % [km / s^2]
+t_span = [0, t_f];
 
 % Problem Parameters
-N = 50;
-Nu = N - 1;
+N = 50; % Number of time discretization points
+Nu = N - 1; % Number of control steps to find
 
-nx = 6;
-nu = 3;
+nx = 6; % Number of states
+nu = 3; % Number of controls
 
 t_k = linspace(t_span(1), t_span(2), N);
 delta_t = t_k(2) - t_k(1);
 
-% Algorithm Parameters
+% Algorithm parameters
 default_tolerance = 1e-12;
 tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance);
 
-% Chief Orbit Parameters
+% Chief orbit parameters
 r_c = 6728; % [km] ISS Keplerian circular orbit
-
-n = sqrt(mu / r_c ^ 3);
+n = sqrt(mu / r_c ^ 3); % Mean motion of orbit
 
 %% Linearization
 f = @(t, x, u, p) CWH_EoM(t, x, u, mu, r_c);
@@ -53,34 +52,29 @@ A = @(t, x, u, p) [zeros(3), eye(3); [3 * n ^ 2, 0, 0; 0, 0, 0; 0, 0, -n ^ 2], [
 B = @(t, x, u, p) [zeros(nu); eye(nu)];
 c = @(t, x, u, p) f(t, x, u, p) - A(t, x, u, p) * x - B(t, x, u, p) * u;
 
+% Reference trajectory (not needed because the dynamics are linear)
 x_ref = x_0 .* ones([nx, N]);
 u_ref = zeros([nu, Nu]);
 
 %% Discretization
+% Discretize time by integrating the effect of the dynamics and control
+% over each timestep to get transition matrices
 [A_k, B_k, E_k, c_k, Delta] = discretize_dynamics_ZOH(f, A, B, @(t, x, u, p) zeros([nx, 0]), c, N, t_k, x_ref, u_ref, [], tolerances);
 
-%% Test Discretization
-test_dyn = @(k, x, u) A_k(:, :, k) * x + B_k(:, :, k) * u + c_k(:, :, k);
-X_test = zeros([nx, N]);
-X_test(:, 1) = x_0;
-
-for k = 1:Nu
-    X_test(:, k + 1) = test_dyn(k, X_test(:, k), u_ref(:, k));
-end
-
 %% Solve with CVX
+% Create optimization problem (CVX automatically solves it after cvx_end)
 cvx_begin
-    variable X_sol(nx, N)
-    variable U_sol(nu, Nu)
-    minimize( sum(norms(U_sol, 2, 1) * delta_t) )
+    variable X_sol(nx, N) % State history
+    variable U_sol(nu, Nu) % Control history
+    minimize( sum(norms(U_sol, 2, 1) * delta_t) ) % Minimize total control use
     subject to
-        norms(U_sol, 2, 1) <= u_max;
-        X_sol(:, 1) == x_0;
-        X_sol(:, end) == x_f;
-        for k = 1:Nu
+        norms(U_sol, 2, 1) <= u_max; % Maximum control acceleration constraint
+        X_sol(:, 1) == x_0; % Initial condition
+        X_sol(:, end) == x_f; % Terminal condition
+        for k = 1:Nu % Loop for dynamics
             X_sol(:, k + 1) == A_k(:, :, k) * X_sol(:, k) + B_k(:, :, k) * U_sol(:, k) + c_k(:, :, k);
         end
-cvx_end
+cvx_end % End definition and solve problem
 
 %% Plot Solution
 figure
