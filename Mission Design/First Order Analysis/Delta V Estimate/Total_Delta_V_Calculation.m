@@ -4,7 +4,7 @@ close all
 Re = 6371;  %mean earth radius [km]
 mu = 398600.435507;  %earth gravitational parameter [km^3/s^2]
 
-F = 0.1;  %Electric Propulsion System Thrust [N] 
+F = 1;  %Electric Propulsion System Thrust [N] 
 M_total = 1000;  %system mass [kg]
 a_theta = F / M_total * 10 ^ -3;  %acceleration in the theta (tangential) direction [km / s ^ 2]
 
@@ -21,6 +21,28 @@ h_f = 200; %Final debris disposal altitude [km]
 
 [V_3, t_3] = Spiral_Transfer_Altitude_Change(h_0, h_f, a_theta, Re, mu);  %delta v required to lower the spacecraft from debris orbit to disposal orbit using a spiral transfer [km/s]
 
-Delta_V_total = V_1 + V_2 + V_3  %[km/s]  Total delta V for all the phases [km/s]
+h_drift = 2000; %Altitude to wait for RAAN drift
 
-Mission_Time = (t_1 + t_2 + t_3) / 3600 / 24  %mission time [days]
+[V_4, t_4] = Spiral_Transfer_Altitude_Change(h_f, h_drift, a_theta, Re, mu);  %delta v required to lower the spacecraft from debris orbit to disposal orbit using a spiral transfer [km/s]
+
+RAAN_drift = rad2deg(J2_RAAN_drift(Re + h_drift, 0, 71, mu, Re));
+RAAN_drift_target = rad2deg(J2_RAAN_drift(Re + h_0, 0, 71, mu, Re));
+
+RAAN_diff = 20; % [deg]
+RAAN_drift_wait = RAAN_diff / abs(RAAN_drift-RAAN_drift_target);
+
+[V_5, t_5] = Spiral_Transfer_Altitude_Change(h_drift, h_0, a_theta, Re, mu);  %delta v required to lower the spacecraft from debris orbit to disposal orbit using a spiral transfer [km/s]
+
+Delta_V_total = V_1 + V_2 + V_3 + V_4 + V_5 %[km/s]  Total delta V for all the phases [km/s]
+
+Mission_Time = (t_1 + t_2 + t_3 + t_4 + RAAN_drift_wait + t_5) / 3600 / 24  %mission time [days]
+%%
+figure
+bar([V_1, V_2, V_3, V_4, V_5])
+title("dV")
+grid on
+
+figure 
+bar([t_1, t_2, t_3, t_4, RAAN_drift_wait, t_5] / 3600 / 24)
+title("Time")
+grid on
