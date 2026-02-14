@@ -13,11 +13,9 @@ mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 J_2_val = 1.0826e-3; % [] Earth J2
 
 % Orbit
-a = R_E + 1000;
+a = R_E + 3000;
 e = 0.01;
-p = a * (1 - e ^ 2);
 i = deg2rad(71);
 
-% Calculate RAAN change from J2
-n_bar = (1 + 3 / 2 * J_2_val * (R_E / p) ^ 2 * sqrt(1 - e ^ 2) * (1 - 3 / 2 * sin(i) ^ 2)) * sqrt(mu_E / a ^ 3);
-Omegadot = rad2deg((-3 / 2 * J_2_val * (R_E / p) ^ 2 * cos(i)) * n_bar);
+% Calculate RAAN (Omega) drift
+Omega_drift_per_day = rad2deg(J2_RAAN_drift(a, e, i, mu_E, R_E, J_2_val)) * 60 * 60 * 24;
