@@ -46,7 +46,7 @@ x_me_d_nd = keplerian_to_modified_equinoctial(x_keplerian_d_nd, []);
 x_me_c_nd = keplerian_to_modified_equinoctial(x_keplerian_c_nd, []);
 
 % Gather target elements (a, f, g, h, k)
-oe_t = [x_keplerian_c(1); x_me_c_nd(2:5)];
+oe_t = [x_keplerian_c(1) / char_star.l; x_me_c_nd(2:5)];
 
 % Get stopping condition
 Q_stop = QLaw_stopping_condition(options.R_c, Q_params.W_oe);
@@ -72,27 +72,39 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
     L = x_me_mass_nd(6, end);
 
     % Calculate periapsis constraint
-    r_p = a * (1 + e);
+    r_p = a * (1 - e);
     P(iter) = periapsis_penalty(r_p, r_p_min_nd, penalty_params.k);
     
     % Calculate Q function
     S_oe = QLaw_scaling(oe(1), oe_t(1), Q_params.m, Q_params.n, Q_params.r);
-    oedot_xx = QLaw_oe_max_rate(oe, 1, spacecraft_params.F_max);
+    oedot_xx = QLaw_oe_max_rate(oe, 1, F_max_nd);
     Q(iter) = Q_function(oe, oe_t, penalty_params.W_p, P(iter), S_oe, Q_params.W_oe, oedot_xx);
     
+    S_oe_ck = QLaw_scaling_sym(oe, oe_t, Q_params.W_oe, Q_params.m, Q_params.n, Q_params.r, F_max_nd, penalty_params.W_p, r_p_min_nd, penalty_params.k);
+    oedot_xx_ck = QLaw_oe_max_rate_sym(oe, oe_t, Q_params.W_oe, Q_params.m, Q_params.n, Q_params.r, F_max_nd, penalty_params.W_p, r_p_min_nd, penalty_params.k);
+    Q_ck = Q_func_sym(oe, oe_t, Q_params.W_oe, Q_params.m, Q_params.n, Q_params.r, F_max_nd, penalty_params.W_p, r_p_min_nd, penalty_params.k);
+
+    fprintf("Scaling check %.3f\n", norm(S_oe - S_oe_ck))
+    fprintf("Max oe rate check %.3f\n", norm(oedot_xx - oedot_xx_ck))
+    fprintf("Q function check %.3f\n", norm(Q - Q_ck))
+
     % Calculate control
     [D, Qdot, partial_Q_partial_oe] = D_Qdot_partial_Q_partial_oe_func(oe, L, oe_t, Q_params.W_oe, Q_params.m, Q_params.n, Q_params.r, F_max_nd, penalty_params.W_p, r_p_min_nd, penalty_params.k);
-    [u_nd(:, iter), alpha(iter), beta(iter)] = QLaw_thrust_mapping(D, F_max_nd);
+    [u_nd(:, iter), alpha(iter), beta(iter), Qdot_ab] = QLaw_thrust_mapping(D, F_max_nd);
+
+    Q_form = -norm(partial_Q_partial_oe * B_oe_func(oe, L));
 
     % Determine if thrusting should happen based on heuristic
-    [Qdot_min, Qdot_max] = Qdot_extremize(oe, partial_Q_partial_oe, Qdot_opt_params);
-    [eta_a, eta_r] = QLaw_efficiencies(Qdot, Qdot_min, Qdot_max);
-    not_coast = (eta_a >= Q_params.eta_a_min ...
+    [Qdot_min, Qdot_max] = Qdot_extremize(oe, partial_Q_partial_oe, Qdot_opt_params, L, Qdot_ab);
+    [eta_a, eta_r] = QLaw_efficiencies(Qdot_ab, Qdot_min, Qdot_max);
+    not_coast(iter) = (eta_a >= Q_params.eta_a_min ...
               && eta_r >= Q_params.eta_r_min);
-    u_nd(:, iter) = u_nd(:, iter) * not_coast;
+    u_nd(:, iter) = u_nd(:, iter) * not_coast(iter);
     a_control = @(x) u_nd(:, iter) / x_me_mass_nd(7, end); % a = F / m
-    mdot = -F_max_nd / (spacecraft_params.Isp * g_0 / char_star.v) * not_coast;
-    
+    mdot = -F_max_nd / (spacecraft_params.Isp * g_0 / char_star.v) * not_coast(iter);
+
+    fprintf("Coast? %.g\n", ~not_coast(iter))
+
     % Propagate orbit
     dt_step = options.angular_step * sqrt(r ^ 3 / 1) * sqrt(w) / (1 + e);
     tolerances.InitialStep = dt_step;
@@ -138,8 +150,9 @@ if options.return_dt_dm_only == false
     transfer.x_keplerian_mass(4, :) = transfer.x_keplerian_mass(4, :) - Q_params.Theta_rot;
     transfer.u = u_nd * char_star.F;
     transfer.t = t_nd * char_star.t;
-    transfer.delta_V = spacecraft_params.Isp * g_0 * log(spacecraft_params.m_0 / x_keplerian_mass(7, end));
+    transfer.delta_V = spacecraft_params.Isp * g_0 * log(spacecraft_params.m_0 / transfer.x_keplerian_mass(7, end));
     
+    transfer.not_coast = not_coast;
     transfer.alpha = alpha;
     transfer.beta = beta;
     

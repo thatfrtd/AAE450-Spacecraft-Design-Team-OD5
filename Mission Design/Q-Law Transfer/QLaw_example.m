@@ -25,7 +25,7 @@ x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 % Initial conditions for spacecraft
 a_d = 2 * (R_E + 500); % [km] semi-major axis
 e_d = 0.3; % [] eccentricity
-i_d = deg2rad(45); % [rad] inclination
+i_d = deg2rad(0); % [rad] inclination
 Omega_d = deg2rad(0); % [rad] right ascension of ascending node
 omega_d = deg2rad(0); % [rad] argument of periapsis
 nu_d = deg2rad(0); % [rad] true anomaly at epoch
@@ -41,7 +41,7 @@ spacecraft_params = struct();
 spacecraft_params.Isp = 3000; % [s]
 spacecraft_params.m_0 = 800; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = 1; % [N]
+spacecraft_params.F_max = 2; % [N]
 
 % Integration error tolerance
 default_tolerance = 1e-6;
@@ -52,12 +52,12 @@ a_d_0 = @(t, x) zeros([3, 1]); % Disturbance function
 % Min Periapsis soft constraint
 penalty_params = struct();
 penalty_params.k = 100; % Smoothing parameter
-penalty_params.W_p = 100; % Penalty weight
+penalty_params.W_p = 1; % Penalty weight
 penalty_params.r_p_min = R_E + 400; % [km] min periapsis
 
 % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
 Q_params = struct();
-Q_params.W_oe = ones([5, 1]); % Element weights 
+Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
 Q_params.eta_a_min = 0.1; % Minimum absolute efficiency for thrusting instead of coasting
 Q_params.eta_r_min = 0.1; % Minimum relative efficiency for thrusting instead of coasting
 Q_params.m = 3;
@@ -69,9 +69,9 @@ Q_params.Theta_rot = pi;
 Qdot_opt_params = struct();
 Qdot_opt_params.num_start_points = 10;
 Qdot_opt_params.strategy = "Best Start Points";
-Qdot_opt_params.plot_minQdot_vs_L = true;
+Qdot_opt_params.plot_minQdot_vs_L = false;
 
-[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = true, iter_max = 200);
+[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 10000, R_c = 0.01);
 
 if Qtransfer.converged
     fprintf("Q-Law Transfer Converged! Took %.3f Days Using %.3f kg Propellant\n", Qtransfer.dt / 60 / 60 / 24, Qtransfer.delta_m)
@@ -79,24 +79,24 @@ else
     fprintf("Q-Law Transfer Failed with %s\n", Qtransfer.errors)
 end
 
+figure
 plot(Qtransfer.Q)
 
 %% Integrate Target Orbit
 tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance);
-[t_keplerian_c, x_keplerian_c] = ode45(@(t,x) gauss_planetary_eqn(f0_keplerian(x, 1), B_keplerian(x, 1), a_d_0(t,x)), Qtransfer.t / t_star, x0_c_keplerian .* [1 / l_star, ones([1, 5])]', tolerances);
-x_keplerian_c(1, :) = x_keplerian_c(1, :) .* l_star; % Redimensionalize
+[t_keplerian_c, x_keplerian_c] = ode45(@(t,x) gauss_planetary_eqn(f0_keplerian(x, 1), B_keplerian(x, 1), a_d_0(t,x)), Qtransfer.t / char_star.t, x0_c_keplerian .* [1 / char_star.l, ones([1, 5])]', tolerances);
+x_keplerian_c = x_keplerian_c';
+x_keplerian_c(1, :) = x_keplerian_c(1, :) .* char_star.l; % Redimensionalize
 x_keplerian_cartesian_c = keplerian_to_cartesian_array(x_keplerian_c, [], mu_E);
 
 %% Plot Orbit
 figure
-tiledlayout(1,3,"TileSpacing","compact")
-nexttile
 earthy(R_E, "Earth", 0.5, [0;0;0]); hold on;
 axis equal
 
 x_keplerian_cartesian_d = keplerian_to_cartesian_array(Qtransfer.x_keplerian_mass(1:6, :), [], mu_E);
-plot_cartesian_orbit(x_keplerian_cartesian_c, 'r', 0, 1); hold on
-plot_cartesian_orbit(x_keplerian_cartesian_d, 'b', 0, 1); hold off
+plot_cartesian_orbit(x_keplerian_cartesian_c(:, 1:2:end)', 'r', 0, 1); hold on
+plot_cartesian_orbit(x_keplerian_cartesian_d(:, 1:2:end)', 'b', 0, 1); hold off
 
 title("Q-Law Orbit Transfer")
 legend("", "Target", "", "Spacecraft")
@@ -104,14 +104,23 @@ xlabel("X [km]")
 ylabel("Y [km]")
 zlabel("Z [km]")
 
+%%
+not_coast_colors = interp1(1:numel(Qtransfer.not_coast), double(Qtransfer.not_coast), linspace(1, numel(Qtransfer.not_coast), numel(Qtransfer.t)), 'nearest');
+%%
+figure
+plot_cartesian_orbit_color_varying(x_keplerian_cartesian_d(:, 1:1:end), not_coast_colors); hold off
+grid on
+colorbar
+axis equal
+
 %% Plot Orbit Error and Control Histories
 figure
-plot_orbit_transfer_histories(Qtransfer.t / 60, x_keplerian_c, Qtransfer.x_keplerian_mass(1:6, :), Qtransfer.u)
+plot_orbit_transfer_histories(Qtransfer.t / 60, x_keplerian_c', Qtransfer.x_keplerian_mass(1:6, :)', interp1(1:numel(Qtransfer.not_coast), Qtransfer.u', linspace(1, numel(Qtransfer.not_coast), numel(Qtransfer.t)), 'nearest'));
 sgtitle("Q-Law Orbit Transfer with Periapsis Constraint Results")
 
 %% Plot Q Function
 figure
-plot(Qtransfer.t / 60, Qtransfer.Q)
+plot(interp1(1:numel(Qtransfer.t), Qtransfer.t, linspace(1, numel(Qtransfer.Q), numel(Qtransfer.t))) / 60, Qtransfer.Q)
 xlabel("Time [hr]")
 ylabel("Q-Function []")
 title("Q-Function vs Time")
@@ -138,7 +147,7 @@ title("Q-Law Orbit Transfer Periapsis Constraint Nondimensionalized")
 
 %% Calculate Spiral Transfer Estimates
 dV_spiral = sqrt(mu_E / a_d) - sqrt(mu_E / a_c)
-m_f_spiral = mass * exp(-dV_spiral * 1000 / (Isp * g_0))
+m_f_spiral = mass * exp(-abs(dV_spiral) * 1000 / (Isp * g_0))
 
 %% Helper Functions
 

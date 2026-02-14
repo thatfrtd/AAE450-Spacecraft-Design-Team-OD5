@@ -11,22 +11,22 @@ R_E = 6378.1; % [km] Earth radius
 mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = 10000; % [km] semi-major axis
-e_c = 1e-3; % [] eccentricity
-i_c = deg2rad(1e-3); % [rad] inclination
-Omega_c = deg2rad(0); % [rad] right ascension of ascending node
-omega_c = deg2rad(0); % [rad] argument of periapsis
-nu_c = deg2rad(0); % [rad] true anomaly at epoch
+a_c = (R_E + 500); % [km] semi-major axis
+e_c = 0.01; % [] eccentricity
+i_c = deg2rad(71); % [rad] inclination
+Omega_c = deg2rad(20); % [rad] right ascension of ascending node
+omega_c = deg2rad(70); % [rad] argument of periapsis
+nu_c = deg2rad(120); % [rad] true anomaly at epoch
 
 M_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_c, e_c), e_c);
 x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
-a_d = 2 * (R_E + 500); % [km] semi-major axis
-e_d = 0.3; % [] eccentricity
-i_d = deg2rad(45); % [rad] inclination
-Omega_d = deg2rad(0); % [rad] right ascension of ascending node
+a_d = (R_E + 3000); % [km] semi-major axis
+e_d = 0.01; % [] eccentricity
+i_d = deg2rad(71); % [rad] inclination
+Omega_d = deg2rad(20); % [rad] right ascension of ascending node
 omega_d = deg2rad(0); % [rad] argument of periapsis
 nu_d = deg2rad(0); % [rad] true anomaly at epoch
 
@@ -39,13 +39,13 @@ x0_d_cartesian = keplerian_to_cartesian(x0_d_keplerian, nu_d, mu_E);
 % NEED TO ADD MASS IN STATE
 Isp = 3000; % [s]
 mass = 800; % [kg]
-u_max = 0.001e-3; % [km / s2]
+u_max = 0.002e-3; % [km / s2]
 
 u_max_star = u_max / l_star * t_star ^ 2;
 g_0 = 9.81; % [m / s2]
 
 % Propagation Time 
-orbits = 1200;
+orbits = 200;
 tspan = linspace(0, orbits * period(a_c, mu_E), 1e4);
 t_orbits = linspace(0, orbits, numel(tspan));
 t_hr = tspan / 60 / 60;
@@ -60,10 +60,11 @@ tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance);
 
 % Integrate target orbit
 [t_keplerian_c, x_keplerian_c] = ode45(@(t,x) gauss_planetary_eqn(f0_keplerian(x, 1), B_keplerian(x, 1), a_d_0(t,x)), tspan / t_star, x0_c_keplerian .* [1 / l_star, ones([1, 5])]', tolerances);
-x_keplerian_cartesian_c = keplerian_to_cartesian_array(x_keplerian_c ./ [1 / l_star, ones([1, 5])], [], mu_E);
+x_keplerian_c = x_keplerian_c';
+x_keplerian_cartesian_c = keplerian_to_cartesian_array(x_keplerian_c ./ [1 / l_star, ones([1, 5])]', [], mu_E);
 
 % Define Lyapunov feedback controller
-K = eye(5) * sqrt(2); % Gain matrix
+K = eye(5); % Gain matrix
 type = "quadratic"; % Penalty type
 k = 100; % Smoothing parameter
 w = 100; % Penalty weight
@@ -72,16 +73,17 @@ g = @(x_slow) r_p_min / l_star - x_slow(1) * (1 - x_slow(2)); % Min periapsis co
 g_partial_xslow = @(x_slow) [x_slow(2) - 1, x_slow(1), 0, 0, 0]; % Constraint jacobian
 epsilon = 1e-8;
 % Control acceleration function
-a_d_pkl = @(t, x) penalized_keplerian_lyapunov_bounded(x, interp1(t_keplerian_c, x_keplerian_c, t, "linear","extrap")', K, 1, w, g(x(1:5)), g_partial_xslow(x(1:5)), k, epsilon, type, u_max_star);
+a_d_pkl = @(t, x) penalized_keplerian_lyapunov_bounded(x, interp1(t_keplerian_c, x_keplerian_c', t, "linear","extrap")', K, 1, w, g(x(1:5)), g_partial_xslow(x(1:5)), k, epsilon, type, u_max_star);
 
 % Integrate spacecraft orbit with Lyapunov feedback control
 [t_keplerian_d, x_keplerian_d] = ode45(@(t,x) gauss_planetary_eqn(f0_keplerian(x, 1), B_keplerian(x, 1), a_d_pkl(t,x)), tspan / t_star, x0_d_keplerian .* [1 / l_star, ones([1, 5])]', tolerances);
-x_keplerian_cartesian_d = keplerian_to_cartesian_array(x_keplerian_d ./ [1 / l_star, ones([1, 5])], [], mu_E);
+x_keplerian_d = x_keplerian_d';
+x_keplerian_cartesian_d = keplerian_to_cartesian_array(x_keplerian_d ./ [1 / l_star, ones([1, 5])]', [], mu_E);
 
 % Convert control acceleration to thrust history
 u_cl_crit_penalty = zeros([numel(tspan), 3]);
 for i = 1:numel(tspan)
-    u_cl_crit_penalty(i, :) = a_d_pkl(t_keplerian_d(i), x_keplerian_d(i, :)') * l_star / t_star ^ 2;
+    u_cl_crit_penalty(i, :) = a_d_pkl(t_keplerian_d(i), x_keplerian_d(:, i)) * l_star / t_star ^ 2;
 end
 
 %% Plot
@@ -91,8 +93,8 @@ nexttile
 earthy(R_E, "Earth", 0.5, [0;0;0]); hold on;
 axis equal
 
-plot_cartesian_orbit(x_keplerian_cartesian_c, 'r', 0, 1); hold on
-plot_cartesian_orbit(x_keplerian_cartesian_d, 'b', 0, 1); hold off
+plot_cartesian_orbit(x_keplerian_cartesian_c', 'r', 0, 1); hold on
+plot_cartesian_orbit(x_keplerian_cartesian_d', 'b', 0, 1); hold off
 
 title("Penalized Keplerian Lyapunov Orbit Transfer")
 legend("", "Target", "", "Spacecraft")
@@ -101,16 +103,16 @@ ylabel("Y [km]")
 zlabel("Z [km]")
 
 
-plot_orbit_transfer_histories(t_hr, x_keplerian_c, x_keplerian_d, u_cl_crit_penalty)
+plot_orbit_transfer_histories(t_hr, x_keplerian_c', x_keplerian_d', u_cl_crit_penalty)
 sgtitle("Keplerian Lyapunov Orbit Transfer with Eccentricity Constraint Results")
 
 %%
-plot(t_hr, x_keplerian_d(:, 1) .* (1 - x_keplerian_d(:, 2)) * l_star - R_E); hold on
+plot(t_hr, x_keplerian_d(1, :) .* (1 - x_keplerian_d(2, :)) * l_star - R_E); hold on
 yline(r_p_min - R_E); hold off
 xlabel("Time [hr]")
 ylabel("Periapsis [km]")
 legend("Spacecraft", "Target Orbit")
-title("Lyapunonv Orbit Transfer Eccentricity Constraint")
+title("Lyapunonv Orbit Transfer Periapsis Constraint")
 grid on
 %%
 figure
@@ -119,8 +121,8 @@ nexttile
 earthy(R_E, "Earth", 0.5, [0;0;0]); hold on;
 axis equal
 
-plot_cartesian_orbit(x_keplerian_cartesian_c, 'r', 0, 1); hold on
-plot_cartesian_orbit(x_keplerian_cartesian_d, 'b', 0, 1); hold off
+plot_cartesian_orbit(x_keplerian_cartesian_c', 'r', 0, 1); hold on
+plot_cartesian_orbit(x_keplerian_cartesian_d', 'b', 0, 1); hold off
 
 title("Penalized Keplerian Lyapunov Orbit Transfer")
 legend("", "Target", "", "Spacecraft")
@@ -129,13 +131,16 @@ ylabel("Y [km]")
 zlabel("Z [km]")
 
 figure
-plot_orbit_transfer_histories(t_hr, x_keplerian_c, x_keplerian_d, u_cl_crit_penalty)
+plot_orbit_transfer_histories(t_hr, x_keplerian_c', x_keplerian_d', u_cl_crit_penalty)
 
 %% Calculate final mass
 dV_spiral = sqrt(mu_E / a_d) - sqrt(mu_E / a_c)
 dV_total = sum(vecnorm(u_cl_crit_penalty .* (tspan(2) - tspan(1)), 2, 2))
 m_f = mass * exp(-dV_total * 1000 / (Isp * g_0))
 
+%%
+%u_norm = @(t) interp1(tspan, vecnorm(u_cl_crit_penalty'), t);
+%[~, m_hist] = ode45(@(t, x) -1 / (Isp * g_0) * u_norm(t) * 1000 * mass, tspan, mass);
 
 %% Helper Functions
 

@@ -42,17 +42,25 @@ x_me = [oe; L];
 
 % Intermediate
 e = sqrt(f ^ 2 + g ^ 2);
-r_p = a * (1 + e);
+r_p = a * (1 - e);
 
 % Penalty
 P = periapsis_penalty(r_p, r_p_min, k_p);
 
+matlabFunction(P, "File","periapsis_penalty_sym", "Vars", [{oe}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}],"Optimize",true, "Comments","Inputs: [{oe}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}]");
+
 % Q function
 S_oe = QLaw_scaling(a, oe_t(1), m, n, r);
 
+matlabFunction(S_oe, "File","QLaw_scaling_sym", "Vars", [{oe}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}],"Optimize",true, "Comments","Inputs: [{oe}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}]");
+
 [oedot_xx] = QLaw_oe_max_rate(oe, mu, F_max);
 
+matlabFunction(oedot_xx, "File","QLaw_oe_max_rate_sym", "Vars", [{oe}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}],"Optimize",true, "Comments","Inputs: [{oe}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}]");
+
 Q = Q_function(oe, oe_t, W_p, P, S_oe, W_oe, oedot_xx);
+
+matlabFunction(Q, "File","Q_func_sym", "Vars", [{oe}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}],"Optimize",true, "Comments","Inputs: [{oe}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}]");
 
 %% Partial Derivatives
 partial_Q_partial_oe = jacobian(Q, oe);

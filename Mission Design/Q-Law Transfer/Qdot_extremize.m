@@ -1,4 +1,4 @@
-function [Qdot_min, Qdot_max] = Qdot_extremize(oe, partial_Q_partial_oe, Qdot_opt_params)
+function [Qdot_min, Qdot_max] = Qdot_extremize(oe, partial_Q_partial_oe, Qdot_opt_params, L, Qdot)
 %QDOT_EXTREMIZE Summary of this function goes here
 %   The minimum and maximum w.r.t. L of the minimum Qdot w.r.t. thrust 
 % direction needs to be found so that the current L can be compared to the
@@ -10,6 +10,8 @@ arguments
     oe
     partial_Q_partial_oe
     Qdot_opt_params % num_start_points, strategy: "Best Start Points", "Multistart", "fminbnd", plot_minQdot_vs_L
+    L
+    Qdot
 end
 
 % Know min w.r.t. alpha, beta of Qdot in terms of L
@@ -73,6 +75,7 @@ if Qdot_opt_params.plot_minQdot_vs_L
     scatter(rad2deg(L_start(1:end - 1)), Qdot_start, 36, DisplayName = "Start Points")
     scatter(rad2deg(L_min), Qdot_min, 48, "red", "filled", "v", DisplayName = "Est Min")
     scatter(rad2deg(L_max), Qdot_max, 48, "red", "filled", "^", DisplayName = "Est Max")
+    scatter(rad2deg(wrapTo2Pi(L)), Qdot, 48, "m", "filled", "diamond", DisplayName = "Current")
     xlabel("True Longitude (L) [deg]")
     ylabel("min Qdot w.r.t. alpha beta")
     xlim([0, 360])

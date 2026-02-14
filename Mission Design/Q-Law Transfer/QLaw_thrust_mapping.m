@@ -1,7 +1,7 @@
-function [u_star, alpha_star, beta_star] = QLaw_thrust_mapping(D, F)
+function [u_star, alpha_star, beta_star, Qdot_ab] = QLaw_thrust_mapping(D, F)
 %QLAW_THRUST_MAPPING Calculate optimal thrusting angles to minimize Q-function
 %   Detailed explanation goes here
-arguments (Input)
+arguments
     D % Q derivative w.r.t. RTN directions (D1, D2, D3)
     F % Force applied
 end
@@ -13,4 +13,7 @@ u_star = F * [cos(beta_star) * sin(alpha_star); % radial
               cos(beta_star) * cos(alpha_star); % theta
               sin(beta_star)]; % normal
 
+Qdot_ab = D * [cos(beta_star) * cos(alpha_star); ...
+               cos(beta_star) * sin(alpha_star);
+               sin(beta_star)];
 end
