@@ -81,7 +81,7 @@ matlabFunction(D,"File","D_func", "Vars", [{oe}; {L}; {oe_t}; {W_oe}; {m}; {n}; 
 matlabFunction(D_norm,"File","D_norm_func", "Vars", [{oe}; {L}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}],"Optimize",true, "Comments","Inputs: [{oe}; {L}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}]");
 
 %% Create Function for Qdot Reusing D Computations
-[a_control, alpha, beta] = QLaw_thrust_mapping(D, F_max);
+[a_control, alpha, beta] = QLaw_thrust_mapping(D, 1);
 xdot_me = gauss_planetary_eqn(f0_modified_equinoctial_with_a(x_me, mu), B, a_control);
 odot = xdot_me(1:5);
 
@@ -89,5 +89,5 @@ Qdot = partial_Q_partial_oe * odot;
 
 matlabFunction(Qdot,"File","Qdot_func", "Vars", [{oe}; {L}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}],"Optimize",true, "Comments","Inputs: [{oe}; {L}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}]");
 
-% Combined D, Qdot, and partial_Q_partial_oe function
-matlabFunction(D, Qdot, partial_Q_partial_oe, "File", "D_Qdot_partial_Q_partial_oe_func", "Vars", [{oe}; {L}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}],"Optimize",true, "Comments","Inputs: [{oe}; {L}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}]");
+% Combined D, Q, Qdot, P, and partial_Q_partial_oe function
+matlabFunction(D, Q, Qdot, P, partial_Q_partial_oe, "File", "D_Q_Qdot_P_partial_Q_partial_oe_func", "Vars", [{oe}; {L}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}],"Optimize",true, "Comments","Inputs: [{oe}; {L}; {oe_t}; {W_oe}; {m}; {n}; {r}; {F_max}; {W_p}; {r_p_min}; {k_p}]");

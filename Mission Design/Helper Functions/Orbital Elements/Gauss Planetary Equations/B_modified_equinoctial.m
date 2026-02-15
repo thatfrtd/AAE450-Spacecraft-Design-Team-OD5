@@ -16,11 +16,11 @@ function [B] = B_modified_equinoctial(x, mu)
         0, 0, s_sqr / (2 * q) * cos(L);
         0, 0, s_sqr / (2 * q) * sin(L);
         0, 0, cons_1];
-
-    % Make B convert disturbance into RTN frame from cartesian frame
-    i = atan2(2 * sqrt(h ^ 2 + k ^ 2), 1 - h ^ 2 - k ^ 2);
-    Omega = atan2(k, h);
-    omega = atan2(g * h - f * k, f * h + g * k);
-    nu = L - (Omega + omega);
-    B = B * cartesian_to_RTN_DCM(i, Omega, omega, nu)';
+    % 
+    % % Make B convert disturbance into RTN frame from cartesian frame
+    % i = atan2(2 * sqrt(h ^ 2 + k ^ 2), 1 - h ^ 2 - k ^ 2);
+    % Omega = atan2(k, h);
+    % omega = atan2(g * h - f * k, f * h + g * k);
+    % nu = L - (Omega + omega);
+    % B = B * cartesian_to_RTN_DCM(i, Omega, omega, nu)';
 end

@@ -11,22 +11,22 @@ R_E = 6378.1; % [km] Earth radius
 mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = (R_E + 500); % [km] semi-major axis
-e_c = 0.01; % [] eccentricity
-i_c = deg2rad(71); % [rad] inclination
-Omega_c = deg2rad(20); % [rad] right ascension of ascending node
-omega_c = deg2rad(70); % [rad] argument of periapsis
-nu_c = deg2rad(120); % [rad] true anomaly at epoch
+a_c = 10000; % [km] semi-major axis
+e_c = 1e-3; % [] eccentricity
+i_c = deg2rad(1e-3); % [rad] inclination
+Omega_c = deg2rad(0); % [rad] right ascension of ascending node
+omega_c = deg2rad(0); % [rad] argument of periapsis
+nu_c = deg2rad(0); % [rad] true anomaly at epoch
 
 M_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_c, e_c), e_c);
 x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
-a_d = (R_E + 3000); % [km] semi-major axis
-e_d = 0.01; % [] eccentricity
-i_d = deg2rad(71); % [rad] inclination
-Omega_d = deg2rad(20); % [rad] right ascension of ascending node
+a_d = 2 * (R_E + 500); % [km] semi-major axis
+e_d = 0.3; % [] eccentricity
+i_d = deg2rad(20); % [rad] inclination
+Omega_d = deg2rad(0); % [rad] right ascension of ascending node
 omega_d = deg2rad(0); % [rad] argument of periapsis
 nu_d = deg2rad(0); % [rad] true anomaly at epoch
 
@@ -39,13 +39,13 @@ x0_d_cartesian = keplerian_to_cartesian(x0_d_keplerian, nu_d, mu_E);
 % NEED TO ADD MASS IN STATE
 Isp = 3000; % [s]
 mass = 800; % [kg]
-u_max = 0.002e-3; % [km / s2]
+u_max = 2 / mass * 1e-3; % [km / s2]
 
 u_max_star = u_max / l_star * t_star ^ 2;
 g_0 = 9.81; % [m / s2]
 
 % Propagation Time 
-orbits = 200;
+orbits = 230;
 tspan = linspace(0, orbits * period(a_c, mu_E), 1e4);
 t_orbits = linspace(0, orbits, numel(tspan));
 t_hr = tspan / 60 / 60;
