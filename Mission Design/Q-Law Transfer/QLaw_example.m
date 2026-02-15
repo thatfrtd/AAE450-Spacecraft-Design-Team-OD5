@@ -4,7 +4,7 @@
 % Author: Travis Hastreiter 
 % Created On: 8 February, 2026
 % Description: Orbit transfer using Q-Law with minimum periapsis constraint
-% Most Recent Change: 8 February, 2026
+% Most Recent Change: 14 February, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % TODO: - Add eclipse detection and forbide thrusting during them
 %       - Add J2 perturbations
@@ -60,29 +60,47 @@ penalty_params.k = 100; % Smoothing parameter
 penalty_params.W_p = 1; % Penalty weight
 penalty_params.r_p_min = R_E + 400; % [km] min periapsis
 
-% Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
-Q_params = struct();
-Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
-Q_params.eta_a_min = 0.5; % Minimum absolute efficiency for thrusting instead of coasting
-Q_params.eta_r_min = 0.5; % Minimum relative efficiency for thrusting instead of coasting
-Q_params.m = 3;
-Q_params.n = 4;
-Q_params.r = 2;
-Q_params.Theta_rot = 0;
-
 % Parameters for the optimization needed to determine efficiencies
 Qdot_opt_params = struct();
 Qdot_opt_params.num_start_points = 10;
 Qdot_opt_params.strategy = "Best Start Points";
 Qdot_opt_params.plot_minQdot_vs_L = false;
 
-[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20));
+N_i = 30;
+eta = linspace(0.01, 0.99, N_i);
+clear Qtransfer
+parfor i = 1 : N_i
+    % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
+    Q_params = struct();
+    Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
+    Q_params.eta_a_min = eta(i); % Minimum absolute efficiency for thrusting instead of coasting
+    Q_params.eta_r_min = eta(i); % Minimum relative efficiency for thrusting instead of coasting
+    Q_params.m = 3;
+    Q_params.n = 4;
+    Q_params.r = 2;
+    Q_params.Theta_rot = 0;
 
-if Qtransfer.converged
-    fprintf("Q-Law Transfer Converged! Took %.3f Days Using %.3f kg Propellant\n", Qtransfer.dt / 60 / 60 / 24, Qtransfer.delta_m)
-else
-    fprintf("Q-Law Transfer Failed with %s\n", Qtransfer.errors)
+    [Qtransfer(i)] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20));
 end
+
+dVs = zeros([N_i, 1]);
+ToFs = zeros([N_i, 1]);
+for i = 1 : N_i
+    dVs(i) = Qtransfer(i).delta_V;
+    ToFs(i) = Qtransfer(i).dt / 60 / 60 / 24;
+    if Qtransfer(i).converged
+        fprintf("Q-Law Transfer Converged! Took %.3f Days Using %.3f kg Propellant\n", Qtransfer(i).dt / 60 / 60 / 24, Qtransfer(i).delta_m)
+    else
+        fprintf("Q-Law Transfer Failed with %s\n", Qtransfer(i).errors)
+    end
+end
+
+%%
+plot(ToFs, dVs)
+title("Delta V vs ToF Pareto")
+xlabel("Tof [days]")
+ylabel("Delta V [km / s]")
+grid on
 
 %% Integrate Target Orbit
 tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance);

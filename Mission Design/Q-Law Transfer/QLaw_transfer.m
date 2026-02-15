@@ -98,7 +98,6 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
     
     % Wrap up iteration
     iter = iter + 1;
-    iter
 end
 
 % Package results
