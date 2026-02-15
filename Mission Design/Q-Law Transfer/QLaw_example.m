@@ -14,9 +14,9 @@ R_E = 6378.1; % [km] Earth radius
 mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = 10000; % [km] semi-major axis
+a_c = R_E + 660; % [km] semi-major axis
 e_c = 1e-3; % [] eccentricity
-i_c = deg2rad(1e-3); % [rad] inclination
+i_c = deg2rad(71); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu_c = deg2rad(0); % [rad] true anomaly at epoch
@@ -26,9 +26,11 @@ x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
-a_d = 2 * (R_E + 500); % [km] semi-major axis
-e_d = 1e-4; % [] eccentricity
-i_d = deg2rad(10); % [rad] inclination
+r_a_d = R_E + 600; % [km] periapsis
+r_p_d = R_E + 96; % [km] periapsis
+e_d = (1 - r_p_d / r_a_d) / (1 + r_p_d / r_a_d); % [] eccentricity
+a_d = r_p_d / (1 - e_d); % [km] semi-major axis
+i_d = deg2rad(69); % [rad] inclination
 Omega_d = deg2rad(0); % [rad] right ascension of ascending node
 omega_d = deg2rad(0); % [rad] argument of periapsis
 nu_d = deg2rad(0); % [rad] true anomaly at epoch
@@ -61,8 +63,8 @@ penalty_params.r_p_min = R_E + 400; % [km] min periapsis
 % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
 Q_params = struct();
 Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
-Q_params.eta_a_min = 0.1; % Minimum absolute efficiency for thrusting instead of coasting
-Q_params.eta_r_min = 0.1; % Minimum relative efficiency for thrusting instead of coasting
+Q_params.eta_a_min = 0.5; % Minimum absolute efficiency for thrusting instead of coasting
+Q_params.eta_r_min = 0.5; % Minimum relative efficiency for thrusting instead of coasting
 Q_params.m = 3;
 Q_params.n = 4;
 Q_params.r = 2;
@@ -74,7 +76,7 @@ Qdot_opt_params.num_start_points = 10;
 Qdot_opt_params.strategy = "Best Start Points";
 Qdot_opt_params.plot_minQdot_vs_L = false;
 
-[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(1));
+[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20));
 
 if Qtransfer.converged
     fprintf("Q-Law Transfer Converged! Took %.3f Days Using %.3f kg Propellant\n", Qtransfer.dt / 60 / 60 / 24, Qtransfer.delta_m)
@@ -112,7 +114,7 @@ zlabel("Z [km]")
 
 %% Plot Orbit Error and Control Histories
 figure
-plot_orbit_transfer_histories(Qtransfer.t / 60, x_keplerian_c', Qtransfer.x_keplerian_mass(1:6, :)', interp1(1:numel(Qtransfer.not_coast), Qtransfer.u', linspace(1, numel(Qtransfer.not_coast), numel(Qtransfer.t)), 'nearest'));
+plot_orbit_transfer_histories(Qtransfer.t / 60, x_keplerian_c' ./ [R_E, ones([1, 5])], Qtransfer.x_keplerian_mass(1:6, :)' ./ [R_E, ones([1, 5])], interp1(1:numel(Qtransfer.not_coast), Qtransfer.u', linspace(1, numel(Qtransfer.not_coast), numel(Qtransfer.t)), 'nearest'));
 sgtitle("Q-Law Orbit Transfer with Periapsis Constraint Results")
 
 %% Plot Q Function
