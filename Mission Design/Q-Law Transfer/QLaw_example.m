@@ -6,6 +6,9 @@
 % Description: Orbit transfer using Q-Law with minimum periapsis constraint
 % Most Recent Change: 8 February, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TODO: - Add eclipse detection and forbide thrusting during them
+%       - Add J2 perturbations
+%       - Add option for drag for low orbits
 
 R_E = 6378.1; % [km] Earth radius
 mu_E = 398600; % [km3 / s2] Earth gravitational parameter
@@ -24,8 +27,8 @@ x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
 a_d = 2 * (R_E + 500); % [km] semi-major axis
-e_d = 0.3; % [] eccentricity
-i_d = deg2rad(0); % [rad] inclination
+e_d = 1e-4; % [] eccentricity
+i_d = deg2rad(10); % [rad] inclination
 Omega_d = deg2rad(0); % [rad] right ascension of ascending node
 omega_d = deg2rad(0); % [rad] argument of periapsis
 nu_d = deg2rad(0); % [rad] true anomaly at epoch
@@ -41,7 +44,7 @@ spacecraft_params = struct();
 spacecraft_params.Isp = 3000; % [s]
 spacecraft_params.m_0 = 800; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = 2; % [N]
+spacecraft_params.F_max = 1; % [N]
 
 % Integration error tolerance
 default_tolerance = 1e-6;
@@ -63,7 +66,7 @@ Q_params.eta_r_min = 0.1; % Minimum relative efficiency for thrusting instead of
 Q_params.m = 3;
 Q_params.n = 4;
 Q_params.r = 2;
-Q_params.Theta_rot = pi;
+Q_params.Theta_rot = 0;
 
 % Parameters for the optimization needed to determine efficiencies
 Qdot_opt_params = struct();
@@ -71,7 +74,7 @@ Qdot_opt_params.num_start_points = 10;
 Qdot_opt_params.strategy = "Best Start Points";
 Qdot_opt_params.plot_minQdot_vs_L = false;
 
-[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 10000, R_c = 0.01);
+[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(1));
 
 if Qtransfer.converged
     fprintf("Q-Law Transfer Converged! Took %.3f Days Using %.3f kg Propellant\n", Qtransfer.dt / 60 / 60 / 24, Qtransfer.delta_m)
@@ -79,39 +82,33 @@ else
     fprintf("Q-Law Transfer Failed with %s\n", Qtransfer.errors)
 end
 
-figure
-plot(Qtransfer.Q)
-
 %% Integrate Target Orbit
 tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance);
 [t_keplerian_c, x_keplerian_c] = ode45(@(t,x) gauss_planetary_eqn(f0_keplerian(x, 1), B_keplerian(x, 1), a_d_0(t,x)), Qtransfer.t / char_star.t, x0_c_keplerian .* [1 / char_star.l, ones([1, 5])]', tolerances);
 x_keplerian_c = x_keplerian_c';
 x_keplerian_c(1, :) = x_keplerian_c(1, :) .* char_star.l; % Redimensionalize
-x_keplerian_cartesian_c = keplerian_to_cartesian_array(x_keplerian_c, [], mu_E);
 
 %% Plot Orbit
-figure
-earthy(R_E, "Earth", 0.5, [0;0;0]); hold on;
-axis equal
-
 x_keplerian_cartesian_d = keplerian_to_cartesian_array(Qtransfer.x_keplerian_mass(1:6, :), [], mu_E);
-plot_cartesian_orbit(x_keplerian_cartesian_c(:, 1:2:end)', 'r', 0, 1); hold on
-plot_cartesian_orbit(x_keplerian_cartesian_d(:, 1:2:end)', 'b', 0, 1); hold off
 
+not_coast_colors = interp1(1:numel(Qtransfer.not_coast), double(Qtransfer.not_coast), linspace(1, numel(Qtransfer.not_coast), numel(Qtransfer.t)), 'nearest');
+
+figure
+plot_cartesian_orbit_color_varying(x_keplerian_cartesian_d(:, 1:1:end), not_coast_colors, 3); hold on
+c = colorbar;
+plotOrbit3(Omega_c, i_c, omega_c, a_c * (1 - e_c ^2), e_c, linspace(0, 2 * pi, 1000), "r", 1, 1, [0, 0, 0], 0.1, 2); hold on
+plotOrbit3(Omega_d, i_d, omega_d, a_d * (1 - e_d ^2), e_d, linspace(0, 2 * pi, 1000), "g", 1, 1, [0, 0, 0], 0.1, 2)
+grid on
+earthy(R_E, "Earth", 0.5, [0;0;0]); hold on; 
+clim([0, 1])
+c.Ticks = [0, 0.5, 1];
+c.TickLabels = {'Coast', 'Eclipse', 'Thrust'};
+axis equal
 title("Q-Law Orbit Transfer")
-legend("", "Target", "", "Spacecraft")
+legend("Spacecraft", "Target", "Initial")
 xlabel("X [km]")
 ylabel("Y [km]")
 zlabel("Z [km]")
-
-%%
-not_coast_colors = interp1(1:numel(Qtransfer.not_coast), double(Qtransfer.not_coast), linspace(1, numel(Qtransfer.not_coast), numel(Qtransfer.t)), 'nearest');
-%%
-figure
-plot_cartesian_orbit_color_varying(x_keplerian_cartesian_d(:, 1:1:end), not_coast_colors); hold off
-grid on
-colorbar
-axis equal
 
 %% Plot Orbit Error and Control Histories
 figure
@@ -120,34 +117,35 @@ sgtitle("Q-Law Orbit Transfer with Periapsis Constraint Results")
 
 %% Plot Q Function
 figure
-plot(interp1(1:numel(Qtransfer.t), Qtransfer.t, linspace(1, numel(Qtransfer.Q), numel(Qtransfer.t))) / 60, Qtransfer.Q)
-xlabel("Time [hr]")
+plot(interp1(1:numel(Qtransfer.t), Qtransfer.t, linspace(1, numel(Qtransfer.t), numel(Qtransfer.Q))) / 60 / 60 / 24, Qtransfer.Q)
+xlabel("Time [days]")
 ylabel("Q-Function []")
 title("Q-Function vs Time")
 yscale("log") % what's the best for plotting this?
 grid on
 
+
 %% Plot Constraint Satisfaction
-figure
-tiledlayout(1, 2)
-
-nexttile
-plot(Qtransfer.t / 60, x_keplerian_d(:, 1) .* (1 - x_keplerian_d(:, 2)) * l_star - R_E); hold on
-yline(r_p_min - R_E); hold off
-xlabel("Time [hr]")
-ylabel("Periapsis [km]")
-title("Q-Law Orbit Transfer Periapsis Constraint")
-grid on
-
-nexttile
-plot(Qtransfer.t / 60, Qtransfer.P)
-xlabel("Time [hr]")
-ylabel("Periapsis Constraint []")
-title("Q-Law Orbit Transfer Periapsis Constraint Nondimensionalized")
+% figure
+% tiledlayout(1, 2)
+% 
+% nexttile
+% plot(Qtransfer.t / 60, x_keplerian_d(:, 1) .* (1 - x_keplerian_d(:, 2)) * l_star - R_E); hold on
+% yline(r_p_min - R_E); hold off
+% xlabel("Time [hr]")
+% ylabel("Periapsis [km]")
+% title("Q-Law Orbit Transfer Periapsis Constraint")
+% grid on
+% 
+% nexttile
+% plot(Qtransfer.t / 60, Qtransfer.P)
+% xlabel("Time [hr]")
+% ylabel("Periapsis Constraint []")
+% title("Q-Law Orbit Transfer Periapsis Constraint Nondimensionalized")
 
 %% Calculate Spiral Transfer Estimates
 dV_spiral = sqrt(mu_E / a_d) - sqrt(mu_E / a_c)
-m_f_spiral = mass * exp(-abs(dV_spiral) * 1000 / (Isp * g_0))
+m_f_spiral = spacecraft_params.m_0 * (1 - exp(-abs(dV_spiral) * 1000 / (spacecraft_params.Isp * 9.81)))
 
 %% Helper Functions
 

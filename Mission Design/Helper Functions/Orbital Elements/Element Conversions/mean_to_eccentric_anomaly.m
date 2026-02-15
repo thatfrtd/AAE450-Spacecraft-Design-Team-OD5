@@ -1,5 +1,5 @@
 function E = mean_to_eccentric_anomaly(M,e)
-    tol = 1e-12;
+    tol = 1e-10;
 
     % Solve Kepler's equation M = E - e sin(E)
     E(1:numel(M)) = M;
