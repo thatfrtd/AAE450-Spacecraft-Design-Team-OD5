@@ -1,7 +1,10 @@
+% SpaceX Falcon Heavy Analysis
+% Assume full prop weight and full payload capacity
+%
 
 clear; clc; close all;
 
-%% -------------------- VEHICLE PARAMETERS --------------------
+%% Vehicle Parameters
 g = 9.81;                     % gravity (m/s^2)
 L = 70;                       % rocket height (m)
 m0 = 1.42e6;                 % initial mass (kg)
