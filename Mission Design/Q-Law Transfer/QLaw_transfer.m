@@ -119,9 +119,7 @@ end
 % Q_params for global optimization of the time-fuel pareto front
 transfer.dt = t_nd(end) * char_star.t - 0;
 transfer.delta_m = spacecraft_params.m_0 - x_me_mass_nd(7, end) * char_star.m;
-
-transfer.Q = Q;
-transfer.P = P;
+transfer.delta_V = spacecraft_params.Isp * g_0 * log(spacecraft_params.m_0 / (x_me_mass_nd(7, end) * char_star.m));
 
 % Dimensionalize results (and rotate back by Theta_rot)
 if options.return_dt_dm_only == false
@@ -130,7 +128,6 @@ if options.return_dt_dm_only == false
     transfer.x_keplerian_mass(4, :) = transfer.x_keplerian_mass(4, :) - Q_params.Theta_rot;
     transfer.u = u_nd * char_star.F;
     transfer.t = t_nd * char_star.t;
-    transfer.delta_V = spacecraft_params.Isp * g_0 * log(spacecraft_params.m_0 / transfer.x_keplerian_mass(7, end));
     
     transfer.not_coast = not_coast;
     transfer.alpha = alpha;

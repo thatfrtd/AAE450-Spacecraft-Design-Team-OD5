@@ -50,6 +50,8 @@ function NSGAII(params,MultiObj)
     nVar    = MultiObj.nVar;        % Number of variables (dimensions or objectives)
     var_min = MultiObj.var_min(:);  % Minimum value for each gen
     var_max = MultiObj.var_max(:);  % Maximum value for each gen
+    obj_names = MultiObj.obj_names;
+    plot_title = MultiObj.title;
         
     % Initialization
     gen   = 1;
@@ -64,7 +66,8 @@ function NSGAII(params,MultiObj)
         h_fig = figure(1);
         h_par=scatter(Pfit(:,1),Pfit(:,2),20,'filled', 'markerFaceAlpha',0.3,'MarkerFaceColor',[128 193 219]./255); hold on;
         h_rep = plot(Pfit(:,1),Pfit(:,2),'ok'); hold on;
-        grid on; xlabel('f1'); ylabel('f2');
+        grid on; xlabel(obj_names(1)); ylabel(obj_names(2));
+        title(plot_title)
         drawnow;
         axis square;
     end
@@ -97,7 +100,8 @@ function NSGAII(params,MultiObj)
                 try delete(h_pf); end
                 h_pf = plot(MultiObj.truePF(:,1),MultiObj.truePF(:,2),'.','color',0.8.*ones(1,3)); hold on;
             end
-            grid on; xlabel('f1'); ylabel('f2');
+            grid on; xlabel(obj_names(1)); ylabel(obj_names(2));
+            title(plot_title)
             drawnow;
             axis square;
         end
@@ -108,7 +112,7 @@ function NSGAII(params,MultiObj)
                 try delete(h_pf); end
                 h_pf = plot3(MultiObj.truePF(:,1),MultiObj.truePF(:,2),MultiObj.truePF(:,3),'.','color',0.8.*ones(1,3)); hold on;
             end
-            grid on; xlabel('f1'); ylabel('f2');
+            grid on; xlabel(obj_names(1)); ylabel(obj_names(2));
             drawnow;
             axis square;
         end
