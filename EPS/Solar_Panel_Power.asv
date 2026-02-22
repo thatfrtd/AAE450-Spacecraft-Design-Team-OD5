@@ -13,21 +13,14 @@ ion_pow = 6900;     % W
 ion_T = 0.235;      % N
 ion_Isp = 4100;     % s
 ion_area = ion_pow / solar;  % m2
-ion_m2_T = ion_area / ion_T; % m2 / N
+ion_T_m2 = ion_area / ion_T; % m2 / N
 
 % Low Power Bus Arcjet System
 arc_pow = 1780;     % W
 arc_T = 0.254;      % N
 arc_Isp = 502;      % s
 arc_area = arc_pow / solar; % m2
-arc_m2_T = arc_area / arc_T;% m2 / N
-
-% XR-5 Hall Thruster
-hall_pow = 4500;     % W
-hall_T = 0.254;      % N
-hall_Isp = 2020;      % s
-hall_area = hall_pow / solar; % m2
-hall_m2_T = hall_area / hall_T;% m2 / N
+arc_T_m2 =
 
 
 %% ____________________
