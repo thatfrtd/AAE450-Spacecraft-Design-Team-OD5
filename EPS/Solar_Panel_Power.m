@@ -1,0 +1,24 @@
+%Solar Panel Power
+%% ____________________
+%% INITIALIZATION
+efficiency = 0.4;
+irradiance = 1361;      % W/m2
+area = 0.8 * 1.9;       % m2
+%% ____________________
+%% CALCULATIONS
+solar = efficiency * irradiance; % W/m2
+
+% NEXT 6.9 kW Ion Propulsion System
+ion_pow = 6900;     % W
+ion_T = 0.235;      % N
+ion_Isp = 4100;     % s
+ion_area = ion_pow / solar;  % m2
+
+ion_T_m2 = ion_area / ion_T; % m2 / N
+
+%% ____________________
+%% OUTPUTS
+
+
+
+
