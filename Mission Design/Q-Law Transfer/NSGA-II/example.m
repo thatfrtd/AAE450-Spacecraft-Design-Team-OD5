@@ -16,8 +16,8 @@ clear all; clc; close all;
 % Multi-objective function
 
 %MultiObjFnc = 'Schaffer';
-MultiObjFnc = 'Kursawe';
-%MultiObjFnc = 'Poloni';
+%MultiObjFnc = 'Kursawe';
+MultiObjFnc = 'Poloni';
 %MultiObjFnc = 'Viennet2';
 %MultiObjFnc = 'Viennet3';
 %MultiObjFnc = 'ZDT1';

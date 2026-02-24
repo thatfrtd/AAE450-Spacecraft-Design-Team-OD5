@@ -11,8 +11,10 @@ Re = 6371;  %mean earth radius [km]
 mu = 398600.435507;  %earth gravitational parameter [km^3/s^2]
 
 F = 1;  %Electric Propulsion System Thrust [N] 
-M_total = 1000;  %system mass [kg]
-a_theta = F / M_total * 10 ^ -3;  %acceleration in the theta (tangential) direction [km / s ^ 2]
+M_spacecraft = 1000;  %system mass [kg]
+M_debris = 3000; %debris [kg]
+a_theta = F / M_spacecraft * 10 ^ -3;  %acceleration in the theta (tangential) direction [km / s ^ 2]
+a_theta_plus_debris = F / (M_spacecraft + M_debris) * 10 ^ -3; %
 
 event_labels = string();
 
@@ -30,7 +32,7 @@ h_0 = 660; %debris orbit altitude [km]
 h_f = 200; %Final debris disposal altitude [km]
 
 event_labels(3) = "Deorbiting";
-[V_3, t_3] = Spiral_Transfer_Altitude_Change(h_0, h_f, a_theta, Re, mu);  %delta v required to lower the spacecraft from debris orbit to disposal orbit using a spiral transfer [km/s]
+[V_3, t_3] = Spiral_Transfer_Altitude_Change(h_0, h_f, a_theta_plus_debris, Re, mu);  %delta v required to lower the spacecraft from debris orbit to disposal orbit using a spiral transfer [km/s]
 
 h_drift = 2000; %Altitude to wait for RAAN drift
 
