@@ -1,0 +1,110 @@
+m_rocket = 30000; % Dry mass (kg)
+m_sat = 500;    % Sat mass (kg)
+m_fuel0 = 50;   % Initial fuel mass (kg)
+R = 1.85;
+L = 30; 
+s = 1.0; % Dimensions (m)
+
+% Propulsion Constants
+Isp = 250;      % Specific impulse (s)
+g0 = 9.80665;   % Standard gravity (m/s^2)
+F_thruster = 20; % Thrust force (N)
+dist_noz = L/2; % Distance from rocket CM to nozzle RCS (m)
+u_max = F_thruster * dist_noz; % Max torque (Nm)
+
+% Initial Conditions
+w0 = [0; 0; 2 * 2 * pi / 60]; 
+q0 = [0; 0; 0; 1];           
+x0 = [q0; w0; m_fuel0]; % 8-state vector
+
+%% Propagation
+tspan = [0 4000];
+opts = odeset('Event', @stop_event, 'RelTol', 1e-8, 'AbsTol', 1e-8);
+
+% Pass constants to the plant
+const.m_r = m_rocket; 
+const.m_s = m_sat; 
+const.R = R; 
+const.L = L; 
+const.s = s;
+const.u_max = u_max; 
+const.Isp = Isp;
+const.g0 = g0; 
+const.F = F_thruster;
+
+[t, x] = ode45(@(t, x) plant_derivative(t, x, const), tspan, x0, opts);
+[t, x] = ode45(@(t, x) plant_derivative(t, x, J_total, u_const), tspan, x0, opts);
+
+
+%% Plotting
+plot_fuel_results(t, x, m_fuel0);
+
+
+function dxdt = plant_derivative(~, x, c)
+    epsilon = x(1:4);
+    omega = x(5:7);
+    m_f = x(8); % Current fuel mass
+    
+    epsilon = epsilon / norm(epsilon);
+
+    % Dynamic Inertia Calculation (CM shifts as fuel burns)
+    % Assuming fuel is at the nozzle (same as sat)
+    m_total = c.m_r + c.m_s + m_f;
+    z_fuel = -c.L/2;
+    z_sat = -(c.L/2 + c.s/2);
+    z_cm = (c.m_s*z_sat + m_f*z_fuel) / m_total;
+    
+    % Simplified inertia update (Parallel Axis Theorem)
+    J_dry = diag([1/12*c.m_r*(3*c.R^2+c.L^2), 1/12*c.m_r*(3*c.R^2+c.L^2), 0.5*c.m_r*c.R^2]);
+    d_r = abs(z_cm);
+    J_total = J_dry + c.m_r*diag([d_r^2, d_r^2, 0]); % Ignoring sat/fuel small local J for brevity
+    
+    % RCS Logic with Deadband
+    deadband = 0.005; 
+    u = [0; 0; 0];
+    mdot = 0;
+    
+    if m_f > 0 % Only fire if we have fuel
+        if omega(3) > deadband
+            u(3) = -c.u_max;
+            mdot = -c.F / (c.Isp * c.g0);
+        elseif omega(3) < -deadband
+            u(3) = c.u_max;
+            mdot = -c.F / (c.Isp * c.g0);
+        end
+    end
+
+    % Call kde and dde
+    t = 0; % Just for QuaternionKDE call
+    deps = quaternion_kde(t, epsilon, omega);
+    dwdt = rigid_body_dynamics(omega, J_total, u);
+
+    dxdt = [deps; dwdt; mdot];
+end
+
+function plot_fuel_results(t, x, m_fuel0)
+    figure('Color', 'w');
+    subplot(3,1,1);
+    plot(t, x(:, 7), 'b', 'LineWidth', 2); grid on;
+    ylabel('\omega_z (rad/s)'); title('RCS Detumble with Mass Depletion');
+
+    subplot(3,1,2);
+    plot(t, x(:, 8), 'g', 'LineWidth', 2); grid on;
+    ylabel('Fuel Mass (kg)'); title('Propellant Consumption');
+
+    subplot(3,1,3);
+    plot(t, x(:, 1:4), 'LineWidth', 1.5); grid on;
+    ylabel('Quaternion'); xlabel('Time (s)');
+    legend('\epsilon_1','\epsilon_2','\epsilon_3','\eta');
+    
+    fprintf('Fuel used: %.2f kg\n', m_fuel0 - x(end, 8));
+end
+
+function [value, isterminal, direction] = stop_event(~, x)
+    % value: the quantity we want to reach zero (omega_z)
+    % isterminal: 1 = stop the integration
+    % direction: -1 = only trigger if approaching from positive side
+    value = x(7); 
+    isterminal = 1; 
+    direction = -1; 
+end

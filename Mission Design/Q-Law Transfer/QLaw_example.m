@@ -17,7 +17,7 @@ mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 a_c = R_E + 660; % [km] semi-major axis
 e_c = 1e-3; % [] eccentricity
 i_c = deg2rad(71); % [rad] inclination
-Omega_c = deg2rad(0); % [rad] right ascension of ascending node
+Omega_c = deg2rad(10); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu_c = deg2rad(0); % [rad] true anomaly at epoch
 
@@ -26,11 +26,11 @@ x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
-r_a_d = R_E + 600; % [km] periapsis
-r_p_d = R_E + 96; % [km] periapsis
+r_a_d = R_E + 2200; % [km] periapsis
+r_p_d = R_E + 2000; % [km] periapsis
 e_d = (1 - r_p_d / r_a_d) / (1 + r_p_d / r_a_d); % [] eccentricity
 a_d = r_p_d / (1 - e_d); % [km] semi-major axis
-i_d = deg2rad(69); % [rad] inclination
+i_d = deg2rad(30); % [rad] inclination
 Omega_d = deg2rad(0); % [rad] right ascension of ascending node
 omega_d = deg2rad(0); % [rad] argument of periapsis
 nu_d = deg2rad(0); % [rad] true anomaly at epoch
@@ -66,8 +66,8 @@ Qdot_opt_params.num_start_points = 10;
 Qdot_opt_params.strategy = "Best Start Points";
 Qdot_opt_params.plot_minQdot_vs_L = false;
 
-N_i = 30;
-eta = linspace(0.01, 0.99, N_i);
+N_i = 1;
+eta = linspace(0.5, 0.95, N_i);
 clear Qtransfer
 parfor i = 1 : N_i
     % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
@@ -94,6 +94,8 @@ for i = 1 : N_i
         fprintf("Q-Law Transfer Failed with %s\n", Qtransfer(i).errors)
     end
 end
+
+Qtransfer = Qtransfer(round(N_i / 2));
 
 %%
 plot(ToFs, dVs)
