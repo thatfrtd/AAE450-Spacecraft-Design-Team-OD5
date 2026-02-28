@@ -6,7 +6,7 @@
 % Description: Sequential Convex Programming Trajectory Optimization for 
 % general rendezvous using relative orbital motion equations. Includes mass 
 % in the state. You must have CVX installed.
-% Last Modified On: 11 February, 2026
+% Last Modified On: 26 February, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 char_star = load_charecteristic_values_Earth();
