@@ -40,20 +40,23 @@ p = sym("p", [0, 1]);
 %% Calculate Chief Orbit Properties
 p_c = a_c * (1 + e_c) * (1 - e_c);
 h = sqrt(p_c * mu);
-M = @(t) sqrt(mu / a_c ^ 3) * (t * char_star.t) + M0_c;
+M = sqrt(mu / a_c ^ 3) * t + M0_c;
 % Three term bessel expansion of Kepler's Equation so we can take its derivative
-E = @(t) M(t) + 2 * besselj(1, e_c) * sin(M(t)) + besselj(2, 2 * e_c) * sin(2 * M(t));
-r_c = @(t) a_c * (1 - e_c * cos(E(t)));
-thetastardot = @(t) h / r_c(t) ^ 2;
+E = M + 2 * besselj(1, e_c) * sin(M) + besselj(2, 2 * e_c) * sin(2 * M);
+r_c = a_c * (1 - e_c * cos(E));
+v_c = sqrt(mu * (2 / r_c - 1 / a_c));
+r_cdot = sin(acos(h / (r_c * v_c))) * v_c;
+thetastardot = h / r_c ^ 2;
+thetastarddot = -2 * h  / r_c ^ 3 * r_cdot;
 
 %% Linearized Relative Dynamics
 rdot = v;
-vdot = [thetastardot(t) ^ 2 + 2 * mu / r_c(t) ^ 3, thetastardot(t), 0; 
-       -thetastardot(t), thetastardot(t) ^ 2 - mu / r_c(t) ^ 3, 0; 
-        0, 0, -mu / r_c(t) ^ 3] * r ...
-     + [0, 2 * thetastardot(t), 0; -2 * thetastardot(t), 0, 0; 0, 0, 0] * v ...
+vdot = [thetastardot ^ 2 + 2 * mu / r_c ^ 3, thetastarddot, 0; 
+       -thetastarddot, thetastardot ^ 2 - mu / r_c ^ 3, 0; 
+        0, 0, -mu / r_c ^ 3] * r ...
+     + [0, 2 * thetastardot, 0; -2 * thetastardot, 0, 0; 0, 0, 0] * v ...
      + u / m;
-mdot = -alpha * sqrt(thrust(1) ^ 2 + thrust(2) ^ 2 + thrust(3) ^ 2);
+mdot = -alpha * sqrt(u(1) ^ 2 + u(2) ^ 2 + u(3) ^ 2);
 
 xdot = [rdot; vdot; mdot];
 

@@ -9,20 +9,19 @@
 % Last Modified On: 11 February, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-char_star = load_charecteristic_values_Earth();
-nd_scalar = [char_star.l * ones([3, 1]); char_star.v * ones([3, 1]); char_star.m];
-
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = 300; % [s]
-spacecraft_params.m_0 = 1500; % [kg]
-spacecraft_params.m_dry = 1000; % [kg]
-spacecraft_params.F_max = 0.5; % [N]
-F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
+spacecraft_params.Isp = 3000; % [s]
+spacecraft_params.m_0 = 800; % [kg]
+spacecraft_params.m_dry = 600; % [kg]
+spacecraft_params.F_max = 0.1; % [N]
+F_max_nd = spacecraft_params.F_max / 1000; % F_max in N, char_star.F in kN
+
+alpha = 1 / (spacecraft_params.Isp * 9.81e-3);
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = 6728; % [km] semi-major axis
-e_c = 0.01; % [] eccentricity
+e_c = 0.0; % [] eccentricity
 i_c = deg2rad(10); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
@@ -31,20 +30,20 @@ M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
 % Rendezvous time
-tf = 20000 / char_star.t; % [s] (nondimensionalized)
+tf = 7200; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
-r_0 = [0.5; -0.5; 0.2]; % [km]
-v_0 = [0.001; 1e-3; 0]; % [km / s]
-x_0 = [r_0; v_0; spacecraft_params.m_0] ./ nd_scalar;
+r_0 = [-0.5; -0.5; 0.2]; % [km]
+v_0 = [0; 1e-3; 0]; % [km / s]
+x_0 = [r_0; v_0; spacecraft_params.m_0];
 
 % Terminal conditions
-r_f = [0; 0.2; 0]; % [km]
+r_f = [-0.100; 0; 0]; % [km]
 v_f = [0e-3; 0; 0]; % [km / s]
-x_f = [r_f; v_f] ./ nd_scalar(1:6);
+x_f = [r_f; v_f];
 
 %% Initialize
-N = 100;
+N = 50;
 t_k_actual = linspace(0, tf, N);
 tspan = [0, tf];
 t_k = linspace(tspan(1), tspan(2), N);
@@ -62,10 +61,10 @@ nu = 3; % Number of controls
 np = 0; % Number of parameters (tf, v_0, etc)
 
 % PTR algorithm parameters
-ptr_ops.iter_max = 5;
+ptr_ops.iter_max = 10;
 ptr_ops.iter_min = 1;
-ptr_ops.Delta_min = 1e-7;
-ptr_ops.w_vc = 5e5;
+ptr_ops.Delta_min = 5e-6;
+ptr_ops.w_vc = 5e4;
 ptr_ops.w_tr = ones(1, Nu) * 5e-2;
 ptr_ops.w_tr_p = 0;
 ptr_ops.update_w_tr = false;
@@ -86,9 +85,29 @@ scale_hint.p_max = [];
 scale_hint.p_min = [];
 
 %% Get Dynamics
-f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
-f_linearized = @(t, x, u, p) linearized_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
-f_CWH = @(t, x, u, p) CWH_relative_orbit_EoM(t, x, u, p, [a_c; spacecraft_params.Isp]);
+a_d = @(t, x) [0; 0; 0];
+
+p = a_c * (1 + e_c) * (1 - e_c);
+h = sqrt(p * char_star.mu);
+theta_0 = 0;
+M = @(t) sqrt(char_star.mu / a_c ^ 3) * tf;
+theta = @(t) theta_0 + eccentric_to_true_anomaly(mean_to_eccentric_anomaly(M(t), e_c), e_c);
+E = @(t) M(t) + 2 * besselj(1, e_c) * sin(M(t)) + besselj(2, 2 * e_c) * sin(2 * M(t));
+r = @(t) a_c * (1 - e_c * cos(E(t)));
+v = @(t) sqrt(char_star.mu * (2 / r(t) - 1 / a_c));
+r_cdot = @(t) sin(acos(h / (r(t) * v(t)))) * v(t);
+thetadot = @(t) h / r(t) ^ 2;
+thetaddot = @(t) -2 * h  / r(t) ^ 3 * r_cdot(t);
+
+% Propagate relative orbit dynamics
+% [~, x_CWH] = ode45(@(t, x) f_CWH(t, x, u, p), tspan / char_star.t, x_0 ./ nd_scalar, tolerances);
+% [~, x_linearized] = ode45(@(t, x) linearized_relative_orbit_EoM_manual(t, x, u, char_star.mu, a_c, thetadot(t), thetaddot(t)), tspan, x_0(1:6), tolerances);
+% [~, x_nonlinear] = ode45(@(t, x) nonlinear_relative_orbit_EoM_manual(t, x, u, char_star.mu, a_c, r_cdot(t), thetadot(t)), tspan, x_0(1:6), tolerances);
+
+% Currently all 3 dynamics produce very different results... something off
+f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM_manual(t, x, u, char_star.mu, a_c, r_cdot(t), thetadot(t), alpha);
+f_linearized = @(t, x, u, p) linearized_relative_orbit_EoM_manual(t, x, u, char_star.mu, a_c, thetadot(t), thetaddot(t), alpha);
+f_CWH = @(t, x, u, p) CWH_relative_orbit_EoM(t / char_star.t, x ./ nd_scalar, u, p, [a_c; spacecraft_params.Isp]);
 
 f_opt = f_nonlinear; % Dynamics to use for optimization
 f_eval = f_nonlinear; % Dynamics to use for propagation and plotting
@@ -163,14 +182,14 @@ grid on
 
 %% Extract Solution
 i = ptr_sol.converged_i + 1;
-x = ptr_sol.x(:, :, i) .* nd_scalar;
-u = ptr_sol.u(:, :, i) * char_star.F * 1000;
+x = ptr_sol.x(:, :, i);
+u = ptr_sol.u(:, :, i) * 1000;
 
 problem.cont.f = f_eval;
 [t_cont_sol, x_cont_sol, u_cont_sol] = problem.cont_prop(ptr_sol.u(:, :, i), ptr_sol.p(:, i));
-t_cont_sol = t_cont_sol * char_star.t;
-x_cont_sol = x_cont_sol .* nd_scalar;
-u_cont_sol = u_cont_sol * char_star.F * 1000;
+t_cont_sol = t_cont_sol;
+x_cont_sol = x_cont_sol;
+u_cont_sol = u_cont_sol * 1000;
 
 %% Plot Trajectory
 figure
@@ -195,3 +214,38 @@ xlabel("Time")
 ylabel("Force [N]")
 legend("\hat{r}", "\hat{\theta}", "\hat{h}", "||u||", Interpreter="latex")
 grid on
+
+
+
+function [xdot] = linearized_relative_orbit_EoM_manual(t, x, u, mu, r_c, thetadot, thetaddot, alpha)
+    r = x(1:3);
+    v = x(4:6);
+    m = x(7);
+
+    rdot = v;
+    vdot = [thetadot ^ 2 + 2 * mu / r_c ^ 3, thetaddot, 0; 
+           -thetaddot, thetadot ^ 2 - mu / r_c ^ 3, 0; 
+            0, 0, -mu / r_c ^ 3] * r ...
+         + [0, 2 * thetadot, 0; -2 * thetadot, 0, 0; 0, 0, 0] * v ...
+         + u / m;
+    mdot = -alpha * sqrt(u(1) ^ 2 + u(2) ^ 2 + u(3) ^ 2);
+
+    xdot = [rdot; vdot; mdot];
+end
+
+function [xdot] = nonlinear_relative_orbit_EoM_manual(t, x, u, mu, r_c, r_cdot, nudot, alpha)
+    r = x(1:3);
+    v = x(4:6);
+    m = x(7);
+
+    r_d = norm([r_c; 0; 0] + r);
+
+    rdot = v;
+    vdot = [2 * nudot * (v(2) - r(2) * r_cdot / r_c) + r(1) * nudot ^ 2 + mu / r_c ^ 2 - mu / r_d ^ 3 * (r_c + r(1));
+           -2 * nudot * (v(1) - r(1) * r_cdot / r_c) + r(2) * nudot ^ 2 - mu / r_d ^ 3 * r(2);
+           -mu / r_d ^ 3 * r(3)] ...
+         + u / m;
+    mdot = -alpha * sqrt(u(1) ^ 2 + u(2) ^ 2 + u(3) ^ 2);
+
+    xdot = [rdot; vdot; mdot];
+end
