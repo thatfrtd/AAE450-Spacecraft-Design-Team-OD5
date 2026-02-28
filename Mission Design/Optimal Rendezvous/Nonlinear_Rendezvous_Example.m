@@ -14,9 +14,9 @@ nd_scalar = [char_star.l * ones([3, 1]); char_star.v * ones([3, 1]); char_star.m
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = 3000; % [s]
-spacecraft_params.m_0 = 800; % [kg]
-spacecraft_params.m_dry = 600; % [kg]
+spacecraft_params.Isp = 300; % [s]
+spacecraft_params.m_0 = 1500; % [kg]
+spacecraft_params.m_dry = 1000; % [kg]
 spacecraft_params.F_max = 0.5; % [N]
 F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
 
@@ -31,20 +31,20 @@ M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
 % Rendezvous time
-tf = 7200 / char_star.t; % [s] (nondimensionalized)
+tf = 20000 / char_star.t; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
-r_0 = [-1; -0.5; 0.2]; % [km]
-v_0 = [0; 1e-3; 0]; % [km / s]
+r_0 = [0.5; -0.5; 0.2]; % [km]
+v_0 = [0.001; 1e-3; 0]; % [km / s]
 x_0 = [r_0; v_0; spacecraft_params.m_0] ./ nd_scalar;
 
 % Terminal conditions
-r_f = [-0.100; 0; 0]; % [km]
+r_f = [0; 0.2; 0]; % [km]
 v_f = [0e-3; 0; 0]; % [km / s]
 x_f = [r_f; v_f] ./ nd_scalar(1:6);
 
 %% Initialize
-N = 50;
+N = 100;
 t_k_actual = linspace(0, tf, N);
 tspan = [0, tf];
 t_k = linspace(tspan(1), tspan(2), N);
@@ -62,10 +62,10 @@ nu = 3; % Number of controls
 np = 0; % Number of parameters (tf, v_0, etc)
 
 % PTR algorithm parameters
-ptr_ops.iter_max = 10;
+ptr_ops.iter_max = 5;
 ptr_ops.iter_min = 1;
-ptr_ops.Delta_min = 1e-5;
-ptr_ops.w_vc = 5e4;
+ptr_ops.Delta_min = 1e-7;
+ptr_ops.w_vc = 5e5;
 ptr_ops.w_tr = ones(1, Nu) * 5e-2;
 ptr_ops.w_tr_p = 0;
 ptr_ops.update_w_tr = false;
@@ -90,8 +90,8 @@ f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM(t, x, u, p, [x_kepleria
 f_linearized = @(t, x, u, p) linearized_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
 f_CWH = @(t, x, u, p) CWH_relative_orbit_EoM(t, x, u, p, [a_c; spacecraft_params.Isp]);
 
-f_opt = f_linearized; % Dynamics to use for optimization
-f_eval = f_linearized; % Dynamics to use for propagation and plotting
+f_opt = f_nonlinear; % Dynamics to use for optimization
+f_eval = f_nonlinear; % Dynamics to use for propagation and plotting
 
 %% Specify Constraints
 state_convex_constraints = {};

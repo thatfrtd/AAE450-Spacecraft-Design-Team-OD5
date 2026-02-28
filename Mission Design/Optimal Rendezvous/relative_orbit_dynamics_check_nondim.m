@@ -35,7 +35,7 @@ x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 n = sqrt(char_star.mu / a_c ^ 3); % [rad / s]
 
 % Rendezvous time
-tf = 3600; % / char_star.t; % [s] (nondimensionalized)
+tf = 7200; % / char_star.t; % [s] (nondimensionalized)
 tspan = linspace(0, tf, 1000);
 
 % Initial conditions for spacecraft - specify orbit instead?
@@ -88,7 +88,8 @@ thetaddot = @(t) -2 * h  / r(t) ^ 3 * r_cdot(t);
 [~, x_nonlinear] = ode45(@(t, x) f_nonlinear(t, x, u, p), tspan / char_star.t, x_0 ./ nd_scalar, tolerances);
 %[~, x_nonlinear] = ode45(@(t, x) nonlinear_relative_orbit_EoM_sym(t, x, u, x_keplerian_c ./ [char_star.l; ones([5, 1])], alpha), tspan / char_star.t, x_0 ./ nd_scalar, tolerances);
 
-% Propagate 2-body orbit dynamics and convert to relative
+% Propagate 2-body orbit dynamics and convert to relative - CONTROL SHOULD
+% BE IN ORBIT FRAME OF CHEIF NOT DEPUTY LIKE GAUSS PLANETARY ASSUMES !!!!
 [~, x_0_cartesian_c] = ode45(@(t, x) gauss_planetary_eqn(f0_cartesian(x, char_star.mu), B_cartesian(x, char_star.mu), zeros([3, 1])), tspan, x_0_cartesian_c, tolerances);
 [~, x_cartesian_d] = ode45(@(t, x) [gauss_planetary_eqn(f0_cartesian(x, char_star.mu), B_cartesian(x, char_star.mu), a_d(t,x)); -alpha * sqrt(u(1) ^ 2 + u(2) ^ 2 + u(3) ^ 2)], tspan, x_0_cartesian_d, tolerances);
 x_cartesian_hill = ECI_to_Hill(x_0_cartesian_c', x_cartesian_d');
@@ -120,42 +121,6 @@ axis equal
 title("Relative Orbit Velocity Propagation Comparison")
 
 %% Helper Functions
-function [x_hill] = ECI_to_Hill(x_c, x_d)
-    % Convert from chief and deputy cartesian orbits to relative orbit of
-    % deputy w.r.t. chief in Hill frame (chief orbital frame)
-    RTN_to_ECI_DCM = RTN_to_ECI_array(x_c(1:3, :), x_c(4:6, :));
-    ECI_to_RTN_DCM = pagetranspose(RTN_to_ECI_DCM);
-
-    h_mag = vecnorm(cross(x_c(1:3, :), x_c(4:6, :)));
-    r_mag = vecnorm(x_c(1:3, :));
-    omega_c = h_mag ./ r_mag .^ 2; % Orbital angular velocity
-
-    x_relative = reshape(x_d(1:6, :) - x_c(1:6, :), 6, 1, []);
-
-    r_hill = pagemtimes(ECI_to_RTN_DCM, x_relative(1:3, :, :));
-    v_hill = pagemtimes(ECI_to_RTN_DCM, (x_relative(4:6, :, :)) - cross(reshape([zeros([2, numel(omega_c)]); omega_c], 3, 1, []), r_hill(1:3, :, :)));
-    x_hill = [reshape(r_hill, 3, []); 
-              reshape(v_hill, 3, []); 
-              x_d(7, :)];
-end
-
-function [x_d] = Hill_to_ECI(x_c, x_hill)
-    % Convert to chief and deputy cartesian orbits from relative orbit of
-    % deputy w.r.t. chief in Hill frame (chief orbital frame)
-    RTN_to_ECI_DCM = RTN_to_ECI_array(x_c(1:3, :), x_c(4:6, :));
-
-    h_mag = vecnorm(cross(x_c(1:3, :), x_c(4:6, :)));
-    r_mag = vecnorm(x_c(1:3, :));
-    omega_c = h_mag ./ r_mag .^ 2; % Orbital angular velocity
-
-    r_relative = pagemtimes(RTN_to_ECI_DCM, x_hill(1:3, :, :));
-    v_relative = pagemtimes(RTN_to_ECI_DCM, (x_hill(4:6, :, :) + cross([0; 0; omega_c], x_hill(1:3, :, :))));
-    x_relative = [reshape(r_relative, 3, []); 
-                  reshape(v_relative, 3, [])];
-
-    x_d = [reshape(x_relative + x_c(1:6, :), 6, 1, []);
-           x_hill(7, :)]; % Mass
-end
 function [xdot] = CWH_EoM_manual(t, x, u, mu, r_c, alpha)
     r = x(1:3);
     v = x(4:6);

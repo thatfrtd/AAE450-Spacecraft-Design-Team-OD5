@@ -22,7 +22,7 @@ a_0 = r_p_0 / (1 - e_0); % [km] semi-major axis
 i_0 = deg2rad(80); % [rad] inclination
 Omega_0 = deg2rad(30); % [rad] right ascension of ascending node
 omega_0 = deg2rad(20); % [rad] argument of periapsis
-nu_0 = deg2rad(0); % [rad] true anomaly at epoch
+nu_0 = deg2rad(180); % [rad] true anomaly at epoch
 
 M_0 = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_0, e_0), e_0);
 x0_keplerian = [a_0; e_0; i_0; Omega_0; omega_0; M_0];
@@ -38,14 +38,14 @@ t_hr = tspan / 60 / 60;
 default_tolerance = 1e-6;
 
 % Control
-F_mag = 1; % [N]
+F_mag = 0; % [N]
 accel_thrust = F_mag / m / 1000; % [km / s2]
 
 % Drag
 A_over_m = pi * 1 ^ 2 / m * 1e-6; % [km2 / kg] spacecraft area to mass ratio
 C_D = 2.31; % [] drag coefficient
 
-stop_altitude = 1; % [km]
+stop_altitude = 20; % [km]
 
 %%
 t0_datetime = datetime('2030-01-01','InputFormat','yyyy-MM-dd');
