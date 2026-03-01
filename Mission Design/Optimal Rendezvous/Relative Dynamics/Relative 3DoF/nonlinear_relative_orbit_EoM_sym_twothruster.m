@@ -2,9 +2,10 @@
 % AAE 450 Team OD5
 % Symbolic Nonlinear Relative Orbit EoM
 % Author: Travis Hastreiter 
-% Created On: 11 February, 2026
-% Description: 3DoF rocket landing dynamics with changing mass
-% Most Recent Change: 11 February, 2026
+% Created On: 28 February, 2026
+% Description: Nonlinear relative orbital motion dynamics with two
+% thrusters with different Isp (and max thrust)
+% Most Recent Change: 28 February, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 g_0 = 9.81e-3; % [km / s2]
