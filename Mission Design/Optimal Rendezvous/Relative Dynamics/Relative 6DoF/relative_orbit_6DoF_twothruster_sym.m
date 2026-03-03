@@ -1,9 +1,9 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % AAE 450 Team OD5
-% Symbolic Nonlinear Relative Orbit EoM
+% Symbolic Nonlinear 6DoF Relative Orbit EoM
 % Author: Travis Hastreiter 
 % Created On: 1 March, 2026
-% Description: 6DoF rocket landing dynamics with changing mass and a main
+% Description: 6DoF relative orbital dynamics with changing mass and a main
 % thruster with a specific Isp and RCS thrusters with different Isp along
 % with reaction wheel (or other propellant less torquer) torque
 % Most Recent Change: 1 March, 2026

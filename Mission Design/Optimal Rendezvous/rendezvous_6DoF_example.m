@@ -21,8 +21,8 @@ cylinder_MoI = @(m, r, h) [1 / 2 * m * r ^ 2; ...
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = [4000; 232]; % [s]
-spacecraft_params.m_0 = 1500; % [kg]
+spacecraft_params.Isp = [300; 232]; % [s]
+spacecraft_params.m_0 = 800; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
 spacecraft_params.r = 1.85; % [m]
 spacecraft_params.h = 4; % [m]
@@ -45,7 +45,7 @@ M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
 % Rendezvous time
-tf = 7000 / char_star.t; % [s] (nondimensionalized)
+tf = 15000 / char_star.t; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
 r_0 = [0.5; -0.5; 0.2]; % [km]
@@ -66,7 +66,7 @@ w_f = deg2rad([0; 0; 0]); % [rad / s]
 x_f = [r_f; v_f; q_f; w_f] ./ nd_scalar(1:13);
 
 %% Initialize
-N = 100;
+N = 200;
 t_k_actual = linspace(0, tf, N);
 tspan = [0, tf];
 t_k = linspace(tspan(1), tspan(2), N);
@@ -94,7 +94,7 @@ ptr_ops.update_w_tr = false;
 ptr_ops.delta_tol = 1e-2;
 ptr_ops.q = 2;
 ptr_ops.alpha_x = 1;
-ptr_ops.alpha_u = 1;
+ptr_ops.alpha_u = 0;
 ptr_ops.alpha_p = 0;
 
 % Scaling currently not helping...
