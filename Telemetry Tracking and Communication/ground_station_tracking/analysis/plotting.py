@@ -348,6 +348,17 @@ def plot_joint_orbit_3d(
         print(f"  Saved → {save_path}")
 
 
+def plot_all_targets(
+    target1_traj: List[OrbitalState],
+    target2_traj: List[OrbitalState],
+    target3_traj: List[OrbitalState],
+    target1_name: str= "Target 1",
+    target2_name: str= "Target 2",
+    target3_name: str= "Target 3",
+) -> None:
+    pass
+    
+
 def plot_joint_ground_track(
     target_traj: List[OrbitalState],
     chaser_traj: List[OrbitalState],

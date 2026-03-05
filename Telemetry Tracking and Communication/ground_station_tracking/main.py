@@ -6,9 +6,10 @@ Entry point for the spacecraft tracking simulation.
 Current stage
 -------------
     1. Initialise target from TLE, chaser from Keplerian elements
-    2. Propagate both truth trajectories over 24 hours
-    3. Print summary statistics for both spacecraft
-    4. Plot ground track and 3D orbit for both on the same axes
+    2. Load ground stations from JSON
+    3. Propagate both truth trajectories over 24 hours
+    4. Print summary statistics for both spacecraft
+    5. Plot ground track, 3D orbit, and Keplerian elements
 
 Chaser control law
 ------------------
@@ -24,13 +25,17 @@ Run from the project root:
     python main.py
 """
 
+import sys
 import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import numpy as np
 import matplotlib.pyplot as plt
 
 import config
 from dynamics.spacecraft import Spacecraft
 from dynamics.propagator  import Propagator
+from sensors.ground_station import load_stations_from_json
 from analysis.plotting import (
     print_keplerian,
     print_trajectory_stats,
@@ -38,7 +43,6 @@ from analysis.plotting import (
     plot_joint_orbit_3d,
     plot_joint_keplerian,
 )
-from sensors.ground_station import load_stations_from_json
 
 os.makedirs(config.OUTPUT_DIR, exist_ok=True)
 
@@ -47,16 +51,15 @@ os.makedirs(config.OUTPUT_DIR, exist_ok=True)
 
 def chaser_control_law(t: float, state: np.ndarray) -> np.ndarray:
     """
-    Zero-thrust placeholder.  Replace with your control law when ready.
+    Zero-thrust placeholder. Replace with your control law when ready.
 
     Args:
         t     : elapsed seconds since propagation start
-        state : (6,) ECI state [r, v], metres / m/s
+        state : (6,) ECI state [r, v], metres / m·s⁻¹
 
     Returns:
         (3,) ECI thrust acceleration, m/s²
     """
-
     return np.zeros(3)
 
 
@@ -91,42 +94,39 @@ def run_simulation():
     # ── 2. Chaser ─────────────────────────────────────────────────────────────
     print("\n[2/4] Initialising chaser from Keplerian elements ...")
 
-    # Pull RAAN, argp, nu directly from the target's osculating state so the
-    # chaser elements match exactly at t=0 — no mean-element ambiguity.
+    # All elements matched to the target's osculating state at t=0.
+    # Only semi-major axis is user-specified.
     chaser_kep = np.array([
-        config.CHASER_A,      # a    (m)    — user specified
-        kep_target[1],        # e           — matched to target
-        kep_target[2],        # i    (rad)  — matched to target
-        kep_target[3],        # RAAN (rad)  — matched to target
-        kep_target[4],        # argp (rad)  — matched to target
-        kep_target[5],        # ν    (rad)  — matched to target
+        config.CHASER_A,                       # a    (m)   — user specified
+        kep_target[1],                         # e          — matched to target
+        kep_target[2],                         # i    (rad) — matched to target
+        kep_target[3],                         # RAAN (rad) — matched to target
+        kep_target[4],                         # argp (rad) — matched to target
+        kep_target[5] + np.deg2rad(30),        # ν    (rad) — offset 30 deg
     ])
 
     chaser = Spacecraft.from_keplerian(
-        kep        = chaser_kep,
-        epoch      = config.SIM_START,
-        name       = config.CHASER_NAME,
-        control_law= chaser_control_law,
-        propagator = propagator,
+        kep         = chaser_kep,
+        epoch       = config.SIM_START,
+        name        = config.CHASER_NAME,
+        control_law = chaser_control_law,
+        propagator  = propagator,
     )
 
     print_keplerian("Chaser initial elements", chaser_kep)
-    print(f"\n  Note: e / i / RAAN / argp / ν all copied from target osculating state.")
+    print(f"\n  Note: e / i / RAAN / argp copied from target osculating state.")
     print(f"  Only semi-major axis differs: "
           f"{(config.CHASER_A - kep_target[0])/1e3:+.4f} km vs target")
-    
-    # -- Ground Station Locations ---------
-    stations = load_stations_from_json("data/ground_stations.json")
 
-    for state in target.truth_trajectory:
-        for station in stations:
-            obs = station.observe(state)
-            if obs is not None:
-                obs.range, obs.range_rate, obs.azimuth, obs.elevation
+    # ── 3. Ground stations ────────────────────────────────────────────────────
+    print("\n[3/4] Loading ground stations ...")
 
+    stations = load_stations_from_json(config.GROUND_STATIONS_JSON)
+    for s in stations:
+        print(f"  {s}")
 
-    # ── 3. Propagate ──────────────────────────────────────────────────────────
-    print("\n[3/4] Propagating truth trajectories ...")
+    # ── 4. Propagate ──────────────────────────────────────────────────────────
+    print("\n[4/4] Propagating truth trajectories ...")
 
     target_traj = target.generate_truth_trajectory(
         config.SIM_START, config.SIM_END, config.TRUTH_DT
@@ -141,34 +141,34 @@ def run_simulation():
     print_trajectory_stats(config.TARGET_NAME, target_traj)
     print_trajectory_stats(config.CHASER_NAME, chaser_traj)
 
-    # ── 4. Plots ──────────────────────────────────────────────────────────────
-    print("\n[4/4] Generating plots ...")
+    # ── 5. Plots ──────────────────────────────────────────────────────────────
+    print("\n[5/5] Generating plots ...")
 
     plot_joint_orbit_3d(
         target_traj, chaser_traj,
-        target_name=config.TARGET_NAME,
-        chaser_name=config.CHASER_NAME,
-        save_path=os.path.join(config.OUTPUT_DIR, "joint_orbit_3d.png"),
+        target_name = config.TARGET_NAME,
+        chaser_name = config.CHASER_NAME,
+        save_path   = os.path.join(config.OUTPUT_DIR, "joint_orbit_3d.png"),
     )
 
     plot_joint_ground_track(
         target_traj, chaser_traj,
-        target_name=config.TARGET_NAME,
-        chaser_name=config.CHASER_NAME,
-        save_path=os.path.join(config.OUTPUT_DIR, "joint_ground_track.png"),
+        target_name = config.TARGET_NAME,
+        chaser_name = config.CHASER_NAME,
+        save_path   = os.path.join(config.OUTPUT_DIR, "joint_ground_track.png"),
     )
 
     plot_joint_keplerian(
         target_traj, chaser_traj,
-        target_name=config.TARGET_NAME,
-        chaser_name=config.CHASER_NAME,
-        save_path=os.path.join(config.OUTPUT_DIR, "joint_keplerian.png"),
+        target_name = config.TARGET_NAME,
+        chaser_name = config.CHASER_NAME,
+        save_path   = os.path.join(config.OUTPUT_DIR, "joint_keplerian.png"),
     )
 
     print("\nSimulation complete.")
     plt.show()
-    return target, chaser, target_traj, chaser_traj
+    return target, chaser, target_traj, chaser_traj, stations
 
 
 if __name__ == "__main__":
-    target, chaser, target_traj, chaser_traj = run_simulation()
+    target, chaser, target_traj, chaser_traj, stations = run_simulation()

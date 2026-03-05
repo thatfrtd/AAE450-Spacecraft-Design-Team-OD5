@@ -65,6 +65,12 @@ CHASER_NU   = None
 PROP_RTOL = 1e-10
 PROP_ATOL = 1e-10
 
+# ── Data paths ────────────────────────────────────────────────────────────────
+import os as _os
+_HERE = _os.path.dirname(_os.path.abspath(__file__))
+
+GROUND_STATIONS_JSON = _os.path.join(_HERE, "data", "ground_stations.json")
+
 # ── Output ────────────────────────────────────────────────────────────────────
 OUTPUT_DIR  = "outputs"
 FIGURE_DPI  = 150
