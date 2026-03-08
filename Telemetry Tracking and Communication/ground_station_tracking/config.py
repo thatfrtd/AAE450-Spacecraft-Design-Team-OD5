@@ -65,6 +65,37 @@ CHASER_NU   = None
 PROP_RTOL = 1e-10
 PROP_ATOL = 1e-10
 
+# ── EKF parameters ────────────────────────────────────────────────────────────
+
+# Initial covariance P0 — 1-sigma position and velocity uncertainty at filter start
+EKF_INIT_POS_STD = 1_000.0      # metres   (1 km position uncertainty)
+EKF_INIT_VEL_STD = 10.0         # m/s      (10 m/s velocity uncertainty)
+
+EKF_P0 = np.diag([
+    EKF_INIT_POS_STD**2,  EKF_INIT_POS_STD**2,  EKF_INIT_POS_STD**2,
+    EKF_INIT_VEL_STD**2,  EKF_INIT_VEL_STD**2,  EKF_INIT_VEL_STD**2,
+])
+
+# Process noise Q — continuous spectral density
+# Represents unmodelled accelerations (drag, SRP, maneuvers, model error)
+# Shape (2,2): [position noise spectral density, velocity noise spectral density]
+# Units: m^2/s^3
+EKF_Q = np.diag([1e-8, 1e-6])
+
+# Measurement noise R — diagonal, one entry per observable
+# [range (m^2), range_rate (m^2/s^2), azimuth (rad^2), elevation (rad^2)]
+_RANGE_STD       = 50.0               # metres
+_RANGE_RATE_STD  = 0.1                # m/s
+_AZ_STD          = np.deg2rad(0.1)    # radians
+_EL_STD          = np.deg2rad(0.1)    # radians
+
+EKF_R = np.diag([
+    _RANGE_STD**2,
+    _RANGE_RATE_STD**2,
+    _AZ_STD**2,
+    _EL_STD**2,
+])
+
 # ── Data paths ────────────────────────────────────────────────────────────────
 import os as _os
 _HERE = _os.path.dirname(_os.path.abspath(__file__))
