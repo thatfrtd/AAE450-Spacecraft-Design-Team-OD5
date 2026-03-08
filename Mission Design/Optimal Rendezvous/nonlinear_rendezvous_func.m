@@ -10,6 +10,8 @@ arguments
     options.dynamics = "Nonlinear" % "CWH", "Linearized", "Nonlinear"
     options.plot_results = true
     options.plot_convergence = false
+    options.max_iters = 5
+    options.integration_tolerance = 1e-12
 end
 char_star = load_charecteristic_values_Earth();
 nd_scalar = [char_star.l * ones([3, 1]); char_star.v * ones([3, 1]); char_star.m];
@@ -45,7 +47,7 @@ nu = 3; % Number of controls
 np = 0; % Number of parameters (tf, v_0, etc)
 
 % PTR algorithm parameters
-ptr_ops.iter_max = 5;
+ptr_ops.iter_max = options.max_iters;
 ptr_ops.iter_min = 1;
 ptr_ops.Delta_min = 1e-8;
 ptr_ops.w_vc = 5e5;
@@ -116,7 +118,7 @@ guess.u = ones([3, Nu]) * 1e-6;
 guess.p = [];
 
 %% Construct Problem Object
-problem = DeterministicProblem(x_0_nd, x_f_nd, N, u_hold, tf, f_opt, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = 1e-12, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous");
+problem = DeterministicProblem(x_0_nd, x_f_nd, N, u_hold, tf, f_opt, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = options.integration_tolerance, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous");
 
 [problem, Delta_disc] = problem.discretize(guess.x, guess.u, guess.p);
 

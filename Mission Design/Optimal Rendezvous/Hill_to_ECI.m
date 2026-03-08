@@ -7,11 +7,11 @@ h_mag = vecnorm(cross(x_c(1:3, :), x_c(4:6, :)));
 r_mag = vecnorm(x_c(1:3, :));
 omega_c = h_mag ./ r_mag .^ 2; % Orbital angular velocity
 
-r_relative = pagemtimes(RTN_to_ECI_DCM, x_hill(1:3, :, :));
-v_relative = pagemtimes(RTN_to_ECI_DCM, (x_hill(4:6, :, :) + cross([0; 0; omega_c], x_hill(1:3, :, :))));
+r_relative = pagemtimes(RTN_to_ECI_DCM, reshape(x_hill(1:3, :), 3, 1, []));
+v_relative = pagemtimes(RTN_to_ECI_DCM, (reshape(x_hill(4:6, :), 3, 1, []) + cross(reshape([zeros([2, numel(omega_c)]); omega_c], 3, 1, []), reshape(x_hill(1:3, :), 3, 1, []))));
 x_relative = [reshape(r_relative, 3, []); 
               reshape(v_relative, 3, [])];
 
-x_d = [reshape(x_relative + x_c(1:6, :), 6, 1, []);
+x_d = [reshape(x_relative + x_c(1:6, :), 6, []);
        x_hill(7, :)]; % Mass
 end

@@ -8,29 +8,29 @@
 % Most Recent Change: 25 February, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-R_E = 6378.1; % [km] Earth radius
-mu_E = 398600; % [km3 / s2] Earth gravitational parameter
-J_2_val = 1.0826e-3; % [] Earth J2
+R_E = 6378.137; % [km] Earth radius
+mu_E = 398600.4418; % [km3 / s2] Earth gravitational parameter
+J_2_val = 1.08262668e-3; % [] Earth J2
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = R_E + 660; % [km] semi-major axis
-e_c = 1e-3; % [] eccentricity
-i_c = deg2rad(71); % [rad] inclination
-Omega_c = deg2rad(0); % [rad] right ascension of ascending node
-omega_c = deg2rad(0); % [rad] argument of periapsis
-nu_c = deg2rad(0); % [rad] true anomaly at epoch
+a_c = 7044.7634; % [km] semi-major axis
+e_c = 0.003390; % [] eccentricity
+i_c = deg2rad(98.1114 ); % [rad] inclination
+Omega_c = deg2rad(320.5520 ); % [rad] right ascension of ascending node
+omega_c = deg2rad(301.2069 ); % [rad] argument of periapsis
+nu_c = deg2rad(58.6658 ); % [rad] true anomaly at epoch
 
 M_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_c, e_c), e_c);
 x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
-a_d = R_E + 600; % [km] semi-major axis
-e_d = 1e-3; % [] eccentricity
-i_d = deg2rad(71); % [rad] inclination
-Omega_d = deg2rad(0); % [rad] right ascension of ascending node
-omega_d = deg2rad(0); % [rad] argument of periapsis
-nu_d = deg2rad(0); % [rad] true anomaly at epoch
+a_d = 6978.1370; % [km] semi-major axis
+e_d = 0.003390; % [] eccentricity
+i_d = deg2rad(98.1114); % [rad] inclination
+Omega_d = deg2rad(320.5520); % [rad] right ascension of ascending node
+omega_d = deg2rad(301.2069 ); % [rad] argument of periapsis
+nu_d = deg2rad(58.6658 ); % [rad] true anomaly at epoch
 
 M_d = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_d, e_d), e_d);
 x0_d_keplerian = [a_d; e_d; i_d; Omega_d; omega_d; M_d];
@@ -40,13 +40,13 @@ char_star = load_charecteristic_values_Earth();
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = 303; % [s]
+spacecraft_params.Isp = 4100; % [s]
 spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 1000; % [kg]
-spacecraft_params.F_max = 0.8; % [N]
+spacecraft_params.F_max = 0.5; % [N]
 
 % Integration error tolerance
-default_tolerance = 1e-6;
+default_tolerance = 1e-10;
 
 %% Q-Law Transfer to Object (First find time then adjust to phase properly)
 a_d_0 = @(t, x) zeros([3, 1]); % Disturbance function
@@ -76,7 +76,7 @@ Q_params.n = 4;
 Q_params.r = 2;
 Q_params.Theta_rot = 0;
 
-[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(2), R_c = 0.01, a_disturbance = a_d_J2);
+[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000/2, angular_step=deg2rad(2), R_c = 0.01, a_disturbance = a_d_0);
 
 dVs = Qtransfer.delta_V;
 ToFs = Qtransfer.dt / 60 / 60 / 24;
@@ -88,18 +88,49 @@ end
 
 plot_Q_transfer(Qtransfer, x0_c_keplerian, x0_d_keplerian, char_star)
 
+%% Make sure transfer correct
+a_d_J2_ECI = @(t,x) J2_perturbation_ECI(x, mu_E, R_E, J_2_val);
+a_d_RTNcontrol = @(t,x) a_d_J2_ECI(t,x) + RTN_to_ECI(x(1:3), x(4:6)) * interp1(Qtransfer.t, Qtransfer.u_cont' ./ Qtransfer.x_keplerian_mass(7, :)', t, "previous")';
+
+% Simulate 
+tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance);
+
+% Run first to see how far off orbit gets from desired because of J2
+[~,x_keplerian_cartesian_preck] = ode45(@(t,x) gauss_planetary_eqn(f0_cartesian(x, mu_E), B_cartesian(x, mu_E), a_d_RTNcontrol(t,x)), Qtransfer.t, x0_d_cartesian, tolerances);
+x_keplerian_preck = cartesian_to_keplerian_array(x_keplerian_cartesian_preck', [0; 0; 1], [1; 0; 0], mu_E);
+
+% Run with adjusted initial orbit attempting to account for J2 drifting
+% RAAN and arg periapsis
+x0_d_keplerian_adj = [a_d; e_d; i_d; Omega_d - wrapToPi(x_keplerian_preck(4, end) - x0_c_keplerian(4)); omega_d - wrapToPi(x_keplerian_preck(5, end) - x0_c_keplerian(5)); M_d];
+x0_d_cartesian_adj = keplerian_to_cartesian(x0_d_keplerian_adj, nu_d, mu_E);
+[~,x_keplerian_cartesian_ck] = ode45(@(t,x) gauss_planetary_eqn(f0_cartesian(x, mu_E), B_cartesian(x, mu_E), a_d_RTNcontrol(t,x)), Qtransfer.t, x0_d_cartesian_adj, tolerances);
+x_keplerian_ck = cartesian_to_keplerian_array(x_keplerian_cartesian_ck', [0; 0; 1], [1; 0; 0], mu_E);
+
+%%
+
+x_Qtrans_cart = keplerian_to_cartesian_array(Qtransfer.x_keplerian_mass(1:6, :), [], mu_E); % QLaw output (not corrected for J2!)
+figure
+earthy(R_E, "Earth", 1, [0;0;0]); hold on;
+plot3(x_keplerian_cartesian_ck(:, 1), x_keplerian_cartesian_ck(:, 2), x_keplerian_cartesian_ck(:, 3))
+plot3(x_Qtrans_cart(1,:), x_Qtrans_cart(2,:), x_Qtrans_cart(3,:))
+
+legend("Earth", "Check", "Sol")
+axis equal
+grid on
+
 %% Find Transition from Transfer to Rendezvous
 % Find where QLaw gets 1 km away and use those as initial conditions for
 % SCP rendezvous
-max_engagement_dist = 2; % [km] Distance to switch to rendezvous from transfer
+max_engagement_dist = 4.5; % [km] Distance to switch to rendezvous from transfer
 
-x_d_cartesian = keplerian_to_cartesian_array(Qtransfer.x_keplerian_mass(1:6, :), [], mu_E);
+x_d_cartesian = x_keplerian_cartesian_ck';%keplerian_to_cartesian_array(Qtransfer.x_keplerian_mass(1:6, :), [], mu_E);
 
 delta_M_transfer = Qtransfer.x_keplerian_mass(6, end) - M_d;
 delta_M_chief = sqrt(char_star.mu / a_c ^ 3) * Qtransfer.t(end);
-M0_c_refined = wrapToPi(delta_M_transfer - delta_M_chief); % Assuming M_c is 0
+M0_c_refined = wrapToPi(delta_M_transfer - delta_M_chief); % Assuming M_c is 0 DOES NOT WORK - JUST USE OPTIMIZATION FUNCTION
 
-x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M0_c_refined + deg2rad(-0.19)];
+%x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M0_c_refined + deg2rad(58.48)];
+x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M0_c_refined + deg2rad(77.715)];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, [], mu_E);
 x_c_cartesian = propagate_conic_array(x0_c_cartesian, Qtransfer.t, char_star.mu);
 
@@ -131,29 +162,53 @@ ylabel("Relative Distance [km]")
 title("Distance from Target vs Time for Transfer")
 grid on
 
+%%
+x_Qtransfer_cart = [x_d_cartesian(:, 1:i_engage); Qtransfer.x_keplerian_mass(7, 1:i_engage)];
+u_trans_cont = Qtransfer.u_cont(:, 1:i_engage);
+
+t_trans = Qtransfer.t(1:i_engage);
+x_trans = (x_Qtransfer_cart )';
+u_accel_trans = reshape(pagemtimes(RTN_to_ECI_array(x_Qtransfer_cart(1:3, :), x_Qtransfer_cart(4:6, :)), reshape(u_trans_cont(:, 1:i_engage), 3, 1, [])), 3, [])' ./ x_trans(:, 7);
+
+trans_table = table(t_trans, x_trans, u_accel_trans);
+writetable(trans_table, "Wes_QLaw_TTC_test.csv")
+
 %% Relative Orbit Transfer using SCP 
 x_0_hill = x_d_engage_hill;
 x_f_hill = [0.2; 0; 0;  % [km]
             0; 0; 0]; % [km / s]
-ToF_rendezvous = 3600 * 7; % [s]
-[optimal_rendezvous, rendezvous_SCP_info] = nonlinear_rendezvous_func(x_0_hill, x_f_hill, ToF_rendezvous, x0_c_keplerian, spacecraft_params, N = 100, dynamics = "Nonlinear", u_hold = "FOH");
+ToF_rendezvous = 3600 * 15; % [s]
+spacecraft_params_mod = spacecraft_params;
+spacecraft_params_mod.F_max = 2;
+[optimal_rendezvous, rendezvous_SCP_info] = nonlinear_rendezvous_func(x_0_hill, x_f_hill, ToF_rendezvous, x0_c_keplerian, spacecraft_params_mod, N = 150, dynamics = "Nonlinear", u_hold = "ZOH", max_iters = 15, integration_tolerance = 5e-12);
 
 %% Package Output
-x_Qtransfer_cart = [keplerian_to_cartesian_array(Qtransfer.x_keplerian_mass(1:6, 1:i_engage), [], mu_E); Qtransfer.x_keplerian_mass(7, 1:i_engage)];
+x_Qtransfer_cart = [x_d_cartesian(:, 1:i_engage); Qtransfer.x_keplerian_mass(7, 1:i_engage)];
 x_Qtransfer_hill = ECI_to_Hill(x_c_cartesian(:, 1:i_engage), x_Qtransfer_cart);
+x_Qtransfer_hill_ck = Hill_to_ECI(x_c_cartesian(:, 1:i_engage), x_Qtransfer_hill); % DOES NOT MATCH
 t_cont_traj = [Qtransfer.t; optimal_rendezvous.t];
 x_cont_traj = [x_Qtransfer_hill, optimal_rendezvous.x];
 
 trajectory_to_target.transfer = Qtransfer;
 trajectory_to_target.rendezvous = rendezvous_SCP_info;
 
+%% CHECK ECI<->HILL CONVERSION -- DOESN'T MATCH :(
+ckdiff = x_Qtransfer_hill_ck - x_Qtransfer_cart;
+figure
+plot(x_Qtransfer_hill_ck(6, :)'); hold on
+plot(x_Qtransfer_cart(6, :)');
+
 %%
 figure
-plot3(x_cont_traj(1, i_engage - 10:end), x_cont_traj(2, i_engage - 10:end), x_cont_traj(3, i_engage - 10:end))
+plt_start_i = 12500; 
+i_end = size(x_cont_traj, 2) - 8200;
+plot3(x_cont_traj(1, i_engage:i_end), x_cont_traj(2, i_engage:i_end), x_cont_traj(3, i_engage:i_end)); hold on
+plot3(x_cont_traj(1, plt_start_i:i_engage), x_cont_traj(2, plt_start_i:i_engage), x_cont_traj(3, plt_start_i:i_engage))
 xlabel("X [km]")
 ylabel("Y [km]")
 zlabel("Z [km]")
 title("Hill View of Transfer and Rendezvous")
+legend("Rendezvous", "Transfer")
 grid on
 axis equal
 
@@ -349,4 +404,39 @@ function [a_J2_RTN] = J2_perturbation(x_cartesian, mu, r_o, J_2)
     nu = eccentric_to_true_anomaly(mean_to_eccentric_anomaly(M, e), e);
 
     a_J2_RTN = cartesian_to_RTN_DCM(i, Omega, omega, nu)' * a_J2;
+end
+
+function [a_J2] = J2_perturbation_ECI(x_cartesian, mu, r_o, J_2)
+    rvec = x_cartesian(1:3);
+    r = norm(rvec);
+    x = rvec(1);
+    y = rvec(2);
+    z = rvec(3);
+
+    cons = 1 - 5 * z .^ 2 ./ r .^ 2;
+
+    a_J2 = -3 * mu * J_2 * r_o ^ 2 ./ (2 * r .^ 5) ...
+        .* ([cons .* x; cons .* y; (2 + cons) .* z]);
+end
+
+
+
+function [f_0] = f0_cartesian(x, mu)
+    rvec = x(1:3);
+    vvec = x(4:6);
+    r = norm(rvec);
+
+    a_cartesian = -mu ./ r .^ 3 * rvec;
+
+    f_0 = [vvec; a_cartesian];
+end
+
+
+function [B] = B_cartesian(x, mu)
+    B = [zeros(3); eye(3)];
+end
+
+
+function [x_dot] = gauss_planetary_eqn(f_0, B, a_d)
+    x_dot = f_0 + B * a_d;
 end

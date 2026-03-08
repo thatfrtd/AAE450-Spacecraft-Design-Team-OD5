@@ -27,11 +27,11 @@ x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
 r_a_d = R_E + 2200; % [km] periapsis
-r_p_d = R_E + 2000; % [km] periapsis
+r_p_d = R_E + 2200.00001; % [km] periapsis
 e_d = (1 - r_p_d / r_a_d) / (1 + r_p_d / r_a_d); % [] eccentricity
 a_d = r_p_d / (1 - e_d); % [km] semi-major axis
-i_d = deg2rad(30); % [rad] inclination
-Omega_d = deg2rad(0); % [rad] right ascension of ascending node
+i_d = deg2rad(71); % [rad] inclination
+Omega_d = deg2rad(10); % [rad] right ascension of ascending node
 omega_d = deg2rad(0); % [rad] argument of periapsis
 nu_d = deg2rad(0); % [rad] true anomaly at epoch
 
@@ -43,13 +43,13 @@ char_star = load_charecteristic_values_Earth();
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = 3000; % [s]
+spacecraft_params.Isp = 4100; % [s]
 spacecraft_params.m_0 = 800; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
 spacecraft_params.F_max = 1; % [N]
 
 % Integration error tolerance
-default_tolerance = 1e-6;
+default_tolerance = 1e-12;
 
 %% Q Law Transfer
 a_d_0 = @(t, x) zeros([3, 1]); % Disturbance function
@@ -67,9 +67,9 @@ Qdot_opt_params.strategy = "Best Start Points";
 Qdot_opt_params.plot_minQdot_vs_L = false;
 
 N_i = 1;
-eta = linspace(0.5, 0.95, N_i);
+eta = 0.5;%linspace(0.5, 0.95, N_i);
 clear Qtransfer
-parfor i = 1 : N_i
+for i = 1 : N_i
     % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
     Q_params = struct();
     Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
@@ -147,23 +147,44 @@ yscale("log") % what's the best for plotting this?
 grid on
 
 
-%% Plot Constraint Satisfaction
+%% Validate Solution
+% tight_tolerance = 1e-6;
+% tight_tolerances = odeset(RelTol=tight_tolerance, AbsTol=tight_tolerance);
+% g_0 = 9.81; % [m / s2]
+% a_disturbance = @(t,x) [0;0;0];
+% x0_me_mass_d = [keplerian_to_modified_equinoctial(x0_d_keplerian, []); spacecraft_params.m_0];
+% u = @(t) interp1(Qtransfer.t, Qtransfer.u_cont', t)' * 1000;
+% %u = @(t) Qtransfer.u_cont(:, min(floor(t ./ Qtransfer.t(end) * numel(Qtransfer.t)) + 1, numel(Qtransfer.t)));
+% a_control = @(t, x) u(t) / x(end);
+% mdot = @(t) -norm(u(t)) / (spacecraft_params.Isp * g_0);
+% [~, x_me_mass_d_ck] = ode45(@(t, x) [gauss_planetary_eqn(f0_modified_equinoctial(x, mu_E), B_modified_equinoctial(x, mu_E), a_control(t, x) + a_disturbance(t, x)); mdot(t)], Qtransfer.t, x0_me_mass_d, tight_tolerances);
+% x_me_mass_d_ck = x_me_mass_d_ck';
+% 
+% %%
+% x_keplerian_mass_ck = [modified_equinoctial_to_keplerian_array(x_me_mass_d_ck(1:6, :)); x_me_mass_d_ck(7, :)];
+% x_keplerian_cartesian_ck = [modified_equinoctial_to_cartesian_array(x_me_mass_d_ck(1:6, :), mu_E); x_me_mass_d_ck(7, :)];
+% 
+% %%
+% 
 % figure
-% tiledlayout(1, 2)
-% 
-% nexttile
-% plot(Qtransfer.t / 60, x_keplerian_d(:, 1) .* (1 - x_keplerian_d(:, 2)) * l_star - R_E); hold on
-% yline(r_p_min - R_E); hold off
-% xlabel("Time [hr]")
-% ylabel("Periapsis [km]")
-% title("Q-Law Orbit Transfer Periapsis Constraint")
+% plot_cartesian_orbit(x_keplerian_cartesian_d(:, 1:1:end)); hold on
+% plot_cartesian_orbit(x_keplerian_cartesian_ck(:, 1:1:end)); hold on
+% c = colorbar;
+% plotOrbit3(Omega_c, i_c, omega_c, a_c * (1 - e_c ^2), e_c, linspace(0, 2 * pi, 1000), "r", 1, 1, [0, 0, 0], 0.1, 2); hold on
+% plotOrbit3(Omega_d, i_d, omega_d, a_d * (1 - e_d ^2), e_d, linspace(0, 2 * pi, 1000), "g", 1, 1, [0, 0, 0], 0.1, 2)
 % grid on
+% earthy(R_E, "Earth", 0.5, [0;0;0]); hold on; 
+% clim([0, 1])
+% c.Ticks = [0, 0.5, 1];
+% c.TickLabels = {'Coast', 'Eclipse', 'Thrust'};
+% axis equal
 % 
-% nexttile
-% plot(Qtransfer.t / 60, Qtransfer.P)
-% xlabel("Time [hr]")
-% ylabel("Periapsis Constraint []")
-% title("Q-Law Orbit Transfer Periapsis Constraint Nondimensionalized")
+% title("Q-Law Orbit Transfer")
+% legend("Nondim", "Check", "Target", "Initial")
+% xlabel("X [km]")
+% ylabel("Y [km]")
+% zlabel("Z [km]")
+
 
 %% Calculate Spiral Transfer Estimates
 dV_spiral = sqrt(mu_E / a_d) - sqrt(mu_E / a_c)

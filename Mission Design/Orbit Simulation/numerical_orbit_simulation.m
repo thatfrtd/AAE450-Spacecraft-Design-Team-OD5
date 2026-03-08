@@ -16,7 +16,7 @@ m = 800; % [kg]
 
 % Initial conditions for s/c in Earth orbit (in Earth Centered Inertial (ECI) frame)
 r_a_0 = R_E + 600; % [km] periapsis
-r_p_0 = R_E + 96; % [km] periapsis
+r_p_0 = R_E + 599; % [km] periapsis
 e_0 = (1 - r_p_0 / r_a_0) / (1 + r_p_0 / r_a_0); % [] eccentricity
 a_0 = r_p_0 / (1 - e_0); % [km] semi-major axis
 i_0 = deg2rad(80); % [rad] inclination
@@ -29,7 +29,7 @@ x0_keplerian = [a_0; e_0; i_0; Omega_0; omega_0; M_0];
 x0_cartesian = keplerian_to_cartesian(x0_keplerian, nu_0, mu_E);
 
 % Propagation Time 
-orbits = 40;
+orbits = 20;
 tspan = linspace(0, orbits * period(a_0, mu_E), 1e5);
 t_orbits = linspace(0, orbits, numel(tspan));
 t_hr = tspan / 60 / 60;
@@ -59,8 +59,8 @@ a_d_thrust = @(t,x) [accel_thrust * sind(0); ...
                      accel_thrust * cosd(0); ... 
                      accel_thrust * sind(0)]; % [km / s2] Orbital RTN frame (Radial-Theta-Normal frame)
 
-a_d = @(t,x) a_d_J2(t,x) + cartesian_to_RTN_DCM_from_cart(x, mu_E) * a_d_thrust(t,x) ...
-                         + drag_perturbation_nrlmsise(t, x, mu_E, C_D, A_over_m, t0_datetime, false);
+a_d = @(t,x) a_d_J2(t,x) + cartesian_to_RTN_DCM_from_cart(x, mu_E) * a_d_thrust(t,x);% ...
+                         %+ drag_perturbation_nrlmsise(t, x, mu_E, C_D, A_over_m, t0_datetime, false);
                          %+ drag_perturbation_simple(t, x, mu_E, R_E, C_D, A_over_m);
 
 % Simulate 
