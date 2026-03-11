@@ -13,6 +13,7 @@
 
 char_star = load_charecteristic_values_Earth();
 nd_scalar = [char_star.l * ones([3, 1]); char_star.v * ones([3, 1]); char_star.m];
+g_0 = 9.81e-3; % [km / s2]
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
@@ -33,7 +34,7 @@ M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
 % Rendezvous time
-tf = 1000 / char_star.t; % [s] (nondimensionalized)
+tf = 500 / char_star.t; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
 r_0 = [0.5; -0.5; 0.2]; % [km]
@@ -88,7 +89,7 @@ scale = false;
 % scale_hint.p_min = [];
 
 %% Get Dynamics
-f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM_twothruster(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
+f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM_twothruster(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp; 1; g_0]);
 
 f_opt = f_nonlinear; % Dynamics to use for optimization
 f_eval = f_nonlinear; % Dynamics to use for propagation and plotting
@@ -121,8 +122,8 @@ initial_bc = @(x, p) [x - x_0];
 terminal_bc = @(x, p, x_ref, p_ref) [x(1:6) - x_f; 0]; % Don't constrain final mass
 
 %% Specify Objective
-objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(1:3, :))) * delta_t * char_star.F / (spacecraft_params.Isp(1) * 9.81e-3) * 1000 ...
-                                                   + sum(norms(u(4:6, :))) * delta_t * char_star.F / (spacecraft_params.Isp(2) * 9.81e-3) * 1000;
+objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(1:3, :))) * delta_t * char_star.F / (spacecraft_params.Isp(1) * g_0) * 1000 ...
+                                                   + sum(norms(u(4:6, :))) * delta_t * char_star.F / (spacecraft_params.Isp(2) * g_0) * 1000;
 
 %% Create Guess
 % Straight Line Initial Guess

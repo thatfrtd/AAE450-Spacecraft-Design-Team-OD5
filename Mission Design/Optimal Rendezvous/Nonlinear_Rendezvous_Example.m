@@ -35,7 +35,7 @@ tf = 20000 / char_star.t; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
 r_0 = [0.5; -0.5; 0.2]; % [km]
-v_0 = [0.001; 1e-3; 0]; % [km / s]
+v_0 = [0.0005; 1e-3; 1.6e-3]; % [km / s]
 x_0 = [r_0; v_0; spacecraft_params.m_0] ./ nd_scalar;
 
 % Terminal conditions

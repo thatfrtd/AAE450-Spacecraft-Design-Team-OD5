@@ -50,7 +50,7 @@ M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
 % Rendezvous time
-tf = 25; % [s] (nondimensionalized)
+tf = 500; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
 theta_0 = deg2rad([0; 45; 45]); % [rad]
@@ -63,11 +63,11 @@ x_0 = [q_0; w_0];
 theta_f = deg2rad([0; 0; 0]); % [rad]
 R_f = angle2dcm(theta_f(1), theta_f(2), theta_f(3));
 q_f = qExp(RLog(R_f));
-w_f = deg2rad([0; 40; 0]); % [rad / s]
+w_f = deg2rad([0; 0; 0]); % [rad / s]
 x_f = [q_f; w_f];
 
 %% Initialize
-N = 50;
+N = 100;
 t_k_actual = linspace(0, tf, N);
 tspan = [0, tf];
 t_k = linspace(tspan(1), tspan(2), N);
@@ -87,15 +87,15 @@ np = 0; % Number of parameters (tf, v_0, etc)
 % PTR algorithm parameters
 ptr_ops.iter_max = 25;
 ptr_ops.iter_min = 1;
-ptr_ops.Delta_min = 1e-6;
+ptr_ops.Delta_min = 5e-5;
 ptr_ops.w_vc = 5e5;
-ptr_ops.w_tr = ones(1, Nu) * 5e-5;
+ptr_ops.w_tr = ones(1, Nu) * 5e-3;
 ptr_ops.w_tr_p = 0;
 ptr_ops.update_w_tr = false;
 ptr_ops.delta_tol = 1e-2;
 ptr_ops.q = 2;
 ptr_ops.alpha_x = 1;
-ptr_ops.alpha_u = 0;
+ptr_ops.alpha_u = 1;
 ptr_ops.alpha_p = 0;
 
 % Scaling currently not helping...

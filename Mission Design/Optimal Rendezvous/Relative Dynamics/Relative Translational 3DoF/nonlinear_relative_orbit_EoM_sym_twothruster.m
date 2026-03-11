@@ -8,13 +8,11 @@
 % Most Recent Change: 28 February, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-g_0 = 9.81e-3; % [km / s2]
-
 char_star = load_charecteristic_values_Earth();
 
-mu = 1; % Nondimensionalized
-
 % Constants
+mu = sym("mu", [1, 1]);
+g_0 = sym("g_0", [1, 1]);
 x_keplerian_c = sym("x_keplerian_c", [6, 1]);
 a_c = x_keplerian_c(1) / char_star.l;
 e_c = x_keplerian_c(2);
@@ -23,7 +21,7 @@ Omega_c = x_keplerian_c(4);
 omega_c = x_keplerian_c(5);
 M0_c = x_keplerian_c(6);
 Isp = sym("Isp", [2, 1]);
-c = [x_keplerian_c; Isp];
+c = [x_keplerian_c; Isp; mu; g_0];
 
 alpha_1 = char_star.v / (Isp(1) * g_0);
 alpha_2 = char_star.v / (Isp(2) * g_0);
@@ -35,7 +33,7 @@ v = sym("v", [3, 1]);
 m = sym("m", [1, 1]);
 x = [r; v; m];
 
-u = sym("thrust", [6, 1]); % Thrust (nondimensionalized by kN)
+u = sym("thrust", [6, 1]); % Thrust
 u_1 = u(1:3);
 u_2 = u(4:6);
 p = sym("p", [0, 1]);
