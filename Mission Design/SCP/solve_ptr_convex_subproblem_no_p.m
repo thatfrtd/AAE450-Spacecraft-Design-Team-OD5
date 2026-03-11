@@ -66,28 +66,6 @@ cvx_begin quiet
         ptr_ops.alpha_x * sum(sum_square(X(:, 1:prob.Nu) - x_ref(:, 1:prob.Nu))) + sum(ptr_ops.alpha_u * sum_square(U - u_ref)) <= eta;
 cvx_end
 
-if size(U,1) == 5
-    figure
-    
-    tiledlayout(1, 3)
-    nexttile
-    plot3(X(1, :), X(2, :), X(3, :)); 
-    grid on
-    axis equal
-    
-    nexttile
-    stairs(U(1, :)); hold on
-    stairs(U(2, :)); hold on
-    stairs(U(3, :)); hold on
-    stairs(U(4, :)); hold off
-    grid on
-    
-    nexttile
-    stairs(rad2deg(U(5, :))); hold on
-    stairs(acosd(U(1, :) ./ U(4, :)));
-    grid on
-end
-
 x_sol = X;
 u_sol = U;
 

@@ -6,7 +6,7 @@
 % Description: Check of relative orbit dynamics (CWH, Linearized, Nonlinear) 
 % by propagating with and without control and looking at divergence rates.
 % Also, compare against directly propagating orbits in inertial frame
-% Last Modified On: 25 February, 2026
+% Last Modified On: 9 March, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 char_star = load_charecteristic_values_Earth();
@@ -14,17 +14,17 @@ nd_scalar = [char_star.l * ones([3, 1]); char_star.v * ones([3, 1]); char_star.m
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = 3000; % [s]
-spacecraft_params.m_0 = 800; % [kg]
+spacecraft_params.Isp = 4100; % [s]
+spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = 0.1; % [N]
+spacecraft_params.F_max = 0.25; % [N]
 F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
 
 alpha = 1 / (spacecraft_params.Isp * 9.81e-3);
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = 6728; % [km] semi-major axis
-e_c = 0.01; % [] eccentricity
+e_c = 0.0; % [] eccentricity
 i_c = deg2rad(80); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
@@ -35,12 +35,12 @@ x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 n = sqrt(char_star.mu / a_c ^ 3); % [rad / s]
 
 % Rendezvous time
-tf = 7200; % / char_star.t; % [s] (nondimensionalized)
+tf = 3600; % / char_star.t; % [s] (nondimensionalized)
 tspan = linspace(0, tf, 1000);
 
 % Initial conditions for spacecraft - specify orbit instead?
-r_0 = [-0.5; -0.5; 0.2]; % [km]
-v_0 = [0e-3; 1e-3; 0]; % [km / s]
+r_0 = [-0.1; -1; 2]; % [km] Only seems to have error with nonzero r_0_x...
+v_0 = [0e-3; 0e-3; 0e-3]; % [km / s]
 x_0 = [r_0; v_0; spacecraft_params.m_0];
 
 % Algorithm parameters
@@ -91,7 +91,7 @@ thetaddot = @(t) -2 * h  / r(t) ^ 3 * r_cdot(t);
 % Propagate 2-body orbit dynamics and convert to relative - CONTROL SHOULD
 % BE IN ORBIT FRAME OF CHEIF NOT DEPUTY LIKE GAUSS PLANETARY ASSUMES !!!!
 [~, x_0_cartesian_c] = ode45(@(t, x) gauss_planetary_eqn(f0_cartesian(x, char_star.mu), B_cartesian(x, char_star.mu), zeros([3, 1])), tspan, x_0_cartesian_c, tolerances);
-[~, x_cartesian_d] = ode45(@(t, x) [gauss_planetary_eqn(f0_cartesian(x, char_star.mu), B_cartesian(x, char_star.mu), a_d(t,x)); -alpha * sqrt(u(1) ^ 2 + u(2) ^ 2 + u(3) ^ 2)], tspan, x_0_cartesian_d, tolerances);
+[~, x_cartesian_d] = ode45(@(t, x) [gauss_planetary_eqn(f0_cartesian(x, char_star.mu), B_cartesian(x, char_star.mu), a_d(t,x)); -alpha * sqrt(u(1) ^ 2 + u(2) ^ 2 + u(3) ^ 2) * char_star.F], tspan, x_0_cartesian_d, tolerances);
 x_cartesian_hill = ECI_to_Hill(x_0_cartesian_c', x_cartesian_d');
 
 % Redimensionalize
