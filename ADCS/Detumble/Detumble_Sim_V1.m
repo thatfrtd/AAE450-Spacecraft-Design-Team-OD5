@@ -12,7 +12,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Init Variables
 m_r = 3000; % kg
-m_s = 500; % kg
+m_s = 1500; % kg
 R = 1.85; % m
 L = 30; % m
 s = 1.0; % m
@@ -77,7 +77,7 @@ function dxdt = plant_derivative(t, x, J, u_const)
     epsilon = epsilon / norm(epsilon);
 
     % Calculate Kinematics 
-    deps = quaternion_kde(t, epsilon, omega);
+    deps = quatern  ion_kde(t, epsilon, omega);
 
     % Calculate Dynamics 
     dwdt = rigid_body_dynamics(omega, J, u_const);

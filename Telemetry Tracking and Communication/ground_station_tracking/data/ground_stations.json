@@ -1,0 +1,4 @@
+[
+  {"name": "Midland", "lat": 31.9, "lon": -102.2, "alt": 860, "el_mask": 20},
+  {"name": "New Zealand", "lat": -43.9, "lon": 171.4, "alt": 300, "el_mask": 20}
+]

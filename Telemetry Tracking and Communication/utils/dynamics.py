@@ -1,9 +1,30 @@
 import numpy as np
 from constants import *
 
+def dynamics_tb_j2(t, y):
+    """
+    dynamics for two body problem and j2 pertubation. 
+    """
+    r = y[0:3]
+    v = y[3:6]
+
+    rnorm = np.linalg.norm(r)
+
+    # Accelerations
+    a_tb = -MU_EARTH * r / rnorm**3
+    a_j2 = j2_acceleration(r, MU_EARTH)
+    a = a_tb + a_j2
+
+    dydt = np.zeros_like(y)
+    dydt[0:3] = v
+    dydt[3:6] = a
+    return dydt
 
 
 def dynamics_with_stm(t, y):
+    """
+    two body and J2 dynamics to get STM. 
+    """
     # TODO: Clean up code and document
     r = y[0:3]
     v = y[3:6]
