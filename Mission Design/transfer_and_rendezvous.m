@@ -152,6 +152,7 @@ end
 x_c_engage_ECI = x_c_cartesian(:, i_engage);
 x_d_engage_ECI = [x_d_cartesian(:, i_engage); Qtransfer.x_keplerian_mass(7, i_engage)];
 x_d_engage_hill = ECI_to_Hill(x_c_engage_ECI, x_d_engage_ECI);
+x_d_engage_ECI_hill = Hill_to_ECI(x_c_engage_ECI, x_d_engage_hill);
 
 figure
 plot(Qtransfer.t / 3600, relative_distances, HandleVisibility="off"); hold on
@@ -199,9 +200,12 @@ plot(x_Qtransfer_hill_ck(6, :)'); hold on
 plot(x_Qtransfer_cart(6, :)');
 
 %%
+
+
+%%
 figure
 plt_start_i = 12500; 
-i_end = size(x_cont_traj, 2) - 8200;
+i_end = size(x_cont_traj, 2) - 4000;
 plot3(x_cont_traj(1, i_engage:i_end), x_cont_traj(2, i_engage:i_end), x_cont_traj(3, i_engage:i_end)); hold on
 plot3(x_cont_traj(1, plt_start_i:i_engage), x_cont_traj(2, plt_start_i:i_engage), x_cont_traj(3, plt_start_i:i_engage))
 xlabel("X [km]")

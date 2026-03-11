@@ -7,10 +7,10 @@ h = cross(x_c(1:3, :), x_c(4:6, :));
 r_mag = vecnorm(x_c(1:3, :));
 omega_c = h ./ r_mag .^ 2; % Orbital angular velocity
 
-r_relative = pagemtimes(RTN_to_ECI_DCM, x_hill(1:3, :, :));
-r_ECI = reshape(r_relative, 3, 1, []) + x_c(1:3, :);
-v_relative = reshape(pagemtimes(RTN_to_ECI_DCM, x_hill(4:6, :, :)), 3, 1, []) + cross(omega_c, r_ECI);
-v_ECI = v_relative + x_c(4:6, :);
+r_relative = pagemtimes(RTN_to_ECI_DCM, reshape(x_hill(1:3, :, :), 3, 1, []));
+r_ECI = reshape(r_relative, 3, []) + x_c(1:3, :);
+v_relative = pagemtimes(RTN_to_ECI_DCM, reshape(x_hill(4:6, :), 3, 1, [])) + cross(reshape(omega_c, 3, 1, []), r_relative);
+v_ECI = reshape(v_relative, 3, []) + x_c(4:6, :);
 
 x_d = [r_ECI;
        v_ECI;
