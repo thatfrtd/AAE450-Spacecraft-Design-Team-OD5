@@ -1,4 +1,4 @@
-function [rendezvous_solution, ptr_sol] = nonlinear_rendezvous_func(x_0_hill, x_f_hill, ToF, x_keplerian_c, spacecraft_params, options)
+function [rendezvous_solution, ptr_sol, nocont] = nonlinear_rendezvous_func(x_0_hill, x_f_hill, ToF, x_keplerian_c, spacecraft_params, options)
 arguments
     x_0_hill
     x_f_hill
@@ -10,6 +10,8 @@ arguments
     options.dynamics = "Nonlinear" % "CWH", "Linearized", "Nonlinear"
     options.plot_results = true
     options.plot_convergence = false
+    options.max_iters = 5
+    options.integration_tolerance = 1e-12
 end
 char_star = load_charecteristic_values_Earth();
 nd_scalar = [char_star.l * ones([3, 1]); char_star.v * ones([3, 1]); char_star.m];
@@ -45,7 +47,7 @@ nu = 3; % Number of controls
 np = 0; % Number of parameters (tf, v_0, etc)
 
 % PTR algorithm parameters
-ptr_ops.iter_max = 5;
+ptr_ops.iter_max = options.max_iters;
 ptr_ops.iter_min = 1;
 ptr_ops.Delta_min = 1e-8;
 ptr_ops.w_vc = 5e5;
@@ -112,11 +114,11 @@ objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u)) * delta_t * c
 %% Create Guess
 % Straight Line Initial Guess - Lambert better?
 guess.x = linspace(0, 1, N) .* (x_0_nd - [x_f_nd; x_0_nd(7)]) + x_0_nd;
-guess.u = ones([3, Nu]) * 1e-6;
+guess.u = ones([3, Nu]) * 1e-10;
 guess.p = [];
 
 %% Construct Problem Object
-problem = DeterministicProblem(x_0_nd, x_f_nd, N, u_hold, tf, f_opt, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = 1e-12, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous");
+problem = DeterministicProblem(x_0_nd, x_f_nd, N, u_hold, tf, f_opt, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = options.integration_tolerance, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous");
 
 [problem, Delta_disc] = problem.discretize(guess.x, guess.u, guess.p);
 
@@ -194,4 +196,10 @@ if options.plot_results
     legend("\hat{r}", "\hat{\theta}", "\hat{h}", "||u||", Interpreter="latex")
     grid on
 end
+
+% Propagate without control to see if matches expectation
+[t_nocont, x_nocont, u_nocont] = problem.cont_prop(guess.u * 0, guess.p);
+nocont.t = t_nocont * char_star.t;
+nocont.x = x_nocont .* nd_scalar;
+nocont.u = u_nocont * char_star.F * 1000;
 end

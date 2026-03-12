@@ -11,7 +11,7 @@ function [x_hill] = ECI_to_Hill(x_c, x_d)
     x_relative = reshape(x_d(1:6, :) - x_c(1:6, :), 6, 1, []);
 
     r_hill = pagemtimes(ECI_to_RTN_DCM, x_relative(1:3, :, :));
-    v_hill = pagemtimes(ECI_to_RTN_DCM, (x_relative(4:6, :, :) - cross(omega_c, x_d(1:3, :))));
+    v_hill = pagemtimes(ECI_to_RTN_DCM, (x_relative(4:6, :, :) - reshape(cross(omega_c, x_relative(1:3, :)), 3, 1, [])));
     x_hill = [reshape(r_hill, 3, []); 
               reshape(v_hill, 3, []); 
               x_d(7, :)];
