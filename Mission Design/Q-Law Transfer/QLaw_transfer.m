@@ -58,6 +58,7 @@ u_nd = zeros([3, 1]); % [F_T, F_R, F_N]
 alpha = 0;
 beta = 0;
 t_nd = 0;
+u_cont_nd = zeros([3, 1]);
 
 % Simulate
 iter = 1;
@@ -81,7 +82,8 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
     not_coast(iter) = (eta_a >= Q_params.eta_a_min ...
               && eta_r >= Q_params.eta_r_min);
     u_nd(:, iter) = u_nd(:, iter) * not_coast(iter);
-    a_control = @(x) u_nd(:, iter) / x_me_mass_nd(7, end); % a = F / m
+    %a_control = @(x) u_nd(:, iter) / x_me_mass_nd(7, end); % a = F / m
+    a_control = @(x) u_nd(:, iter) / x(end);
     mdot = -F_max_nd / (spacecraft_params.Isp * g_0 / char_star.v) * not_coast(iter);
 
     % fprintf("Coast? %.g\n", ~not_coast(iter))
@@ -91,11 +93,14 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
     tolerances.InitialStep = dt_step;
     tolerances.MaxStep = dt_step;
 
-    [t_step, x_step] = ode45(@(t, x) [gauss_planetary_eqn(f0_modified_equinoctial(x, 1), B_modified_equinoctial(x, 1), a_control(x) + options.a_disturbance(t, x .* nd_scalar)); mdot], t_nd(end) + [0, dt_step], x_me_mass_nd(:, end), tolerances);
+    [t_step, x_step] = ode45(@(t, x) [gauss_planetary_eqn(f0_modified_equinoctial(x, 1), B_modified_equinoctial(x, 1), a_control(x) + options.a_disturbance(t, x .* nd_scalar) ./ char_star.a); mdot], t_nd(end) + [0, dt_step], x_me_mass_nd(:, end), tolerances);
+    %[t_step_ck, x_step_ck] = ode45(@(t, x) [gauss_planetary_eqn(f0_modified_equinoctial(x, mu), B_modified_equinoctial(x, mu), a_control(x) *  + options.a_disturbance(t, x)); mdot], t_nd(end) + [0, dt_step], x_me_mass_nd(:, end), tolerances);
 
     t_nd = [t_nd; t_step(2:end)];
     x_me_mass_nd = [x_me_mass_nd, x_step(2:end, :)'];
-    
+    u_cont_nd = [u_cont_nd, repmat(u_nd(:, iter), 1, numel(t_step(2:end)))];
+
+    % fprintf("Iter %g\n", iter)
     % Wrap up iteration
     iter = iter + 1;
 end
@@ -127,6 +132,7 @@ if options.return_dt_dm_only == false
     transfer.x_keplerian_mass = [modified_equinoctial_to_keplerian_array(x_me_mass_unrotated(1:6, :)); x_me_mass_unrotated(7, :)];
     transfer.x_keplerian_mass(4, :) = transfer.x_keplerian_mass(4, :) - Q_params.Theta_rot;
     transfer.u = u_nd * char_star.F;
+    transfer.u_cont = u_cont_nd * char_star.F;
     transfer.t = t_nd * char_star.t;
     
     transfer.not_coast = not_coast;
