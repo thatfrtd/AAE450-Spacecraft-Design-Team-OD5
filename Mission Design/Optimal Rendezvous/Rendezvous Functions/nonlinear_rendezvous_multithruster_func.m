@@ -1,4 +1,4 @@
-function [rendezvous_solution, ptr_sol, nocont] = nonlinear_rendezvous_func(x_0_hill, x_f_hill, ToF, x_keplerian_c, spacecraft_params, options)
+function [rendezvous_solution, ptr_sol] = nonlinear_rendezvous_multithruster_func(x_0_hill, x_f_hill, ToF, x_keplerian_c, spacecraft_params, options)
 arguments
     x_0_hill
     x_f_hill
@@ -7,7 +7,6 @@ arguments
     spacecraft_params
     options.N = 100
     options.u_hold = "FOH"
-    options.dynamics = "Nonlinear" % "CWH", "Linearized", "Nonlinear"
     options.plot_results = true
     options.plot_convergence = false
     options.max_iters = 5
@@ -15,6 +14,7 @@ arguments
 end
 char_star = load_charecteristic_values_Earth();
 nd_scalar = [char_star.l * ones([3, 1]); char_star.v * ones([3, 1]); char_star.m];
+g_0 = 9.81e-3; % [km / s2]
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
@@ -43,7 +43,7 @@ Nu = (u_hold == "ZOH") * (N - 1) + (u_hold == "FOH") * N;
 
 parser = "CVX"; % Can use CVXPY for more speed if needed (needs setup)
 nx = 7; % Number of states
-nu = 3; % Number of controls
+nu = 6; % Number of controls
 np = 0; % Number of parameters (tf, v_0, etc)
 
 % PTR algorithm parameters
@@ -51,51 +51,39 @@ ptr_ops.iter_max = options.max_iters;
 ptr_ops.iter_min = 1;
 ptr_ops.Delta_min = 1e-8;
 ptr_ops.w_vc = 5e5;
-ptr_ops.w_tr = ones(1, Nu) * 5e-2;
+ptr_ops.w_tr = ones(1, Nu) * 5e-5;
 ptr_ops.w_tr_p = 0;
 ptr_ops.update_w_tr = false;
 ptr_ops.delta_tol = 1e-2;
 ptr_ops.q = 2;
 ptr_ops.alpha_x = 1;
-ptr_ops.alpha_u = 1;
+ptr_ops.alpha_u = 0;
 ptr_ops.alpha_p = 0;
 
 % Scaling currently not helping...
 scale = false;
 
-scale_hint.x_max = [max(x_0_nd(1:3)) * ones([3, 1]); max(x_0_nd(4:6)) * ones([3, 1]); spacecraft_params.m_0 / char_star.m];
-scale_hint.x_min = [-max(x_0_nd(1:3)) * ones([3, 1]); -max(x_0_nd(4:6)) * ones([3, 1]); spacecraft_params.m_0 / char_star.m * 0.95];
-scale_hint.u_max = [F_max_nd * ones([3, 1])];
-scale_hint.u_min = [zeros([3, 1])];
-scale_hint.p_max = [];
-scale_hint.p_min = [];
-
 %% Get Dynamics
-f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
-f_linearized = @(t, x, u, p) linearized_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
-f_CWH = @(t, x, u, p) CWH_relative_orbit_EoM(t, x, u, p, [x_keplerian_c(1); spacecraft_params.Isp]);
+f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM_twothruster(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp; 1; g_0]);
 
-if options.dynamics == "CWH"
-    f_opt = f_CWH;
-elseif options.dynamics == "Linearized"
-    f_opt = f_linearized;
-elseif options.dynamics == "Nonlinear"
-    f_opt = f_nonlinear;
-end
+f_opt = f_nonlinear; % Dynamics to use for optimization
 f_eval = f_nonlinear; % Dynamics to use for propagation and plotting
 
 %% Specify Constraints
 state_convex_constraints = {};
 
 % Convex control constraints
-% min_periapsis_constraint = 
-max_thrust_constraint = {1:N, @(t, x, u, p) norm(u) - F_max_nd};
-control_convex_constraints = {max_thrust_constraint};
+max_thrust_constraint_1 = {1:N, @(t, x, u, p) norm(u(1:3)) - F_max_nd(1)};
+max_thrust_constraint_2 = {1:N, @(t, x, u, p) norm(u(4:6)) - F_max_nd(2)};
+control_convex_constraints = {max_thrust_constraint_1, max_thrust_constraint_2};
 
 % Combine convex constraints
 convex_constraints = [state_convex_constraints, control_convex_constraints];
 
 % Nonconvex state constraints
+keep_out_distance = 0.2; % [km] - should give better initial guess when using this constraint so it converges faster
+keep_out_sphere_constraint = @(t, x, u, p) keep_out_distance ^ 2 - nd_scalar(1) ^ 2 * (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2);
+keep_out_sphere_constraint_linearized = {1:N, linearize_constraint(keep_out_sphere_constraint, nx, nu, np, "x", 1:3)};
 state_nonconvex_constraints = {};
 
 % Nonconvex control constraints
@@ -109,16 +97,17 @@ initial_bc = @(x, p) [x - x_0_nd];
 terminal_bc = @(x, p, x_ref, p_ref) [x(1:6) - x_f_nd; 0]; % Don't constrain final mass
 
 %% Specify Objective
-objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u)) * delta_t * char_star.F / (spacecraft_params.Isp * 9.81e-3) * 1000;
+objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(1:3, :))) * delta_t * char_star.F / (spacecraft_params.Isp(1) * g_0) * 1000 ...
+                                                   + sum(norms(u(4:6, :))) * delta_t * char_star.F / (spacecraft_params.Isp(2) * g_0) * 1000;
 
 %% Create Guess
 % Straight Line Initial Guess - Lambert better?
-guess.x = linspace(0, 1, N) .* (x_0_nd - [x_f_nd; x_0_nd(7)]) + x_0_nd;
-guess.u = ones([3, Nu]) * 1e-10;
+guess.x = linspace(0, 1, N) .* ([x_f_nd; x_0_nd(7)] - x_0_nd) + x_0_nd;
+guess.u = ones([6, Nu]) * 1e-6;
 guess.p = [];
 
 %% Construct Problem Object
-problem = DeterministicProblem(x_0_nd, x_f_nd, N, u_hold, tf, f_opt, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = options.integration_tolerance, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous");
+problem = DeterministicProblem(x_0_nd, x_f_nd, N, u_hold, tf, f_opt, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = options.integration_tolerance, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous_twothruster");
 
 [problem, Delta_disc] = problem.discretize(guess.x, guess.u, guess.p);
 
@@ -177,29 +166,41 @@ if options.plot_results
     scatter3(0, 0, 0, 60, "blue", "filled", "diamond"); hold on
     plot_cartesian_orbit(x_cont_sol(1:3,:)', 'k', 0.4, 1); hold on
     quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(1, :), u(2, :), u(3, :), 1, "filled", Color = "red")
+    quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(4, :) .* (vecnorm(u(4:6,:)) > 1e-6), u(5, :) .* (vecnorm(u(4:6,:)) > 1e-6), u(6, :) .* (vecnorm(u(4:6,:)) > 1e-6), 2, "filled", Color = "m")
     scatter3(x_0_hill(1), x_0_hill(2), x_0_hill(3), 48, "green", "filled", "square"); hold on
-    scatter3(x_f_hill(1), x_f_hill(2), x_f_hill(3), 48, "red", "x"); hold off
+    scatter3(x_f_hill(1), x_f_hill(2), x_f_hill(3), 48, "red", "x"); hold on
+    plot3(guess.x(1, :) * nd_scalar(1), guess.x(2, :) * nd_scalar(2), guess.x(3, :) * nd_scalar(3), Color = "green", LineStyle = "--");
+    [s_x, s_y, s_z] = sphere(128);
+    h = surfl(s_x * keep_out_distance, s_y * keep_out_distance, s_z * keep_out_distance); 
+    set(h, 'FaceAlpha', 0.5)
+    shading interp
     title('Optimal Rendezvous')
     xlabel("r [km]")
     ylabel("\theta [km]")
     zlabel("n [km]")
-    legend("Target", 'Spacecraft', "", "Thrust", "Start", "End", 'Location', 'northwest'); axis equal; grid on
+    axis equal
+    legend("Target", 'Spacecraft', "", "Thrust 1", "Thrust 2", "Start", "End", "Guess", "Keepout Sphere", 'Location', 'northwest'); axis equal; grid on
     
-    % Plot Control
+    %% Plot Control
     figure
+    tiledlayout(2, 1)
     
+    nexttile
     plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(1:3,:), LineWidth=1); hold on
     plot(t_cont_sol(1:end - (N - Nu)), vecnorm(u_cont_sol(1:3,:)), LineWidth=1)
-    title("Control")
+    title("Control Thruster 1")
+    xlabel("Time")
+    ylabel("Force [N]")
+    legend("\hat{r}", "\hat{\theta}", "\hat{h}", "||u||", Interpreter="latex")
+    grid on
+    
+    nexttile
+    plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(4:6,:) .* (vecnorm(u_cont_sol(4:6,:)) > 1e-6), LineWidth=1); hold on
+    plot(t_cont_sol(1:end - (N - Nu)), vecnorm(u_cont_sol(4:6,:)) .* (vecnorm(u_cont_sol(4:6,:)) > 1e-6), LineWidth=1)
+    title("Control Thruster 2")
     xlabel("Time")
     ylabel("Force [N]")
     legend("\hat{r}", "\hat{\theta}", "\hat{h}", "||u||", Interpreter="latex")
     grid on
 end
-
-% Propagate without control to see if matches expectation
-[t_nocont, x_nocont, u_nocont] = problem.cont_prop(guess.u * 0, guess.p);
-nocont.t = t_nocont * char_star.t;
-nocont.x = x_nocont .* nd_scalar;
-nocont.u = u_nocont * char_star.F * 1000;
 end

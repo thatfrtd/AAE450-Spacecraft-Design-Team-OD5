@@ -24,7 +24,7 @@ alpha = 1 / (spacecraft_params.Isp * 9.81e-3);
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = 6728; % [km] semi-major axis
-e_c = 0; % [] eccentricity
+e_c = 0.004; % [] eccentricity
 i_c = deg2rad(80); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
@@ -40,7 +40,7 @@ tspan = linspace(0, tf, 1000);
 
 % Initial conditions for spacecraft - specify orbit instead?
 r_0 = [0; -1; 0]; % [km]
-v_0 = [0e-3; 1e-3; 0]; % [km / s]
+v_0 = [0e-3; 4e-3; -0.024]; % [km / s]
 x_0 = [r_0; v_0; spacecraft_params.m_0];
 
 % Algorithm parameters
