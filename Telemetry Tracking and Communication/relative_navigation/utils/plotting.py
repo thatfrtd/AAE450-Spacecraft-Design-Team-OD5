@@ -19,6 +19,45 @@ def plot_relative_state(t: np.ndarray, target_states: np.ndarray, chaser_states:
     ax.set_ylabel("y [km]")
     ax.set_zlabel("z [km]")
 
+def plot_orbits_3d(t: np.ndarray, target_states: np.ndarray, chaser_states: np.ndarray) -> None:
+    """
+    Plot both target and chaser trajectories in 3D ECI frame with Earth.
+
+    Args:
+        t              : (N,) time array, seconds
+        target_states  : (13, N) target state history
+        chaser_states  : (13, N) chaser state history
+    """
+    fig = plt.figure(figsize=(9, 9))
+    ax  = fig.add_subplot(111, projection="3d")
+
+    # Earth sphere
+    R_E = 6371.0
+    u   = np.linspace(0, 2 * np.pi, 60)
+    v   = np.linspace(0, np.pi, 60)
+    xs  = R_E * np.outer(np.cos(u), np.sin(v))
+    ys  = R_E * np.outer(np.sin(u), np.sin(v))
+    zs  = R_E * np.outer(np.ones_like(u), np.cos(v))
+    ax.plot_surface(xs, ys, zs, color="royalblue", alpha=0.25, linewidth=0)
+
+    # Target trajectory — solid line
+    ax.plot(target_states[0, :], target_states[1, :], target_states[2, :],
+            color="orangered", linewidth=1.2, label="Target")
+    ax.scatter(*target_states[:3,  0], color="green", s=40, zorder=5, label="Target Start")
+    ax.scatter(*target_states[:3, -1], color="red",   s=40, zorder=5, label="Target End")
+
+    # Chaser trajectory — dotted markers instead of line
+    ax.plot(chaser_states[0, ::20], chaser_states[1, ::20], chaser_states[2, ::20],
+            color="gold", marker='+', markersize=6, linestyle='None', label="Chaser")
+    ax.scatter(*chaser_states[:3,  0], color="limegreen", s=40, zorder=5, label="Chaser Start")
+    ax.scatter(*chaser_states[:3, -1], color="yellow",    s=40, zorder=5, label="Chaser End")
+    
+    ax.set_xlabel("X [km]")
+    ax.set_ylabel("Y [km]")
+    ax.set_zlabel("Z [km]")
+    ax.set_title("ECI Orbit — Target & Chaser")
+    ax.legend()
+    plt.tight_layout()
 
 def plot_orbit_3d(t: np.ndarray, states: np.ndarray) -> None:
     """

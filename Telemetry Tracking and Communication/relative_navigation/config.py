@@ -18,6 +18,9 @@ TARGET_TLE_LINE2 = (
 )
 TARGET_NAME = "37766 (11039B)"
 
+Target_kep = tle_to_keplerian(TARGET_TLE_LINE1, TARGET_TLE_LINE2)
+tar_pos, tar_vel = keplerian_to_cartesian(Target_kep)
+
 # Attitude information
 TARGET_EP = np.array([0, 0, 0, 1]) # unit quaternion to start
 TARGET_ANG_VEL = np.array([0, 0, 0]) # no ang vel to start
@@ -39,13 +42,14 @@ TARGET_I = np.diag([
 
 # -- Spacecraft Initial State --------------------------
 # Translational State
-# Done in main
+R_IN = inert_to_RTN_313(Target_kep.raan, Target_kep.i, Target_kep.argp)
+chaser_pos_RTN = R_IN.T @ np.array([0, -0.08, 0])
+chaser_pos = tar_pos + chaser_pos_RTN
+chaser_vel = tar_vel  # + np.array([0, 0.001, 0])  
 
 # Attitude information
 CHASER_EP = np.array([0, 0, 0, 1]) # unit quaternion to start
 CHASER_ANG_VEL = np.array([0, 0, 0]) # no ang vel to start
-
-
 
 # Moment of Intertia
 m_s = 1000   # kg  — satellite mass
@@ -56,6 +60,19 @@ CHASER_I = np.diag([
     (1/6) * m_s * s**2,   # Iyy
     (1/6) * m_s * s**2,   # Izz
 ])
+
+# -- Parameter Initial State ----------------------------
+b_w_c = np.zeros(3) # gyro bias in the chaser frame
+ep_S_S = np.zeros(3) # star-camra misalignment
+ep_O_O = np.zeros(3) # optical camera misalignment
+
+# tau values
+tau_b = 0 # TODO: Update
+tau_s = 0
+tau_o = 0
+sigma_b = 0
+sigma_s = 0
+sigma_o = 0
 
 # ── Simulation window ─────────────────────────────────────────────────────────
 # Start exactly at the TLE epoch for maximum SGP4 accuracy.
@@ -68,3 +85,15 @@ SIM_END   = 24 * 60 * 60  # datetime(2026, 3, 4, 6, 42, 55, 500000, tzinfo=timez
 # Truth propagation output cadence (seconds)
 # 30 s → ~2880 states over 24 h, fine enough for smooth plots
 SIM_DT = 30.0
+
+# ── Model parameters ─────────────────────────────────────────────────────────
+# Truth noise values
+sigma_vel_T = (0.06 * 1e-6) # km/s, (0.06 mm/s)
+sigma_omega_T = (0.001 * 1e-3) # rad/s
+sigma_vel_C = (0.06 * 1e-6) # km/s, (0.06 mm/s)
+sigma_omega_C = (0.001 * 1e-3) # rad/s
+
+
+
+
+
