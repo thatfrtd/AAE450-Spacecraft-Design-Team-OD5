@@ -6,8 +6,8 @@ import numpy as np
 import config
 from scipy.integrate import solve_ivp
 from utils.constants import *
-from utils.dynamics import *
-from utils.plotting import *
+from dynamics.dynamics import *
+from analysis.plotting import *
 import matplotlib.pyplot as plt
 from utils.helper import *
 
@@ -61,7 +61,7 @@ def main():
 
     chaser_u_dv = np.zeros(3)
     chaser_u_tau = np.zeros(3)
-    
+
     chaser_hist = solve_ivp(
         chaser_dynamics,
         t_span,

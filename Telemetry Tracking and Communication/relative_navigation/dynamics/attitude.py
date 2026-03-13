@@ -2,7 +2,7 @@ import numpy as np
 from utils.constants import *
 
 def quat_multiply(p, q):
-    # p, q as [x, y, z, w]
+    # p, q as [x, y, z, w] ref oguri 440 slide 3-2 pg 26
     px, py, pz, pw = p
     qx, qy, qz, qw = q
     return np.array([
@@ -74,3 +74,26 @@ def dcm2quat(R):
     q = np.concatenate([epsilon123, [epsilon4]])
     return q
 
+def skew(v: np.ndarray) -> np.ndarray:
+    """3×3 skew-symmetric matrix"""
+    return np.array([
+        [ 0,    -v[2],  v[1]],
+        [ v[2],  0,    -v[0]],
+        [-v[1],  v[0],  0   ]
+    ])
+
+def delta_theta_to_quat(theta):
+    """ref woffinden small rotations equation. """
+    return normalize_quat(np.array([theta[0]/2, theta[1]/2, theta[2]/2, 1]))
+
+def normalize_quat(q):
+    q_norm = np.linalg.norm(q)
+    q_new = q / q_norm
+    return q_new
+
+def quat_inv(q):
+    return np.array([-q[0], -q[1], -q[2], q[3]])
+
+def quat2rot_vet(q):
+    """Get the three dimensional rotation vector. """
+    return q[0:3]

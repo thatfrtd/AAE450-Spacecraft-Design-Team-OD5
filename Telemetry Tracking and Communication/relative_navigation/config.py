@@ -84,7 +84,9 @@ SIM_END   = 24 * 60 * 60  # datetime(2026, 3, 4, 6, 42, 55, 500000, tzinfo=timez
 
 # Truth propagation output cadence (seconds)
 # 30 s → ~2880 states over 24 h, fine enough for smooth plots
-SIM_DT = 30.0
+SIM_DT = 10.0
+
+N = int(SIM_END / SIM_DT)# number of iterations
 
 # ── Model parameters ─────────────────────────────────────────────────────────
 # Truth noise values
@@ -93,7 +95,35 @@ sigma_omega_T = (0.001 * 1e-3) # rad/s
 sigma_vel_C = (0.06 * 1e-6) # km/s, (0.06 mm/s)
 sigma_omega_C = (0.001 * 1e-3) # rad/s
 
+# Initial 1-sigma uncertainties (used to build P0 and scatter x_est)
+sigma_r_T, sigma_v_T = 10.0, 0.1     # target pos/vel (m, m/s)
+sigma_th_T, sigma_w_T = 0.01, 0.001  # target att (rad), ang vel (rad/s)
+sigma_r_C, sigma_v_C = 5.0, 0.05
+sigma_th_C = 0.001
+sigma_bw, sigma_Ss, sigma_Oo = 1e-4, 1e-3, 1e-3
+
+POS_TOL = 0.1    # m
+ATT_TOL = 0.01   # rad
 
 
+# -- Sensor parameters ---------------------------------------------------------
+DT_GYRO         = 10.0    # gyro cadence (s)
+f_w             = 3 * 1e-6  # scale factor bias
 
+DT_STAR_TRACKER = 10.0
+
+DT_OPT_CAM      = 60.0
+sigma_alpha     = 1e-9 # mrad/axis
+sigma_elev      = 1e-9 # mrad/axis
+
+# -- Guidance parameters -------------------------------------------------------
+r_dock_T = np.array([0, 0, -4]) * 1e-3 # Dock with the engine 4 m below centroid in Target frame
+r_rel_des_D = np.zeros(3) # Desired relative position
+r_attach_C = np.array([0, 2, 0]) * 1e-3 # Telescopic arm off of chaser top
+
+v_rel_des_D = np.zeros(3) # no velocity at docking
+
+q_D_T = np.array([0, 0, 0, 1]) # the docking port frame relative to the target frame
+
+w_des_C = np.zeros(3)
 

@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
-from utils.attitude import quat2dcm, dcm2quat
+from dynamics.attitude import quat2dcm, dcm2quat
 
 
 def test_quat_dcm_roundtrip():
