@@ -13,6 +13,8 @@
 R_E = 6378.1; % [km] Earth radius
 mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 
+thrust_during_eclipse = false;
+
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = R_E + 660; % [km] semi-major axis
 e_c = 1e-3; % [] eccentricity
@@ -67,7 +69,7 @@ Qdot_opt_params.strategy = "Best Start Points";
 Qdot_opt_params.plot_minQdot_vs_L = false;
 
 N_i = 1;
-eta = 0.5;%linspace(0.5, 0.95, N_i);
+eta = 0.5; %linspace(0, 0.9, N_i);
 clear Qtransfer
 for i = 1 : N_i
     % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
@@ -80,7 +82,7 @@ for i = 1 : N_i
     Q_params.r = 2;
     Q_params.Theta_rot = 0;
 
-    [Qtransfer(i)] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20));
+    [Qtransfer(i)] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20), thrust_during_eclipse = thrust_during_eclipse);
 end
 
 dVs = zeros([N_i, 1]);
@@ -113,7 +115,11 @@ x_keplerian_c(1, :) = x_keplerian_c(1, :) .* char_star.l; % Redimensionalize
 %% Plot Orbit
 x_keplerian_cartesian_d = keplerian_to_cartesian_array(Qtransfer.x_keplerian_mass(1:6, :), [], mu_E);
 
-not_coast_colors = interp1(1:numel(Qtransfer.not_coast), double(Qtransfer.not_coast), linspace(1, numel(Qtransfer.not_coast), numel(Qtransfer.t)), 'nearest');
+if ~thrust_during_eclipse
+    not_coast_colors = interp1(1:numel(Qtransfer.not_coast), double(Qtransfer.not_coast) + 0.5 * double(Qtransfer.eclipsed), linspace(1, numel(Qtransfer.not_coast), numel(Qtransfer.t)), 'nearest');
+else
+    not_coast_colors = interp1(1:numel(Qtransfer.not_coast), double(Qtransfer.not_coast), linspace(1, numel(Qtransfer.not_coast), numel(Qtransfer.t)), 'nearest');
+end
 
 figure
 plot_cartesian_orbit_color_varying(x_keplerian_cartesian_d(:, 1:1:end), not_coast_colors, 3); hold on
@@ -186,9 +192,9 @@ grid on
 % zlabel("Z [km]")
 
 
-%% Calculate Spiral Transfer Estimates
-dV_spiral = sqrt(mu_E / a_d) - sqrt(mu_E / a_c)
-m_f_spiral = spacecraft_params.m_0 * (1 - exp(-abs(dV_spiral) * 1000 / (spacecraft_params.Isp * 9.81)))
+% %% Calculate Spiral Transfer Estimates
+% dV_spiral = sqrt(mu_E / a_d) - sqrt(mu_E / a_c)
+% m_f_spiral = spacecraft_params.m_0 * (1 - exp(-abs(dV_spiral) * 1000 / (spacecraft_params.Isp * 9.81)))
 
 %% Helper Functions
 
