@@ -6,10 +6,7 @@
 % Description: Orbit transfer using Q-Law from deorbit orbit (after drop 
 % off) to new debris not accounting for rendezvous (assuming not much extra 
 % delta V and time).
-% 
-% Right now it uses impulsive Lambert transfers to make sure the procedure
-% works.
-% Most Recent Change: 14 March, 2026
+% Most Recent Change: 15 March, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 R_E = 6378.137; % [km] Earth radius
@@ -20,7 +17,7 @@ J_2_val = 1.08262668e-3; % [] Earth J2
 a_c = 7044.7634; % [km] semi-major axis
 e_c = 0.003390; % [] eccentricity
 i_c = deg2rad(98.1114 ); % [rad] inclination
-Omega_c = deg2rad(320.5520 + 280 ); % [rad] right ascension of ascending node
+Omega_c = deg2rad(320.5520 - 20 ); % [rad] right ascension of ascending node
 omega_c = deg2rad(301.2069 - 0 ); % [rad] argument of periapsis
 nu_c = deg2rad(58.6658 ); % [rad] true anomaly at epoch
 
@@ -46,50 +43,73 @@ char_star = load_charecteristic_values_Earth();
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = 4100; % [s]
+spacecraft_params.Isp = 3000; % [s]
 spacecraft_params.m_0 = 1500; % [kg]
-spacecraft_params.m_dry = 1000; % [kg]
+spacecraft_params.m_dry = 600; % [kg]
 spacecraft_params.F_max = 0.25; % [N]
+
+% Min Periapsis soft constraint
+penalty_params = struct();
+penalty_params.k = 100; % Smoothing parameter
+penalty_params.W_p = 1; % Penalty weight
+penalty_params.r_p_min = R_E + 120; % [km] min periapsis
+
+% Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
+Q_params = struct();
+Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
+Q_params.eta_a_min = 0.5; % Minimum absolute efficiency for thrusting instead of coasting
+Q_params.eta_r_min = 0.5; % Minimum relative efficiency for thrusting instead of coasting
+Q_params.m = 3;
+Q_params.n = 4;
+Q_params.r = 2;
+Q_params.Theta_rot = 0;
+
+% Parameters for the optimization needed to determine efficiencies
+Qdot_opt_params = struct();
+Qdot_opt_params.num_start_points = 10;
+Qdot_opt_params.strategy = "Best Start Points";
+Qdot_opt_params.plot_minQdot_vs_L = false;
 
 % Integration error tolerance
 default_tolerance = 1e-10;
 
 %% Optimize Transfer that Leverages J2 using Genetic Algorithm 
 % Optimization variables
-ToF1_bounds = [0.01, 2]; % [hr] initial -> intermediate transfer time of flight
-ToF2_bounds = [0.01, 2]; % [hr] intermediate to target transfer time of flight
+eta1_bounds = [0, 0.85]; % [] initial -> intermediate transfer min efficiency
+eta2_bounds = [0, 0.85]; % [] intermediate -> target transfer min efficiency
 a_int_bounds = ([300, 2000] + R_E) / char_star.l; % [km] 
-e_int_bounds = [0, 0.2]; % []
-i_int_bounds = [0.9, 1.1] * i_c; % [rad]
+e_int_bounds = [1e-5, 0.05]; % []
+i_int_bounds = [0.95, 1.05] * i_c; % [rad]
 % Omega_int - assume same as original - all adjustments done by J2
 % omega_int - assume same as original - target almost circular
-var_bounds = [ToF1_bounds; ToF2_bounds; a_int_bounds; e_int_bounds; i_int_bounds];
+var_bounds = [eta1_bounds; eta2_bounds; a_int_bounds; e_int_bounds; i_int_bounds];
 
 % Set up MultiObj
-MultiObj.fun = @(x) batch_Lambert_J2_drift_transfer(x0_d_keplerian, [x(:, 3)' * char_star.l; x(:, 4:5)'; repmat(x0_d_keplerian(4:6), 1, size(x, 1))], x0_c_keplerian, x(:, 1:2)' * 3600, 20, mu_E, R_E, J_2_val, char_star, 2, 365);
+MultiObj.fun = @(x) QLaw_J2_drift_transfer(x0_d_keplerian, [x(3) * char_star.l; x(4:5)'; x0_d_keplerian(4:6)], x0_c_keplerian, x(1:2), mu_E, R_E, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, 2, 365 * 2);
 MultiObj.nVar = size(var_bounds, 1);
 MultiObj.var_min = var_bounds(:, 1)';
 MultiObj.var_max = var_bounds(:, 2)';
 MultiObj.obj_names = ["ToF [days]", "Delta V [km / s]"];
 
-load_lambert();
-
 %% Test
-x_test = [var_bounds(:, 1)'; var_bounds(:, 2)'];
+x_test = var_bounds(:, 1)';
 MultiObj.fun(x_test)
 
-%%
-options = optimoptions('paretosearch', 'ParetoSetSize', 100,'Display','iter',...
-    'PlotFcn',{'psplotparetof' 'psplotparetox'});
+%% Create Pool
+p = gcp("nocreate"); % If no pool, do not create new one.
+if isempty(p)
+    p = parpool(8);
+end
+
+%% Optimize Pareto front
+options = optimoptions('paretosearch', 'ParetoSetSize', 60, 'UseParallel',true, 'MaxTime', 1200,'Display','iter',...
+    'PlotFcn',{'psplotparetof','psplotparetox'}); % Could use custom plotting function that shows orbits
 fun = MultiObj.fun;
 lb = MultiObj.var_min;
 ub = MultiObj.var_max;
 rng shuffle % For reproducibility
 min_r_p = 400; % [km] minimum allowable periapsis (for drag reasons)
 [x,fval,exitflag,output] = paretosearch(fun,MultiObj.nVar,[],[],[],[],lb,ub,@(x) min_periapsis_constraint(x(:, 3) * R_E, x(:, 4), min_r_p, R_E),options);
-
-%%
-unload_lambert();
 
 %% Analyze Results
 figure
@@ -119,54 +139,60 @@ grid on
 axis equal
 
 %% Helper Functions
-function [dV_ToF] = batch_Lambert_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_keplerian_targ, ToFs, N_thetastar, mu, R, J_2_val, char_star, max_dV, max_ToF)
-    
-    N_pop = size(ToFs, 2);
+function [c, ceq] = min_periapsis_constraint(a, e, min_r_p, R_E)
+    ceq = [];
+    r_p = a .* (1 - e) - R_E;
+    c = min_r_p - r_p;
+end
 
-    % Transfer # (2) * Direction (2) * N_thetastar * N_thetastar * N_population
-    transfer_num = 1 : 2;
-    directions = [1; -1];
-    thetastars_1 = linspace(0, 2 * pi, N_thetastar);
-    thetastars_2 = linspace(0, 2 * pi, N_thetastar);
-    pop_ID = 1 : N_pop;
-    transfer_combos = combinations(transfer_num, directions, thetastars_1, thetastars_2, pop_ID);
-
-    % Compute all transfer options
-    ToF_array = zeros([size(transfer_combos, 1), 1]);
-    for i = 1 : numel(ToF_array)
-        ToF_array(i) = ToFs(transfer_combos.transfer_num(i), transfer_combos.pop_ID(i));
+function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_keplerian_targ, eta, mu, R, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, max_dV, max_ToF)
+    arguments
+        x_keplerian_0
+        x_keplerian_int
+        x_keplerian_targ
+        eta
+        mu
+        R
+        J_2_val
+        spacecraft_params
+        Q_params
+        penalty_params
+        Qdot_opt_params
+        max_dV
+        max_ToF
     end
-    x_1_array = [keplerian_to_cartesian_array(repmat(x_keplerian_0, 1, size(transfer_combos, 1) / 2), transfer_combos.thetastars_1(transfer_combos.transfer_num == 1), mu), ...
-                 keplerian_to_cartesian_array(x_keplerian_int(:, transfer_combos.pop_ID(transfer_combos.transfer_num == 2)), transfer_combos.thetastars_1(transfer_combos.transfer_num == 2), mu)];
-    x_2_array = [keplerian_to_cartesian_array(x_keplerian_int(:, transfer_combos.pop_ID(transfer_combos.transfer_num == 1)), transfer_combos.thetastars_2(transfer_combos.transfer_num == 1), mu), ...
-                 keplerian_to_cartesian_array(repmat(x_keplerian_targ, 1, size(transfer_combos, 1) / 2), transfer_combos.thetastars_2(transfer_combos.transfer_num == 2), mu)];
 
-    nd_scalar = [ones([3, 1]) * char_star.l; ones([3, 1]) * char_star.v];
-    [vel1_raw, vel2_raw, dV_raw] = best_lambert_zeroN(x_1_array ./ nd_scalar, x_2_array ./ nd_scalar, ToF_array / char_star.t, 0, 0, direction = transfer_combos.directions);
+    % Transfer to intermediate orbit
+    Q_params.eta_a_min = eta(1); % Minimum absolute efficiency for thrusting instead of coasting
+    Q_params.eta_r_min = eta(1); % Minimum relative efficiency for thrusting instead of coasting
+
+    [Qtransfer_to_int] = QLaw_transfer(x_keplerian_0, x_keplerian_int, mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20));
+    transfer_drift_1 = sum(J2_RAAN_drift(Qtransfer_to_int.x_keplerian_mass(1, :), Qtransfer_to_int.x_keplerian_mass(2, :), Qtransfer_to_int.x_keplerian_mass(3, :), mu, R, J_2_val) .* [diff(Qtransfer_to_int.t)', 0]);
+
+    % Transfer to target orbit
+    Q_params.eta_a_min = eta(2); % Minimum absolute efficiency for thrusting instead of coasting
+    Q_params.eta_r_min = eta(2); % Minimum relative efficiency for thrusting instead of coasting
     
-    % Extract the best transfer info for each individual's two transfers
-    dV_reshaped = reshape(dV_raw, [2, 2, N_thetastar, N_thetastar, N_pop]) * char_star.v;
+    spacecraft_params.m_0 = spacecraft_params.m_0 - Qtransfer_to_int.delta_m;
+        
+    [Qtransfer_to_targ] = QLaw_transfer(x_keplerian_int, [x_keplerian_targ(1:3); x_keplerian_0(4); x_keplerian_targ(5:6)], mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20));
+    transfer_drift_2 = sum(J2_RAAN_drift(Qtransfer_to_targ.x_keplerian_mass(1, :), Qtransfer_to_targ.x_keplerian_mass(2, :), Qtransfer_to_targ.x_keplerian_mass(3, :), mu, R, J_2_val) .* [diff(Qtransfer_to_targ.t)', 0]);
 
-    [dV1, dV1_i] = min(dV_reshaped(1, :, :, :, :), [], 1:4, "linear");
-    [dV2, dV2_i] = min(dV_reshaped(2, :, :, :, :), [], 1:4, "linear");
-
-    % Calculate wait time for RAAN phasing
-    delta_Omega = wrapTo2Pi(x_keplerian_targ(4) - x_keplerian_0(4));
+    % Calculate wait time for RAAN phasing accounting for drift during transfers
+    targ_Omega_transfer_drift = J2_RAAN_drift(x_keplerian_targ(1, :), x_keplerian_targ(2, :), x_keplerian_targ(3, :), mu, R, J_2_val) * (Qtransfer_to_int.dt + Qtransfer_to_targ.dt);
+    delta_Omega = wrapTo2Pi((x_keplerian_targ(4) + targ_Omega_transfer_drift) - (x_keplerian_0(4) + transfer_drift_1 + transfer_drift_2));
     rel_Omega_drift = J2_RAAN_drift(x_keplerian_int(1, :), x_keplerian_int(2, :), x_keplerian_int(3, :), mu, R, J_2_val) ...
                     - J2_RAAN_drift(x_keplerian_targ(1, :), x_keplerian_targ(2, :), x_keplerian_targ(3, :), mu, R, J_2_val);
     t_wait = delta_Omega ./ rel_Omega_drift .* (rel_Omega_drift > 0) ...
            + (delta_Omega - 2 * pi) ./ rel_Omega_drift .* (rel_Omega_drift < 0);
 
     % Package outputs
-    dV_total = squeeze(dV1 + dV2);
-    ToF_total = (ToFs(1, :)' + t_wait' + ToFs(2, :)') / 60 / 60 / 24;
-    violated_constraints = (dV_total > max_dV) + (ToF_total > max_ToF);
-    dV_ToF = [dV_total .* (violated_constraints == 0) + 1e5 * (violated_constraints / 2),... 
-              ToF_total .* (violated_constraints == 0) + 1e5 * (violated_constraints / 2)];
-end
+    dV_total = Qtransfer_to_int.delta_V + Qtransfer_to_targ.delta_V;
+    ToF_total = (Qtransfer_to_int.dt + t_wait + Qtransfer_to_targ.dt) / 60 / 60 / 24;
 
-function [c, ceq] = min_periapsis_constraint(a, e, min_r_p, R_E)
-    ceq = [];
-    r_p = a .* (1 - e) - R_E;
-    c = min_r_p - r_p;
+    % Constraints
+    n_constraints = 4; % max dV, min dV, transfer 1 converge, transfer 2 converge
+    violated_constraints = (dV_total > max_dV) + (ToF_total > max_ToF) + ~Qtransfer_to_int.converged + ~Qtransfer_to_targ.converged;
+    dV_ToF = [dV_total .* (violated_constraints == 0) + 1e5 * (violated_constraints / n_constraints),... 
+              ToF_total .* (violated_constraints == 0) + 1e5 * (violated_constraints / n_constraints)];
 end
