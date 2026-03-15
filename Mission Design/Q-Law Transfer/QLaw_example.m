@@ -26,8 +26,8 @@ x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
-r_a_d = R_E + 2200; % [km] periapsis
-r_p_d = R_E + 2200.00001; % [km] periapsis
+r_a_d = R_E + 600; % [km] periapsis
+r_p_d = R_E + 120; % [km] periapsis
 e_d = (1 - r_p_d / r_a_d) / (1 + r_p_d / r_a_d); % [] eccentricity
 a_d = r_p_d / (1 - e_d); % [km] semi-major axis
 i_d = deg2rad(71); % [rad] inclination

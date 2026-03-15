@@ -19,12 +19,12 @@ function [] = plotOrbit3(RAAN, inc, omega, p, e, theta_star, color, scale, grade
     y = r_vec_xyz(2,:) + c(2);
     z = r_vec_xyz(3,:) + c(3);
 
-    %plot3(x,y,z, color, LineWidth=W)
-    if color == "-"
-        plot3(x,y,z, "LineWidth", W) % works the same as before just adjusts it to plot colors properly
-    else
-        plot3(x,y,z, color, "LineWidth", W) % works the same as before just adjusts it to plot colors properly
-    end
+    plot3(x,y,z, "LineWidth", W, "Color", color) 
+    % if color == "-"
+    %     plot3(x,y,z, "LineWidth", W) % works the same as before just adjusts it to plot colors properly
+    % else
+    %     plot3(x,y,z, color, "LineWidth", W) % works the same as before just adjusts it to plot colors properly
+    % end
     hold on
     if (arrow == 1)
         %plotOrbitWithArrows(x, y, z, length(x)/10, color, scale, grade)

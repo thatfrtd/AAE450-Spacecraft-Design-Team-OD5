@@ -75,6 +75,8 @@ MultiObj.var_min = var_bounds(:, 1)';
 MultiObj.var_max = var_bounds(:, 2)';
 MultiObj.obj_names = ["ToF [days]", "Delta V [km / s]"];
 MultiObj.title = "Q-Law Delta V vs ToF Pareto Front Optimization Using NSGA-II";
+MultiObj.plot_bounds = []; %[0, 30;
+                        %0, 2];
 
 % Parameters
 params.Np = 30;        % Population size
@@ -88,5 +90,14 @@ x_test = [ones(1, 5), 0.5, 0.5, 2, 4, 3, 1];
 MultiObj.fun(x_test)
 
 %%
-% NSGA-II algorithm
-NSGAII(params, MultiObj);   
+% NSGA-II algorithm - need to tune it to produce good results so just using
+% built in Matlab one
+% NSGAII(params, MultiObj);   
+
+options = optimoptions('paretosearch','Display','iter',...
+    'PlotFcn',{'psplotparetof' 'psplotparetox'});
+fun = MultiObj.fun;
+lb = MultiObj.var_min;
+ub = MultiObj.var_max;
+rng default % For reproducibility
+[x,fval,exitflag,output] = paretosearch(fun,MultiObj.nVar,[],[],[],[],lb,ub,[],options);
