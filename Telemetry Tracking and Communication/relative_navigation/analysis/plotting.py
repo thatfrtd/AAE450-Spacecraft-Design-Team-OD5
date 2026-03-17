@@ -1,23 +1,79 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+def plot_relative_state_overlay(t, target_truth, chaser_truth,
+                               target_est, chaser_est):
+
+    # --- Truth relative ---
+    rel_truth = chaser_truth[0:3, :] - target_truth[0:3, :]
+
+    # --- Estimated relative ---
+    rel_est = chaser_est[0:3, :] - target_est[0:3, :]
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection="3d")
+
+    # Truth trajectory
+    ax.plot3D(rel_truth[0, :], rel_truth[1, :], rel_truth[2, :],
+              color='blue', label='Truth')
+
+    # Estimated trajectory
+    ax.plot3D(rel_est[0, :], rel_est[1, :], rel_est[2, :],
+              color='red', linestyle='--', label='Estimated')
+
+    # Target at origin
+    ax.scatter(0, 0, 0, marker='*', s=150, color='gold', label='Target')
+
+    # Start markers
+    ax.scatter(*rel_truth[:, 0], color='green', s=60, label='Start (Truth)')
+    ax.scatter(*rel_est[:, 0], color='lime',  s=60, label='Start (Est)')
+
+    # End markers
+    ax.scatter(*rel_truth[:, -1], color='black', s=60, label='End (Truth)')
+    ax.scatter(*rel_est[:, -1], color='red',   s=60, label='End (Est)')
+
+    ax.set_xlabel("x [km]")
+    ax.set_ylabel("y [km]")
+    ax.set_zlabel("z [km]")
+    ax.set_title("Relative Trajectory: Truth vs Estimated")
+
+    ax.legend()
+    plt.tight_layout()
 
 def plot_relative_state(t: np.ndarray, target_states: np.ndarray, chaser_states: np.ndarray) -> None:
 
-    # Find relative position
+    # Extract positions
     target_r = target_states[0:3, :]
     chaser_r = chaser_states[0:3, :]
 
+    # Relative position
     rel_pos = chaser_r - target_r
 
     fig = plt.figure()
     ax = fig.add_subplot(projection="3d")
 
-    ax.plot3D(rel_pos[0, :], rel_pos[1, :], rel_pos[2, :])
-    ax.plot3D(0, 0, 0, marker='*', markersize=15, color='gold')
+    # Trajectory
+    ax.plot3D(rel_pos[0, :], rel_pos[1, :], rel_pos[2, :], label="Relative Trajectory")
+
+    # Target at origin
+    ax.scatter(0, 0, 0, marker='*', s=150, color='gold', label="Target")
+
+    # Start point
+    ax.scatter(rel_pos[0, 0], rel_pos[1, 0], rel_pos[2, 0],
+               color='green', s=60, label="Start")
+
+    # End point
+    ax.scatter(rel_pos[0, -1], rel_pos[1, -1], rel_pos[2, -1],
+               color='red', s=60, label="End")
+
+    # Labels
     ax.set_xlabel("x [km]")
     ax.set_ylabel("y [km]")
     ax.set_zlabel("z [km]")
+    ax.set_title("Relative Position (Chaser w.r.t Target)")
+
+    ax.legend()
+    plt.tight_layout()
 
 def plot_orbits_3d(t: np.ndarray, target_states: np.ndarray, chaser_states: np.ndarray) -> None:
     """
