@@ -84,3 +84,13 @@ def measure_optical_camera(r_T, r_C, q_C):
     noise = np.random.multivariate_normal(np.zeros(2), config.R_OPT_CAM)
 
     return np.array([az, el]) + noise
+
+def measure_gps(r_C_true):
+    noise = np.random.multivariate_normal(np.zeros(3), config.R_GPS)
+    return r_C_true + noise
+
+def measure_lidar(r_T, r_C):
+    """LIDAR range measurement [km]."""
+    true_range = np.linalg.norm(r_T - r_C)
+    noise = np.random.normal(0, config.sigma_lidar)
+    return true_range + noise

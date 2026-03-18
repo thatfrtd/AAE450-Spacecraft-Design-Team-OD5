@@ -99,11 +99,13 @@ def dynamics_predict(t, y, u_applied, tau_applied, I_r, I_c, param_noise):
 
 
 def parameter_dynamics(t, y, tau_b, tau_s, tau_o, sigma_b, sigma_s, sigma_o):
-    """First-order Gauss-Markov bias/misalignment model."""
     b_w = y[0:3];  eps_s = y[3:6];  eps_o = y[6:9]
 
     def _drive(sigma):
-        return np.zeros(3) if np.all(sigma == 0) else np.random.normal(0, sigma, 3)
+        s = np.abs(sigma)                          # ← force non-negative
+        if np.all(s < 1e-30):                      # ← use tolerance not ==0
+            return np.zeros(3)
+        return np.random.normal(0, s, 3)
 
     return np.concatenate([
         -b_w   / tau_b + _drive(sigma_b),

@@ -13,9 +13,19 @@ def quat_multiply(p, q):
     ])
 
 def kde(q, w):
-    omega_quat = np.array([w[0], w[1], w[2], 0])       # pure quaternion
-    q_dot = 0.5 * quat_multiply(omega_quat, q)         # your quat multiply
-    return q_dot   
+    # Fix: right-multiply — q_dot = 0.5 * q ⊗ ω  (body frame convention)
+    omega_quat = np.array([w[0], w[1], w[2], 0.0])
+    q_dot = 0.5 * quat_multiply(q, omega_quat)   # was quat_multiply(omega_quat, q)
+    return q_dot
+
+def delta_theta_to_quat(theta):
+    # Fix: exact small-angle formula instead of approx
+    angle = np.linalg.norm(theta)
+    if angle < 1e-10:
+        return np.array([0.0, 0.0, 0.0, 1.0])
+    axis = theta / angle
+    s = np.sin(angle / 2.0)
+    return np.array([s*axis[0], s*axis[1], s*axis[2], np.cos(angle / 2.0)])
 
 def dde(I, w, q, r, noise, u_tau):
     tau_g   = grav_gradient(I, w, q, r)
@@ -81,10 +91,6 @@ def skew(v: np.ndarray) -> np.ndarray:
         [ v[2],  0,    -v[0]],
         [-v[1],  v[0],  0   ]
     ])
-
-def delta_theta_to_quat(theta):
-    """ref woffinden small rotations equation. """
-    return normalize_quat(np.array([theta[0]/2, theta[1]/2, theta[2]/2, 1]))
 
 def normalize_quat(q):
     q_norm = np.linalg.norm(q)

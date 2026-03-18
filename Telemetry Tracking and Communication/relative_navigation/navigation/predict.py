@@ -34,11 +34,12 @@ def ekf_predict(x_est, P, omega_gyro, u_applied, tau_applied, I_r, I_c, noise, p
     sigma_w_C = noise[9:12]
 
     # -- 1. Build 35-element propagation state --------------------------------
-    # Bug fix: was np.concatenate([x_prop, omega_gyro]) which appended omega
-    # to the end giving wrong layout. Must insert omega into chaser block.
+    # If no gyro this step (gyro cadence > sim dt), fall back to zeros
+    if omega_gyro is None:
+        omega_gyro = np.zeros(3)
     x_prop = np.concatenate([
         x_est[0:23],    # target (13) + chaser r,v,q (10)
-        omega_gyro,     # chaser omega (3) — inserted here → chaser now 13 elem
+        omega_gyro,     # chaser omega (3)
         x_est[23:32],   # params (9)
     ])                  # total = 35
 
@@ -97,19 +98,29 @@ def ekf_predict(x_est, P, omega_gyro, u_applied, tau_applied, I_r, I_c, noise, p
 
 def compute_Q(dt, sigma_v_T, sigma_w_T, sigma_v_C,
               tau_b, tau_s, tau_o, sigma_b, sigma_s, sigma_o):
-    """
-    Discrete process noise covariance Q (30×30).
 
-    All sigma/tau inputs may be 3-element arrays (one per axis).
-    """
     I = np.eye(3)
 
-    # Helper: build 6×6 continuous white-noise position/velocity block
+    # Minimum position noise floor — prevents filter overconfidence
+    sigma_pos_floor = 1e-6   # km (1 mm/s² equivalent)
+
     def _pv_block(sig):
-        s2 = np.mean(sig**2)          # scalar variance (isotropic approx)
+        s2 = max(np.mean(sig**2), sigma_pos_floor**2)
         return s2 * np.block([
-            [I * (dt**3 / 3), I * (dt**2 / 2)],
-            [I * (dt**2 / 2), I *  dt         ],
+            [I * (dt**3/3), I * (dt**2/2)],
+            [I * (dt**2/2), I * dt       ],
+        ])
+
+    I = np.eye(3)
+
+    # Minimum position noise floor — prevents filter overconfidence
+    sigma_pos_floor = 1e-6   # km (1 mm/s² equivalent)
+
+    def _pv_block(sig):
+        s2 = max(np.mean(sig**2), sigma_pos_floor**2)
+        return s2 * np.block([
+            [I * (dt**3/3), I * (dt**2/2)],
+            [I * (dt**2/2), I * dt       ],
         ])
 
     # Q_wT — target process noise (12×12)
