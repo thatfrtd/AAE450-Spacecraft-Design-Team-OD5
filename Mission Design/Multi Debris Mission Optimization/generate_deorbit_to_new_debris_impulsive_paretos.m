@@ -1,16 +1,23 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % AAE 450 Team OD5
-% Transfer from a deorbit orbit (after deorbiting debris) to new debris
+% Generate dV-ToF Paretos for transfers from a deorbit orbit (after 
+% deorbiting debris) to a set of new debris
 % Author: Travis Hastreiter 
-% Created On: 13 March, 2026
+% Created On: 15 March, 2026
 % Description: Orbit transfer using Q-Law from deorbit orbit (after drop 
 % off) to new debris not accounting for rendezvous (assuming not much extra 
-% delta V and time).
+% delta V and time). Does it between a set of debris for purpose of using
+% to optimize spacecraft routing
 % 
 % Right now it uses impulsive Lambert transfers to make sure the procedure
 % works.
-% Most Recent Change: 14 March, 2026
+% Most Recent Change: 15 March, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% 1) Get or create debris orbits
+% 2) Create all combos
+% 3) Calculate Paretos for all combos and save to "Deorbit to Debris
+%    Paretos" folder 
+% FOR RIGHT NOW USE FAKE DEBRIS ORBITS
 
 R_E = 6378.137; % [km] Earth radius
 mu_E = 398600.4418; % [km3 / s2] Earth gravitational parameter
@@ -20,14 +27,19 @@ J_2_val = 1.08262668e-3; % [] Earth J2
 a_c = 7044.7634; % [km] semi-major axis
 e_c = 0.003390; % [] eccentricity
 i_c = deg2rad(98.1114 ); % [rad] inclination
-Omega_c = deg2rad(320.5520 + 280 ); % [rad] right ascension of ascending node
+Omega_c = deg2rad(320.5520 ); % [rad] right ascension of ascending node
 omega_c = deg2rad(301.2069 - 0 ); % [rad] argument of periapsis
 nu_c = deg2rad(58.6658 ); % [rad] true anomaly at epoch
 
 M_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_c, e_c), e_c);
 x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
+%% Create Fake Debris Orbits
+N_debris = 10;
+x_keplerian_debris = repmat(x0_c_keplerian, 1, N_debris);
+x_keplerian_debris(4, :) = rand(1, N_debris) * 2 * pi;
 
+%%
 % Initial conditions for spacecraft
 r_a_0 = R_E + 600; % [km] periapsis
 r_p_0 = R_E + 120; % [km] periapsis
@@ -42,6 +54,8 @@ M_d = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_d, e_d), e_d);
 x0_d_keplerian = [a_d; e_d; i_d; Omega_d; omega_d; M_d];
 x0_d_cartesian = keplerian_to_cartesian(x0_d_keplerian, nu_d, mu_E);
 
+x_keplerian_deorbits = [repmat(x0_d_keplerian(1:3), 1, N_debris); x_keplerian_debris(4, :); repmat(x0_d_keplerian(5:6), 1, N_debris)];
+
 char_star = load_charecteristic_values_Earth();
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
@@ -54,7 +68,14 @@ spacecraft_params.F_max = 0.25; % [N]
 % Integration error tolerance
 default_tolerance = 1e-10;
 
+load_lambert();
+
 %% Optimize Transfer that Leverages J2 using Genetic Algorithm 
+N_pareto = 100;
+xs = zeros([N_pareto, 5, N_debris, N_debris]);
+fvals = zeros([N_pareto, 2, N_debris, N_debris]);
+exitflags = zeros([N_debris, N_debris]);
+
 % Optimization variables
 ToF1_bounds = [0.01, 2]; % [hr] initial -> intermediate transfer time of flight
 ToF2_bounds = [0.01, 2]; % [hr] intermediate to target transfer time of flight
@@ -62,61 +83,71 @@ a_int_bounds = ([300, 2000] + R_E) / char_star.l; % [km]
 e_int_bounds = [0, 0.2]; % []
 i_int_bounds = [0.9, 1.1] * i_c; % [rad]
 % Omega_int - assume same as original - all adjustments done by J2
-% omega_int - assume same as original - target almost circular
-var_bounds = [ToF1_bounds; ToF2_bounds; a_int_bounds; e_int_bounds; i_int_bounds];
-
-% Set up MultiObj
-MultiObj.fun = @(x) batch_Lambert_J2_drift_transfer(x0_d_keplerian, [x(:, 3)' * char_star.l; x(:, 4:5)'; repmat(x0_d_keplerian(4:6), 1, size(x, 1))], x0_c_keplerian, x(:, 1:2)' * 3600, 20, mu_E, R_E, J_2_val, char_star, 2, 365);
-MultiObj.nVar = size(var_bounds, 1);
-MultiObj.var_min = var_bounds(:, 1)';
-MultiObj.var_max = var_bounds(:, 2)';
-MultiObj.obj_names = ["ToF [days]", "Delta V [km / s]"];
-
-load_lambert();
-
-%% Test
-x_test = [var_bounds(:, 1)'; var_bounds(:, 2)'];
-MultiObj.fun(x_test)
-
-%%
-options = optimoptions('paretosearch', 'ParetoSetSize', 100,'Display','iter',...
-    'PlotFcn',{'psplotparetof' 'psplotparetox'});
-fun = MultiObj.fun;
-lb = MultiObj.var_min;
-ub = MultiObj.var_max;
-rng shuffle % For reproducibility
-min_r_p = 400; % [km] minimum allowable periapsis (for drag reasons)
-[x,fval,exitflag,output] = paretosearch(fun,MultiObj.nVar,[],[],[],[],lb,ub,@(x) min_periapsis_constraint(x(:, 3) * R_E, x(:, 4), min_r_p, R_E),options);
-
+% omega_int - assume same as original - target 
+for d_1 = 1 : N_debris
+    for d_2 = 1 : N_debris 
+        if d_1 ~= d_2
+            var_bounds = [ToF1_bounds; ToF2_bounds; a_int_bounds; e_int_bounds; i_int_bounds];
+            
+            % Set up MultiObj
+            MultiObj.fun = @(x) batch_Lambert_J2_drift_transfer(x_keplerian_deorbits(:, d_1), [x(:, 3)' * char_star.l; x(:, 4:5)'; repmat(x_keplerian_deorbits(4:6, d_1), 1, size(x, 1))], x_keplerian_debris(:, d_2), x(:, 1:2)' * 3600, 20, mu_E, R_E, J_2_val, char_star, 2, 2);
+            MultiObj.nVar = size(var_bounds, 1);
+            MultiObj.var_min = var_bounds(:, 1)';
+            MultiObj.var_max = var_bounds(:, 2)';
+            MultiObj.obj_names = ["ToF [yr]", "Delta V [km / s]"];
+            
+            %%
+            options = optimoptions('paretosearch', 'ParetoSetSize', N_pareto,'Display','iter',...
+                'PlotFcn',{'psplotparetof' 'psplotparetox'});
+            fun = MultiObj.fun;
+            lb = MultiObj.var_min;
+            ub = MultiObj.var_max;
+            rng shuffle % For reproducibility
+            min_r_p = 400; % [km] minimum allowable periapsis (for drag reasons)
+            [xs(:, :, d_1, d_2),fvals(:, :, d_1, d_2),exitflags(d_1, d_2),output] = paretosearch(fun,MultiObj.nVar,[],[],[],[],lb,ub,@(x) min_periapsis_constraint(x(:, 3) * R_E, x(:, 4), min_r_p, R_E),options);
+    
+            %%
+            fprintf("Completed %g-%g with %g", d_1, d_2, exitflags(d_1, d_2))
+        end
+    end
+end
 %%
 unload_lambert();
 
+%% Save
+pareto = [];
+pareto.x = xs;
+pareto.dV = squeeze(fvals(:, 1, :, :));
+pareto.ToF = squeeze(fvals(:, 2, :, :));
+pareto.exitflag = exitflags;
+save("Multi Debris Mission Optimization\Deorbit to Debris Paretos\Impulsive\fake_paretos.mat", "pareto");
+
 %% Analyze Results
-figure
-scatter3(x(:, 3) * R_E - R_E, rad2deg(x(:, 5)), fval(:, 1));
-grid on
-xlabel("Semi Major Alt [km]")
-ylabel("Inclination []")
-zlabel("dV [km / s]")
-
-%%
-x_intermediate = [x(:, 3)' * char_star.l; x(:, 4:5)'; repmat(x0_d_keplerian(4:6), 1, size(x, 1))];
-
-figure
-earthy(R_E, "Earth", 0.6, [0;0;0]); hold on;
-C = cool();
-colormap(C)
-colors = interp1(linspace(min(fval(:, 1)), max(fval(:, 1)), size(C, 1)), C, fval(:, 1));
-for i = 1 : size(x_intermediate, 2)
-    plotOrbit3(x_intermediate(4, i), x_intermediate(3, i), x_intermediate(5, i), x_intermediate(1, i) .* (1 - x_intermediate(2, i) .^ 2), x_intermediate(2, i), linspace(0, 2 * pi, 200), colors(i, :), 1, 0, [0; 0; 0], 0, 1); hold on
-end
-plotOrbit3(x0_d_keplerian(4), x0_d_keplerian(3), x0_d_keplerian(5), x0_d_keplerian(1) .* (1 - x0_d_keplerian(2) .^ 2), x0_d_keplerian(2), linspace(0, 2 * pi, 200), "g", 1, 0, [0; 0; 0], 1, 1); hold on
-plotOrbit3(x0_d_keplerian(4), x0_c_keplerian(3), x0_c_keplerian(5), x0_c_keplerian(1) .* (1 - x0_c_keplerian(2) .^ 2), x0_c_keplerian(2), linspace(0, 2 * pi, 200), "r", 1, 0, [0; 0; 0], 1, 1); hold on
-plotOrbit3(x0_c_keplerian(4), x0_c_keplerian(3), x0_c_keplerian(5), x0_c_keplerian(1) .* (1 - x0_c_keplerian(2) .^ 2), x0_c_keplerian(2), linspace(0, 2 * pi, 200), "r", 1, 0, [0; 0; 0], 1, 1); hold on
-colorbar()
-clim([min(fval(:, 1)), max(fval(:, 1))])
-grid on
-axis equal
+% figure
+% scatter3(x(:, 3) * R_E - R_E, rad2deg(x(:, 5)), fval(:, 1));
+% grid on
+% xlabel("Semi Major Alt [km]")
+% ylabel("Inclination []")
+% zlabel("dV [km / s]")
+% 
+% %%
+% x_intermediate = [x(:, 3)' * char_star.l; x(:, 4:5)'; repmat(x0_d_keplerian(4:6), 1, size(x, 1))];
+% 
+% figure
+% earthy(R_E, "Earth", 0.6, [0;0;0]); hold on;
+% C = cool();
+% colormap(C)
+% colors = interp1(linspace(min(fval(:, 1)), max(fval(:, 1)), size(C, 1)), C, fval(:, 1));
+% for i = 1 : size(x_intermediate, 2)
+%     plotOrbit3(x_intermediate(4, i), x_intermediate(3, i), x_intermediate(5, i), x_intermediate(1, i) .* (1 - x_intermediate(2, i) .^ 2), x_intermediate(2, i), linspace(0, 2 * pi, 200), colors(i, :), 1, 0, [0; 0; 0], 0, 1); hold on
+% end
+% plotOrbit3(x0_d_keplerian(4), x0_d_keplerian(3), x0_d_keplerian(5), x0_d_keplerian(1) .* (1 - x0_d_keplerian(2) .^ 2), x0_d_keplerian(2), linspace(0, 2 * pi, 200), "g", 1, 0, [0; 0; 0], 1, 1); hold on
+% plotOrbit3(x0_d_keplerian(4), x0_c_keplerian(3), x0_c_keplerian(5), x0_c_keplerian(1) .* (1 - x0_c_keplerian(2) .^ 2), x0_c_keplerian(2), linspace(0, 2 * pi, 200), "r", 1, 0, [0; 0; 0], 1, 1); hold on
+% plotOrbit3(x0_c_keplerian(4), x0_c_keplerian(3), x0_c_keplerian(5), x0_c_keplerian(1) .* (1 - x0_c_keplerian(2) .^ 2), x0_c_keplerian(2), linspace(0, 2 * pi, 200), "r", 1, 0, [0; 0; 0], 1, 1); hold on
+% colorbar()
+% clim([min(fval(:, 1)), max(fval(:, 1))])
+% grid on
+% axis equal
 
 %% Helper Functions
 function [dV_ToF] = batch_Lambert_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_keplerian_targ, ToFs, N_thetastar, mu, R, J_2_val, char_star, max_dV, max_ToF)
@@ -159,7 +190,7 @@ function [dV_ToF] = batch_Lambert_J2_drift_transfer(x_keplerian_0, x_keplerian_i
 
     % Package outputs
     dV_total = squeeze(dV1 + dV2);
-    ToF_total = (ToFs(1, :)' + t_wait' + ToFs(2, :)') / 60 / 60 / 24;
+    ToF_total = (ToFs(1, :)' + t_wait' + ToFs(2, :)') / 60 / 60 / 24 / 365;
     violated_constraints = (dV_total > max_dV) + (ToF_total > max_ToF);
     dV_ToF = [dV_total .* (violated_constraints == 0) + 1e5 * (violated_constraints / 2),... 
               ToF_total .* (violated_constraints == 0) + 1e5 * (violated_constraints / 2)];
