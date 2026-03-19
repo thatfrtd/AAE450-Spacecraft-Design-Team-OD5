@@ -17,9 +17,6 @@ function [A_k, B_k, E_k, c_k, x_kp1] = integrate_discrete_ZOH(x0, A, B, E, c, f,
 
     y0 = [x0; STM0(:); B0(:); E0(:); c0];
 
-    tolerances.AbsTol = 1e-6;
-    tolerances.RelTol = 1e-6;
-
     % Simulate    
     [~, y] = ode45(@(t, y) STM_diff_eq_ZOH(t, y, A, B, E, c, f, u, p, nx), tspan, y0, tolerances);
 
