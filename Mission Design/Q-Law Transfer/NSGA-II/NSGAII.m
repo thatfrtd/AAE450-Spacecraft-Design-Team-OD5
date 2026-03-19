@@ -52,6 +52,7 @@ function NSGAII(params,MultiObj)
     var_max = MultiObj.var_max(:);  % Maximum value for each gen
     obj_names = MultiObj.obj_names;
     plot_title = MultiObj.title;
+    plot_bounds = MultiObj.plot_bounds;
         
     % Initialization
     gen   = 1;
@@ -64,9 +65,13 @@ function NSGAII(params,MultiObj)
     % Plotting and verbose
     if(size(Pfit,2) == 2)
         h_fig = figure(1);
-        h_par=scatter(Pfit(:,1),Pfit(:,2),20,'filled', 'markerFaceAlpha',0.3,'MarkerFaceColor',[128 193 219]./255); hold on;
-        h_rep = plot(Pfit(:,1),Pfit(:,2),'ok'); hold on;
+        h_par=scatter(Pfit(:,2),Pfit(:,1),20,'filled', 'markerFaceAlpha',0.3,'MarkerFaceColor',[128 193 219]./255); hold on;
+        h_rep = plot(Pfit(:,2),Pfit(:,1),'ok'); hold on;
         grid on; xlabel(obj_names(1)); ylabel(obj_names(2));
+        if ~isempty(plot_bounds)
+            xlim(plot_bounds(1, :));
+            ylim(plot_bounds(2, :));
+        end
         title(plot_title)
         drawnow;
         axis square;
@@ -94,13 +99,17 @@ function NSGAII(params,MultiObj)
         % Plotting and verbose
         if(size(Rfit,2) == 2)
             figure(h_fig); delete(h_rep);
-            h_par=scatter(Rfit(1:Np,1),Rfit(1:Np,2),20,'filled', 'markerFaceAlpha',0.3,'MarkerFaceColor',[128 193 219]./255); hold on;
-            h_rep = plot(Rfit(1:Np,1),Rfit(1:Np,2),'ok'); hold on;
+            h_par=scatter(Rfit(1:Np,2),Rfit(1:Np,1),20,'filled', 'markerFaceAlpha',0.3,'MarkerFaceColor',[128 193 219]./255); hold on;
+            h_rep = plot(Rfit(1:Np,2),Rfit(1:Np,1),'ok'); hold on;
             if(isfield(MultiObj,'truePF'))
                 try delete(h_pf); end
-                h_pf = plot(MultiObj.truePF(:,1),MultiObj.truePF(:,2),'.','color',0.8.*ones(1,3)); hold on;
+                h_pf = plot(MultiObj.truePF(:,2),MultiObj.truePF(:,1),'.','color',0.8.*ones(1,3)); hold on;
             end
             grid on; xlabel(obj_names(1)); ylabel(obj_names(2));
+            if ~isempty(plot_bounds)
+                xlim(plot_bounds(1, :));
+                ylim(plot_bounds(2, :));
+            end
             title(plot_title)
             drawnow;
             axis square;
@@ -323,7 +332,7 @@ function [RANK] = FastNonDominatedSorting_Vectorized(fitness)
     while ~isempty(current_vector)
         
         % Check if there is only a single particle
-        if length(current_vector) == 1
+        if isscalar(current_vector)
             RANK(current_vector) = current_pf;
             break;
         end
