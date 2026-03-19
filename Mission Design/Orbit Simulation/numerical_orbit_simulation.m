@@ -3,7 +3,7 @@
 % Author: Travis Hastreiter 
 % Created On: 13 February, 2026
 % Description: Simulate orbits with J2 perturbations, thrust, and drag
-% Most Recent Change: 13 February, 2026
+% Most Recent Change: 12 March, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Assumed dynamical parameter values
@@ -16,10 +16,10 @@ m = 800; % [kg]
 
 % Initial conditions for s/c in Earth orbit (in Earth Centered Inertial (ECI) frame)
 r_a_0 = R_E + 600; % [km] periapsis
-r_p_0 = R_E + 300; % [km] periapsis
+r_p_0 = R_E + 126; % [km] periapsis
 e_0 = (1 - r_p_0 / r_a_0) / (1 + r_p_0 / r_a_0); % [] eccentricity
 a_0 = r_p_0 / (1 - e_0); % [km] semi-major axis
-i_0 = deg2rad(80); % [rad] inclination
+i_0 = deg2rad(8.6); % [rad] inclination
 Omega_0 = deg2rad(30); % [rad] right ascension of ascending node
 omega_0 = deg2rad(20); % [rad] argument of periapsis
 nu_0 = deg2rad(180); % [rad] true anomaly at epoch
@@ -29,13 +29,13 @@ x0_keplerian = [a_0; e_0; i_0; Omega_0; omega_0; M_0];
 x0_cartesian = keplerian_to_cartesian(x0_keplerian, nu_0, mu_E);
 
 % Propagation Time 
-orbits = 100;
+orbits = 10;
 tspan = linspace(0, orbits * period(a_0, mu_E), 1e5);
 t_orbits = linspace(0, orbits, numel(tspan));
 t_hr = tspan / 60 / 60;
 
 % Integration error tolerance
-default_tolerance = 1e-6;
+default_tolerance = 1e-9;
 
 % Control
 F_mag = 0; % [N]
@@ -46,6 +46,11 @@ A_over_m = pi * 1 ^ 2 / m * 1e-6; % [km2 / kg] spacecraft area to mass ratio
 C_D = 2.31; % [] drag coefficient
 
 stop_altitude = 20; % [km]
+
+% Eclipse
+AU = 149597898; % [km] astronautical unit, Earth-Sun difference
+mu_sun = 132712440017.99; % [km3 / s2] Sun gravitational parameter
+n_E = sqrt(mu_sun / AU ^ 3); % [rad / s] Earth mean motion
 
 %%
 t0_datetime = datetime('2030-01-01','InputFormat','yyyy-MM-dd');
@@ -59,14 +64,15 @@ a_d_thrust = @(t,x) [accel_thrust * sind(0); ...
                      accel_thrust * cosd(0); ... 
                      accel_thrust * sind(0)]; % [km / s2] Orbital RTN frame (Radial-Theta-Normal frame)
 
-a_d = @(t,x) a_d_J2(t,x) + cartesian_to_RTN_DCM_from_cart(x, mu_E) * a_d_thrust(t,x) ...
+%a_d = @(t,x) a_d_J2(t,x) + cartesian_to_RTN_DCM_from_cart(x, mu_E) * a_d_thrust(t,x) ...
+a_d = @(t,x) a_d_J2(t,x) ...
                          + drag_perturbation_nrlmsise(t, x, mu_E, C_D, A_over_m, t0_datetime, false);
                          %+ drag_perturbation_simple(t, x, mu_E, R_E, C_D, A_over_m);
 
 % Simulate 
-tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance, Events = @(t, x) altitude_event_function(t, x, R_E, stop_altitude, t0_datetime));
-
-[t_keplerian,x_keplerian_cartesian] = ode45(@(t,x) gauss_planetary_eqn(f0_cartesian(x, mu_E), B_cartesian(x, mu_E), a_d(t,x)), tspan, x0_cartesian, tolerances);
+tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance, Events = @(t, x) combine_event_funcs(t, x, {@(t, x) altitude_event_function(t, x, R_E, stop_altitude, t0_datetime), @(t, x) into_solar_eclipse_event_function(t, x, R_E, AU, n_E), @(t, x) outof_solar_eclipse_event_function(t, x, R_E, AU, n_E)}));
+    
+[t_keplerian,x_keplerian_cartesian, t_e, x_cart_e, i_e] = ode45(@(t,x) gauss_planetary_eqn(f0_cartesian(x, mu_E), B_cartesian(x, mu_E), a_d(t,x)), tspan, x0_cartesian, tolerances);
 x_keplerian_cartesian = x_keplerian_cartesian';
 x_keplerian = cartesian_to_keplerian_array(x_keplerian_cartesian, [0; 0; 1], [1; 0; 0], mu_E);
 
@@ -85,20 +91,22 @@ x_keplerian = cartesian_to_keplerian_array(x_keplerian_cartesian, [0; 0; 1], [1;
 % plot(vecnorm(x_keplerian_cartesian(4:6, :)))
 
 %% Delta V
-Isp = 2000;
-g_0 = 9.81;
-delta_m = 1 / (Isp * g_0) * F_mag * tspan(end)
-dV_spiral = sqrt(mu_E / a_0) - sqrt(mu_E / x_keplerian(1, end))
-dV_sim = Isp * g_0 * log(m / (m - delta_m)) / 1000
-
-dt_est_hr = dV_spiral * 1000 / (F_mag / m) / 60 / 60
+% Isp = 2000;
+% g_0 = 9.81;
+% delta_m = 1 / (Isp * g_0) * F_mag * tspan(end)
+% dV_spiral = sqrt(mu_E / a_0) - sqrt(mu_E / x_keplerian(1, end))
+% dV_sim = Isp * g_0 * log(m / (m - delta_m)) / 1000
+% 
+% dt_est_hr = dV_spiral * 1000 / (F_mag / m) / 60 / 60
 
 %% a) Plot 
 figure
-earthy(R_E, "Earth", 1, [0;0;0]); hold on;
+earthy(R_E, "Earth", 0.5, [0;0;0]); hold on;
 axis equal
 
 plot_cartesian_orbit(x_keplerian_cartesian', 'r', 0, 1);
+scatter3(x_cart_e(i_e == 2, 1), x_cart_e(i_e == 2, 2), x_cart_e(i_e == 2, 3), 100, Marker="v")
+scatter3(x_cart_e(i_e == 3, 1), x_cart_e(i_e == 3, 2), x_cart_e(i_e == 3, 3), 100, Marker = "^")
 
 title("Orbit Propagated with J2 with Constant Thrust")
 xlabel("X [km]")
@@ -292,6 +300,35 @@ function [a_drag] = drag_perturbation_nrlmsise(t, x_cartesian, mu, C_D, A_over_m
     % a_drag_RTN = cartesian_to_RTN_DCM(i, Omega, omega, nu)' * a_drag;
 end
 
+function [eclipsed] = check_eclipse(t, rvec, R_E, a_E, n_E)
+    
+    nu = n_E * t;
+    sun_vector = [cos(nu); sin(nu); 0]; % Should get solar/Earth position from ephemris...
+
+    eclipse_angle = atan2(R_E, a_E);
+
+    rvec_E = sun_vector * a_E;
+    rvec_sc = rvec_E + rvec;
+    r = norm(rvec_sc);
+    rhat = rvec_sc / r;
+
+    eclipsed = dot(rhat, sun_vector) - cos(eclipse_angle); % > 0
+end
+
+function [eclipsed, isterminal, direction] = into_solar_eclipse_event_function(t, x_cartesian, R_E, a_E, n_E)
+    eclipsed = check_eclipse(t, x_cartesian(1:3), R_E, a_E, n_E);
+
+    isterminal = 0; % Don't stop simulaiotn
+    direction = 1; % Trigger when going into eclipse (from negative side)
+end
+
+function [eclipsed, isterminal, direction] = outof_solar_eclipse_event_function(t, x_cartesian, R_E, a_E, n_E)
+    eclipsed = check_eclipse(t, x_cartesian(1:3), R_E, a_E, n_E);
+
+    isterminal = 0; % Don't stop simulaiton
+    direction = -1; % Trigger when going out of eclipse (from positive side)
+end
+
 function [altitude, isterminal, direction] = altitude_event_function(t, x_cartesian, R_E, stop_altitude, t0_datetime)
     % Stops simulation when specific altitude is hit
 
@@ -299,12 +336,23 @@ function [altitude, isterminal, direction] = altitude_event_function(t, x_cartes
 
     lla = eci2lla(x_cartesian(1:3)' * 1e3, datevec(t_datetime));
     
-    fprintf("Time (hr): %.3f, Alt (km): %.3f\n", t / 60 / 60, lla(3) / 1000)
+    %fprintf("Time (hr): %.3f, Alt (km): %.3f\n", t / 60 / 60, lla(3) / 1000)
     altitude = lla(3) / 1000 - stop_altitude;
     isterminal = 1; % Stop simulation
     direction = -1; % Trigger when zero is approached from positive side
 end
 
+function [vals, isterminal, direction] = combine_event_funcs(t, x, event_funcs)
+    n_ev = numel(event_funcs);
+
+    vals = zeros([n_ev, 1]);
+    isterminal = zeros([n_ev, 1]);
+    direction = zeros([n_ev, 1]);
+    
+    for e = 1 : n_ev
+        [vals(e), isterminal(e), direction(e)] = event_funcs{e}(t, x);
+    end
+end
 
 function [f_0] = f0_cartesian(x, mu)
     rvec = x(1:3);
@@ -315,7 +363,6 @@ function [f_0] = f0_cartesian(x, mu)
 
     f_0 = [vvec; a_cartesian];
 end
-
 
 function [B] = B_cartesian(x, mu)
     B = [zeros(3); eye(3)];
