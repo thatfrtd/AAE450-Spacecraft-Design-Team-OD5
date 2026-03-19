@@ -4,12 +4,18 @@ function [x_sol, u_sol, sol_info] = solve_ptr_convex_subproblem_no_p(prob, ptr_o
 
 t_k = linspace(0, prob.tf, prob.N);
 
+n_ncvx_k = 0;
+for nc = 1 : prob.n.ncvx
+    nc_k = prob.nonconvex_constraints{nc}{1};
+    n_ncvx_k = n_ncvx_k + numel(nc_k);
+end
+
 cvx_begin quiet
     variable X(prob.n.x, prob.N)
     variable U(prob.n.u, prob.Nu)
     variable eta(1, prob.Nu)
     variable V(prob.n.x, prob.N - 1)
-    variable v_prime(prob.n.ncvx)
+    variable v_prime(n_ncvx_k)
     variable v_0(prob.n.x, 1)
     variable v_N(prob.n.x, 1)
     minimize( prob.objective(prob.unscale_x(X), prob.unscale_u(U), 0) ...
@@ -36,6 +42,7 @@ cvx_begin quiet
 
         % Constraints
         % Constraints
+        n_ncvx_i = 1;
         for k = 1:prob.Nu
             % Convex Constraints
             for cc = 1:prob.n.cvx
@@ -51,7 +58,8 @@ cvx_begin quiet
                 if ismember(k, nc_k)
                     ncvx_constraint_func = prob.nonconvex_constraints{nc}{2};
                     ncvx_constraint_func(t_k(k), prob.unscale_x(X(:, k)), prob.unscale_u(U(:, k)), 0, prob.unscale_x(x_ref), prob.unscale_u(u_ref), 0, k) ...
-                        - v_prime(nc) <= 0;
+                        - v_prime(n_ncvx_i) <= 0;
+                    n_ncvx_i = n_ncvx_i + 1;
                 end
             end
         end
