@@ -23,44 +23,45 @@ F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star
 alpha = 1 / (spacecraft_params.Isp * 9.81e-3);
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-% a_c = 6728; % [km] semi-major axis
-% e_c = 0.01; % [] eccentricity
-% i_c = deg2rad(80); % [rad] inclination
-% Omega_c = deg2rad(60); % [rad] right ascension of ascending node
-% omega_c = deg2rad(30); % [rad] argument of periapsis
-% nu0_c = deg2rad(0); % [rad] true anomaly at epoch
-% M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
-% x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
+a_c = 6728; % [km] semi-major axis
+e_c = 0.01; % [] eccentricity
+i_c = deg2rad(80); % [rad] inclination
+Omega_c = deg2rad(60); % [rad] right ascension of ascending node
+omega_c = deg2rad(30); % [rad] argument of periapsis
+nu0_c = deg2rad(0); % [rad] true anomaly at epoch
+M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
+x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
-x_0_cartesian_c = x_c_engage_ECI;
-x_0_cartesian_d = x_d_engage_ECI;
-x_keplerian_c = cartesian_to_keplerian(x_0_cartesian_c, [0; 0; 1], [1; 0; 0], mu_E);
-a_c = x_keplerian_c(1); % [km] semi-major axis
-e_c = x_keplerian_c(2); % [] eccentricity
-i_c = x_keplerian_c(3); % [rad] inclination
-Omega_c = x_keplerian_c(4); % [rad] right ascension of ascending node
-omega_c = x_keplerian_c(5); % [rad] argument of periapsis
-M0_c = x_keplerian_c(6);
+% x_0_cartesian_c = x_c_engage_ECI;
+% x_0_cartesian_d = x_d_engage_ECI;
+% x_keplerian_c = cartesian_to_keplerian(x_0_cartesian_c, [0; 0; 1], [1; 0; 0], mu_E);
+% a_c = x_keplerian_c(1); % [km] semi-major axis
+% e_c = x_keplerian_c(2); % [] eccentricity
+% i_c = x_keplerian_c(3); % [rad] inclination
+% Omega_c = x_keplerian_c(4); % [rad] right ascension of ascending node
+% omega_c = x_keplerian_c(5); % [rad] argument of periapsis
+% M0_c = x_keplerian_c(6);
 
 n = sqrt(char_star.mu / a_c ^ 3); % [rad / s]
 
 % Rendezvous time
-tf = 3600*10; % / char_star.t; % [s] (nondimensionalized)
+tf = 3600*4; % / char_star.t; % [s] (nondimensionalized)
 tspan = linspace(0, tf, 1000);
 
 % Initial conditions for spacecraft - specify orbit instead?
-% r_0 = [-1; 2; 0.3]; % [km] Only seems to have error with nonzero r_0_x...
-% v_0 = [0e-3; -2e-3; 1e-3]; % [km / s]
-x_0 = ECI_to_Hill(x_0_cartesian_c, x_0_cartesian_d);
+r_0 = [-1; 2; 0]; % [km] Only seems to have error with nonzero r_0_x...
+v_0 = [0e-3; -2e-3; 0e-3]; % [km / s]
+x_0 = [r_0; v_0; spacecraft_params.m_0];
+% x_0 = ECI_to_Hill(x_0_cartesian_c, x_0_cartesian_d);
 
 % Algorithm parameters
 default_tolerance = 1e-13;
 tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance);
 
 %% Convert IC to Cartesian Elements
-%x_0_cartesian_c = keplerian_to_cartesian(x_keplerian_c, nu0_c, char_star.mu);
-%[x_0_cartesian_d] = Hill_to_ECI(x_0_cartesian_c, x_0);
-x_0_ck = ECI_to_Hill(x_0_cartesian_c, x_0_cartesian_d); % Slightly off...
+x_0_cartesian_c = keplerian_to_cartesian(x_keplerian_c, nu0_c, char_star.mu);
+[x_0_cartesian_d] = Hill_to_ECI(x_0_cartesian_c, x_0);
+x_0_ck = ECI_to_Hill(x_0_cartesian_c, x_0_cartesian_d);
 
 %% Define Dynamics
 f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp]);
@@ -69,10 +70,10 @@ f_CWH = @(t, x, u, p) CWH_relative_orbit_EoM(t, x, u, p, [a_c; spacecraft_params
 
 %% Propagate
 p = [];
-u = [0; 1; 0];
-u = u / norm(u) * F_max_nd;
-a_d = @(t, x) RTN_to_ECI(x(1:3), x(4:6)) * u / x(7) / F_max_nd / 1000 * spacecraft_params.F_max ...
-            + a_d_J2_ECI(t, x);
+u = [0; 0; 0];
+%u = u / norm(u) * F_max_nd;
+a_d = @(t, x) RTN_to_ECI(x(1:3), x(4:6)) * u / x(7) / F_max_nd / 1000 * spacecraft_params.F_max;%%% ...
+            %%%+ a_d_J2_ECI(t, x);
 
 mu = 1;
 
@@ -101,8 +102,8 @@ thetaddot = @(t) -2 * h  / r(t) ^ 3 * r_cdot(t);
 
 % Propagate 2-body orbit dynamics and convert to relative - CONTROL SHOULD
 % BE IN ORBIT FRAME OF CHEIF NOT DEPUTY LIKE GAUSS PLANETARY ASSUMES !!!!
-[~, x_0_cartesian_c] = ode45(@(t, x) gauss_planetary_eqn(f0_cartesian(x, char_star.mu), B_cartesian(x, char_star.mu), a_d_J2_ECI(t, x)), tspan, x_0_cartesian_c, tolerances);
-[~, x_cartesian_d] = ode45(@(t, x) [gauss_planetary_eqn(f0_cartesian(x, char_star.mu), B_cartesian(x, char_star.mu), a_d(t,x)); -alpha * sqrt(u(1) ^ 2 + u(2) ^ 2 + u(3) ^ 2) * char_star.F], tspan, x_0_cartesian_d, tolerances);
+[~, x_0_cartesian_c] = ode45(@(t, x) gauss_planetary_eqn(f0_cartesian(x, char_star.mu), B_cartesian(x, char_star.mu), [0; 0; 0]), tspan, x_0_cartesian_c, tolerances);
+[~, x_cartesian_d] = ode45(@(t, x) [gauss_planetary_eqn(f0_cartesian(x, char_star.mu), B_cartesian(x, char_star.mu), a_d(t, x)); -alpha * sqrt(u(1) ^ 2 + u(2) ^ 2 + u(3) ^ 2) * char_star.F], tspan, x_0_cartesian_d, tolerances);
 x_cartesian_hill = ECI_to_Hill(x_0_cartesian_c', x_cartesian_d');
 
 % Redimensionalize
