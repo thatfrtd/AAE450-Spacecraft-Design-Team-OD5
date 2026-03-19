@@ -18,6 +18,7 @@ arguments
     options.iter_max = 1e4 % Maximum number of timesteps
     options.a_disturbance = @(t,x) [0;0;0] % @(t, x) [3, 1] Disturbing accelerations
     options.return_dt_dm_only = false % Only return info to evaluate Q_params for global optimization of Qlaw parameters
+    options.thrust_during_eclipse = true % if an eclipse is detected at the start of the step, should thrust occur?
 end
 
 % Constants
@@ -79,8 +80,25 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
     % Determine if thrusting should happen based on heuristic
     [Qdot_min, Qdot_max] = Qdot_extremize(oe, partial_Q_partial_oe, Qdot_opt_params, L, Qdot);
     [eta_a, eta_r] = QLaw_efficiencies(Qdot, Qdot_min, Qdot_max);
+    if ~options.thrust_during_eclipse % Should also add state of charge based thrusting
+        % Eclipse
+        R_E = 6378.1; % [km] Earth radius
+        AU = 149597898; % [km] astronautical unit, Earth-Sun difference
+        mu_sun = 132712440017.99; % [km3 / s2] Sun gravitational parameter
+        n_E = sqrt(mu_sun / AU ^ 3); % [rad / s] Earth mean motion
+
+        x_cartesian = x_me_nd_to_cartesian(x_me_mass_nd(1:6, end), nd_scalar, Q_params.Theta_rot, mu);
+        rvec = x_cartesian(1:3);
+
+        [~, eclipsed(iter)] = check_eclipse(t_nd(end) * char_star.t, rvec, R_E, AU, n_E); % Need to properly get sun position and Earth tilt
+
+        eclipse_no_thrust = eclipsed(iter);
+    else % Thrust during eclispe
+        eclipse_no_thrust = false;
+    end
     not_coast(iter) = (eta_a >= Q_params.eta_a_min ...
-              && eta_r >= Q_params.eta_r_min);
+              && eta_r >= Q_params.eta_r_min) ...
+              && ~eclipse_no_thrust;
     u_nd(:, iter) = u_nd(:, iter) * not_coast(iter);
     %a_control = @(x) u_nd(:, iter) / x_me_mass_nd(7, end); % a = F / m
     a_control = @(x) u_nd(:, iter) / x(end);
@@ -141,5 +159,16 @@ if options.return_dt_dm_only == false
     
     transfer.Q = Q;
     transfer.P = P;
+
+    if ~options.thrust_during_eclipse
+        transfer.eclipsed = eclipsed;
+    end
 end
+end
+
+function [x_cartesian] = x_me_nd_to_cartesian(x_me_nd, nd_scalar, Theta_rot, mu)
+    x_me_unrotated = x_me_nd .* nd_scalar(1:6);
+    x_keplerian = modified_equinoctial_to_keplerian(x_me_unrotated);
+    x_keplerian(4) = x_keplerian(4) - Theta_rot;
+    x_cartesian = keplerian_to_cartesian(x_keplerian, [], mu);
 end
