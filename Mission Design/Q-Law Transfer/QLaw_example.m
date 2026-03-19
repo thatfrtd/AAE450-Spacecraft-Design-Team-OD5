@@ -28,11 +28,11 @@ x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
-r_a_d = R_E + 2200; % [km] periapsis
-r_p_d = R_E + 2200.00001; % [km] periapsis
+r_a_d = R_E + 600; % [km] periapsis
+r_p_d = R_E + 120; % [km] periapsis
 e_d = (1 - r_p_d / r_a_d) / (1 + r_p_d / r_a_d); % [] eccentricity
 a_d = r_p_d / (1 - e_d); % [km] semi-major axis
-i_d = deg2rad(71); % [rad] inclination
+i_d = deg2rad(74); % [rad] inclination
 Omega_d = deg2rad(10); % [rad] right ascension of ascending node
 omega_d = deg2rad(0); % [rad] argument of periapsis
 nu_d = deg2rad(0); % [rad] true anomaly at epoch
@@ -46,9 +46,9 @@ char_star = load_charecteristic_values_Earth();
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
 spacecraft_params.Isp = 4100; % [s]
-spacecraft_params.m_0 = 800; % [kg]
+spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = 1; % [N]
+spacecraft_params.F_max = 0.25; % [N]
 
 % Integration error tolerance
 default_tolerance = 1e-12;

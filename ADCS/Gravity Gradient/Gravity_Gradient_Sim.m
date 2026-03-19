@@ -1,13 +1,13 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-% Detumble Sim Analysis V3 (Reaction Wheel Saturation)
+% Gravity gradient and reaction wheel saturation
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clear; clc; close all;
 
 %% Init Variables
-m_r = 3000; % kg
-m_s = 500;  % kg
+m_r = 4000; % kg
+m_s = 1500;  % kg
 R = 1.85;   % m
 L = 30;     % m
 s = 1.0;    % m
@@ -101,7 +101,6 @@ function dxdt = plant_derivative(t, x, J, n, tau_max)
     % Re-normalize to prevent numerical drift
     q = q / norm(q); 
     
-    % 1. Kinematics
     wx = w(1); wy = w(2); wz = w(3);
     Omega = [  0,  wz, -wy,  wx;
              -wz,   0,  wx,  wy;
@@ -109,7 +108,7 @@ function dxdt = plant_derivative(t, x, J, n, tau_max)
              -wx, -wy, -wz,   0 ];
     dqdt = 0.5 * Omega * q;
     
-    % 2. Gravity Gradient Torque
+    % Gravity Gradient
     u_ECI = [-cos(n*t); -sin(n*t); 0];
     
     q1 = q(1); q2 = q(2); q3 = q(3); q4 = q(4);
@@ -120,19 +119,15 @@ function dxdt = plant_derivative(t, x, J, n, tau_max)
     u_Body = R_ECI2Body * u_ECI;
     tau_gg = 3 * n^2 * cross(u_Body, J * u_Body);
     
-    % 3. Control Law (Active gravity gradient cancellation + rate damping)
-    % The wheels try to perfectly oppose the GG torque and stop any spin
+    % control law
     tau_cmd = -tau_gg - 50 * w; 
     
     % Saturate the commanded torque to physical wheel limits
-    tau_rw = max(min(tau_cmd, tau_max), -tau_max);
+    % Just trying to push the wheel to limit to see saturation rate
+    tau_rw = max(min(tau_cmd, tau_max), -tau_max);    
     
-    % 4. Wheel Dynamics
-    % Momentum change of the wheel is opposite to the torque it applies to the spacecraft
     dh_rw = -tau_rw; 
     
-    % 5. Spacecraft Dynamics (Euler's Eq modified for internal momentum)
-    % J*w_dot + w x (J*w + h_rw) = tau_ext + tau_rw
     dwdt = J \ (tau_gg + tau_rw - cross(w, J * w + h_rw));
     
     % Pack state vector

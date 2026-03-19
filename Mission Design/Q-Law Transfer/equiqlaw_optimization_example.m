@@ -17,7 +17,7 @@ mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 a_c = R_E + 1000; % [km] semi-major axis
 e_c = 1e-3; % [] eccentricity
 i_c = deg2rad(71); % [rad] inclination
-Omega_c = deg2rad(10); % [rad] right ascension of ascending node
+Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu_c = deg2rad(0); % [rad] true anomaly at epoch
 
@@ -59,7 +59,7 @@ Qdot_opt_params.strategy = "Best Start Points";
 Qdot_opt_params.plot_minQdot_vs_L = false;
 
 % Optimization Variables
-W_oe_bounds = repmat([1, 2], 5, 1); % [1, 10] ? Element scaling
+W_oe_bounds = repmat([1, 5], 5, 1); % [1, 10] ? Element scaling
 eta_a_min_bounds = [0, 0.95]; % [0, 1) Minimum absolute efficiency
 eta_r_min_bounds = [0, 0.95]; % [0, 1) Minimum relative efficiency
 m_bounds = [2, 5]; % (1, 5) ? S_a scaling parameter
@@ -75,18 +75,29 @@ MultiObj.var_min = var_bounds(:, 1)';
 MultiObj.var_max = var_bounds(:, 2)';
 MultiObj.obj_names = ["ToF [days]", "Delta V [km / s]"];
 MultiObj.title = "Q-Law Delta V vs ToF Pareto Front Optimization Using NSGA-II";
-
-% Parameters
-params.Np = 30;        % Population size
-params.pc = 0.9;        % Probability of crossover
-params.pm = 0.5;        % Probability of mutation
-params.maxgen = 50;    % Maximum number of generations
-params.ms = 0.05;       % Mutation strength
+MultiObj.plot_bounds = []; %[0, 30;
+                        %0, 2];
+% 
+% % Parameters
+% params.Np = 30;        % Population size
+% params.pc = 0.9;        % Probability of crossover
+% params.pm = 0.5;        % Probability of mutation
+% params.maxgen = 50;    % Maximum number of generations
+% params.ms = 0.05;       % Mutation strength
 
 %% Test
 x_test = [ones(1, 5), 0.5, 0.5, 2, 4, 3, 1];
 MultiObj.fun(x_test)
 
 %%
-% NSGA-II algorithm
-NSGAII(params, MultiObj);   
+% NSGA-II algorithm - need to tune it to produce good results so just using
+% built in Matlab one
+% NSGAII(params, MultiObj);   
+
+options = optimoptions('paretosearch', 'UseParallel',true,'Display','iter',...
+    'PlotFcn',{'psplotparetof' 'psplotparetox'});
+fun = MultiObj.fun;
+lb = MultiObj.var_min;
+ub = MultiObj.var_max;
+rng default % For reproducibility
+[x,fval,exitflag,output] = paretosearch(fun,MultiObj.nVar,[],[],[],[],lb,ub,[],options);

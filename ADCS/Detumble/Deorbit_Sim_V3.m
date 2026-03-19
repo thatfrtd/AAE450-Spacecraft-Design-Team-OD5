@@ -69,21 +69,18 @@ end
 %% Plotting Proof of Control Authority
 figure('Color', 'w', 'Position', [100, 100, 800, 900]);
 
-% 1. Angular Rates Plot (Proof of Detumble)
 subplot(3,1,1);
 plot(t, w, 'LineWidth', 1.5);
 grid on; title('Angular Rates (\omega) - Detumbling to Zero');
 ylabel('rad/s'); legend('\omega_x', '\omega_y', '\omega_z');
 yline(0, 'k--');
 
-% 2. Quaternion Plot (Proof of Reorientation)
 subplot(3,1,2);
 plot(t, q, 'LineWidth', 1.5);
 grid on; title('Quaternion Orientation - Reorienting to [0,0,0,1]');
 ylabel('Components'); legend('\epsilon_1', '\epsilon_2', '\epsilon_3', '\eta');
 yline(0, 'k--'); yline(1, 'k--');
 
-% 3. Control Torque Plot (Proof of Actuator Effort)
 subplot(3,1,3);
 plot(t, tau_history, 'LineWidth', 1.5);
 grid on; title('Reaction Wheel Control Torques (\tau)');
@@ -97,14 +94,12 @@ grid on; title('Angular Rates (\omega) - Detumbling to Zero');
 ylabel('rad/s'); legend('\omega_x', '\omega_y', '\omega_z');
 yline(0, 'k--');
 
-% 2. Quaternion Plot (Proof of Reorientation)
 figure
 plot(t, q, 'LineWidth', 1.5);
 grid on; title('Quaternion Orientation - Reorienting to [0,0,0,1]');
 ylabel('Components'); legend('\epsilon_1', '\epsilon_2', '\epsilon_3', '\eta');
 yline(0, 'k--'); yline(1, 'k--');
 
-% 3. Control Torque Plot (Proof of Actuator Effort)
 figure
 plot(t, tau_history, 'LineWidth', 1.5);
 grid on; title('Reaction Wheel Control Torques (\tau)');
@@ -121,7 +116,7 @@ function dxdt = plant_derivative(~, x, J, Kp, Kd, tau_max)
     % Re-normalize quaternion
     q = q / norm(q); 
     
-    % 1. Controller (PD Law)
+    % Controller (PD Law)
     % Aiming for q_target = [0;0;0;1]. The error is essentially the vector part.
     tau_cmd = -Kp * q(1:3) - Kd * w;
     

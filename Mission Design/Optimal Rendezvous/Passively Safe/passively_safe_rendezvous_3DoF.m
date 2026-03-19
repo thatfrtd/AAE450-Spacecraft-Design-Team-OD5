@@ -1,16 +1,17 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % AAE 450 Team OD5
-% Nonlinear Rendezvous Example
+% Passively Safe Rendezvous Example
 % Author: Travis Hastreiter 
-% Created On: 28 February, 2026
+% Created On: 18 March, 2026
 % Description: Sequential Convex Programming Trajectory Optimization for 
 % general rendezvous using relative orbital motion equations. Includes mass 
-% in the state. You must have CVX installed. Multiple thrusters with
-% different thrust levels and Isp but using the same fuel
-% (resistojet/arcjet eprop with chemical RCS both using hydrazine).
-% Last Modified On: 28 February, 2026
+% in the state and only considers translational DoFs. Predicts uncontrolled
+% state forward in time and constrains it so that it does not go into the
+% unsafe set to make the trajectory "passively safe."
+% Last Modified On: 18 March, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% Nondimensionalization
 char_star = load_charecteristic_values_Earth();
 nd_scalar = [char_star.l * ones([3, 1]); char_star.v * ones([3, 1]); char_star.m];
 g_0 = 9.81e-3; % [km / s2]
@@ -33,11 +34,17 @@ nu0_c = deg2rad(0); % [rad] true anomaly at epoch
 M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
+% Passive Safety Parameters
+P_c = 2 * pi * sqrt(a_c ^ 3 / char_star.mu); % Chief orbital period
+T = P_c / char_star.t; % [s] Safety horizon length
+N_safe = 200; 
+
 % Rendezvous time
 tf = 500 / char_star.t; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
-r_0 = [0.5; -0.5; 0.2]; % [km]
+% Initial conditions for spacecraft - specify orbit instead?
+r_0 = [-0.5; -0.5; 0.2]; % [km]
 v_0 = [0.001; 1e-3; 0]; % [km / s]
 x_0 = [r_0; v_0; spacecraft_params.m_0] ./ nd_scalar;
 
@@ -55,7 +62,7 @@ delta_t = t_k(2) - t_k(1);
 
 % Control discretization method
 % Zero Order Hold (ZOH) - Piecewise constant
-% First Order Hold (FOH) - Piecewise linear (DOESN'T LIKE THIS PROBLEM... PROBABLY SCALING ISSUE :( )
+% First Order Hold (FOH) - Piecewise linear
 u_hold = "ZOH";
 Nu = (u_hold == "ZOH") * (N - 1) + (u_hold == "FOH") * N;
 
@@ -80,13 +87,6 @@ ptr_ops.alpha_p = 0;
 
 % Scaling currently not helping...
 scale = false;
-% 
-% scale_hint.x_max = [max(x_0(1:3)) * ones([3, 1]); max(x_0(4:6)) * ones([3, 1]); spacecraft_params.m_0 / char_star.m];
-% scale_hint.x_min = [-max(x_0(1:3)) * ones([3, 1]); -max(x_0(4:6)) * ones([3, 1]); spacecraft_params.m_0 / char_star.m * 0.95];
-% scale_hint.u_max = [F_max_nd * ones([6, 1])];
-% scale_hint.u_min = [zeros([3, 1])];
-% scale_hint.p_max = [];
-% scale_hint.p_min = [];
 
 %% Get Dynamics
 f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM_twothruster(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp; 1; g_0]);
@@ -94,7 +94,10 @@ f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM_twothruster(t, x, u, p,
 f_opt = f_nonlinear; % Dynamics to use for optimization
 f_eval = f_nonlinear; % Dynamics to use for propagation and plotting
 
+A_func = dynamics_jacobian(f_opt, nx, nu, np);
+
 %% Specify Constraints
+final_position_constraint = {(N-1):N, @(t, x, u, p) nd_scalar(1) * norm(x(1:3)) - norm(r_f)};
 state_convex_constraints = {};
 
 % Convex control constraints
@@ -106,10 +109,13 @@ control_convex_constraints = {max_thrust_constraint_1, max_thrust_constraint_2};
 convex_constraints = [state_convex_constraints, control_convex_constraints];
 
 % Nonconvex state constraints
-keep_out_distance = 0.2; % [km]
+keep_out_distance = 0.18; % [km]
 keep_out_sphere_constraint = @(t, x, u, p) keep_out_distance ^ 2 - nd_scalar(1) ^ 2 * (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2);
-keep_out_sphere_constraint_linearized = {1:N, linearize_constraint(keep_out_sphere_constraint, nx, nu, np, "x", 1:3)};
-state_nonconvex_constraints = {keep_out_sphere_constraint_linearized};
+keep_out_sphere_constraint_linearized_func = linearize_constraint(keep_out_sphere_constraint, nx, nu, np, "x", 1:3);
+keep_out_sphere_constraint_linearized = {1:N, keep_out_sphere_constraint_linearized_func};
+%final_position_constraint = {N, @(t, x, u, p, x_ref, u_ref, p_ref, k) nd_scalar(1) * norm(x(1:3)) - norm(r_f)}; % Convex but relax it so put here
+passive_safety_constraint = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) construct_passive_safety_constraint(x, x_ref(:, k), @(t_prop, x_prop) f_opt(t_prop + t, x_prop, zeros([nu, 1]), p_ref), @(t_prop, x_prop) A_func(t_prop + t, x_prop, zeros([nu, 1]), p_ref), @(t_prop, x_prop) keep_out_sphere_constraint(t_prop + t, x_prop, zeros([nu, 1]), p_ref), @(t_prop, x_prop, x_ref_safe) keep_out_sphere_constraint_linearized_func(t_prop + t, x_prop, zeros([nu, 1]), p_ref, x_ref_safe, zeros([nu, 1]), p_ref, 1), T, N_safe)};
+state_nonconvex_constraints = {keep_out_sphere_constraint_linearized, passive_safety_constraint};
 
 % Nonconvex control constraints
 control_nonconvex_constraints = {};
@@ -120,19 +126,20 @@ nonconvex_constraints = [state_nonconvex_constraints, control_nonconvex_constrai
 %% Boundary conditions
 initial_bc = @(x, p) [x - x_0];
 terminal_bc = @(x, p, x_ref, p_ref) [x(1:6) - x_f; 0]; % Don't constrain final mass
+%terminal_bc = @(x, p, x_ref, p_ref) [zeros([3, 1]); x(4:6) - x_f(4:6); 0]; % Don't constrain final mass
 
 %% Specify Objective
 objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(1:3, :))) * delta_t * char_star.F / (spacecraft_params.Isp(1) * g_0) * 1000 ...
                                                    + sum(norms(u(4:6, :))) * delta_t * char_star.F / (spacecraft_params.Isp(2) * g_0) * 1000;
 
 %% Create Guess
-% Straight Line Initial Guess
+% Straight Line Initial Guess - Lambert better?
 guess.x = linspace(0, 1, N) .* ([x_f; x_0(7)] - x_0) + x_0;
 guess.u = ones([nu, Nu]) * 1e-6;
 guess.p = [];
 
 %% Construct Problem Object
-problem = DeterministicProblem(x_0, x_f, N, u_hold, tf, f_opt, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = 1e-12, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous_twothruster");
+problem = DeterministicProblem(x_0, x_f, N, u_hold, tf, f_opt, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = 1e-12, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous");
 
 [problem, Delta_disc] = problem.discretize(guess.x, guess.u, guess.p);
 
@@ -177,9 +184,28 @@ t_cont_sol = t_cont_sol * char_star.t;
 x_cont_sol = x_cont_sol .* nd_scalar;
 u_cont_sol = u_cont_sol * char_star.F * 1000;
 
+%% Get Trajectories Checked for Passive Safety
+N_safe_ck = 1000;
+min_safety = zeros([N, 1]);
+x_safety_ck = zeros([nx, N_safe_ck, N]);
+for k = 1 : N
+    [~, min_safety(k), x_safety_ck(:, :, k)] = construct_passive_safety_constraint(ptr_sol.x(:, k, i), ptr_sol.x(:, k, i), @(t_prop, x_prop) f_opt(t_prop + t_k(k), x_prop, zeros([nu, 1]), []), @(t_prop, x_prop) A_func(t_prop + t_k(k), x_prop, zeros([nu, 1]), []), @(t_prop, x_prop) keep_out_sphere_constraint(t_prop + t_k(k), x_prop, zeros([nu, 1]), []), @(t_prop, x_prop, x_ref_safe) keep_out_sphere_constraint_linearized_func(t_prop + t_k(k), x_prop, zeros([nu, 1]), [], x_ref_safe, zeros([nu, 1]), [], 1), T, N_safe_ck);
+end
+x_safety_ck = x_safety_ck .* nd_scalar;
+
 %% Plot Trajectory
-figure
-scatter3(0, 0, 0, 60, "blue", "filled", "diamond"); hold on
+figure;
+fig = scatter3(0, 0, 0, 60, "blue", "filled", "diamond"); hold on
+lim = max(abs(x(1:3, :)), [], "all") * 3;
+for k = 1 : N
+    if k == 1
+        handvis = "on";
+    else
+        handvis = "off";
+    end
+    x_safety_ck(:, vecnorm(x_safety_ck(1:3, :, k)) > lim, k) = nan;
+    plot3(x_safety_ck(1, :, k), x_safety_ck(2, :, k), x_safety_ck(3, :, k), Color="b", HandleVisibility=handvis)
+end
 plot_cartesian_orbit(x_cont_sol(1:3,:)', 'k', 0.4, 1); hold on
 quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(1, :), u(2, :), u(3, :), 1, "filled", Color = "red")
 quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(4, :), u(5, :), u(6, :), 2, "filled", Color = "m")
@@ -194,8 +220,7 @@ title('Optimal Rendezvous')
 xlabel("r [km]")
 ylabel("\theta [km]")
 zlabel("n [km]")
-axis equal
-legend("Target", 'Spacecraft', "", "Thrust 1", "Thrust 2", "Start", "End", "Guess", "Keepout Sphere", 'Location', 'northwest'); axis equal; grid on
+legend("Target", "Passive Safety Check",'Spacecraft', "", "Thrust 1", "Thrust 2", "Start", "End", "Guess", "Keepout Sphere", 'Location', 'northwest'); axis equal; grid on
 
 %% Plot Control
 figure
@@ -228,3 +253,15 @@ ylabel("Distance [km]")
 title("Distance from Target vs Time")
 legend("Solution", "Minimum")
 grid on
+
+%% Helper Functions
+function [A] = dynamics_jacobian(f, nx, nu, np)
+
+    t_sym = sym("t");
+    x_sym = sym("x", [nx, 1]);
+    u_sym = sym("u", [nu, 1]);
+    p_sym = sym("p", [np, 1]);
+    
+    % Linearize Dynamics
+    A = matlabFunction(jacobian(f(t_sym, x_sym, u_sym, p_sym), x_sym),"Vars", [{t_sym}; {x_sym}; {u_sym}; {p_sym}]);
+end
