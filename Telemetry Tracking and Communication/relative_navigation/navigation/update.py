@@ -229,3 +229,28 @@ def ekf_update_optical_cam(x_est, P, z_opt, R_opt):
     x_plus = apply_correction(x_est, K @ innov)
     P_plus = _joseph_update(P, K, H, R_opt)
     return x_plus, P_plus, innov
+
+def ekf_update_target_attitude(x_est, P, z_qT, R_target_att):
+    """
+    EKF update for target attitude from feature-tracking pose estimation.
+    Same rotation-vector innovation as star tracker but updates δθ^T block.
+
+    z_qT : (4,) measured target quaternion q^{I→T}
+    R    : (3,3) attitude noise covariance (rotation-vector space)
+    """
+    q_pred = x_est[IDX_qT]
+    dq     = quat_mult(normalise_quat(z_qT), quat_inv(q_pred))
+    if dq[3] < 0:
+        dq = -dq
+    innov = 2.0 * dq[0:3]
+
+    H = np.zeros((3, N_ERR))
+    H[:, IDX_E_thT] = np.eye(3)        # ← target attitude block
+
+    if not _innovation_gate(innov, P, H, R_target_att):
+        return x_est, P, innov
+
+    K      = _kalman_gain(P, H, R_target_att)
+    x_plus = apply_correction(x_est, K @ innov)
+    P_plus = _joseph_update(P, K, H, R_target_att)
+    return x_plus, P_plus, innov

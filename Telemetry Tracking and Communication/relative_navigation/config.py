@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from dataclasses import replace
 import numpy as np
 from utils.orbital_frame_conversions import *
 
@@ -29,11 +30,27 @@ TARGET_I = np.diag([
 ])
 
 # ── Chaser Initial State ──────────────────────────────────────────────────────
-R_IN           = inert_to_RTN_313(Target_kep.raan, Target_kep.i, Target_kep.argp)
-chaser_pos_RTN = R_IN.T @ np.array([0, 0.3, 0])   # 300 m behind in RTN [km]
-chaser_pos     = tar_pos + chaser_pos_RTN
-chaser_vel     = tar_vel
+# R_IN           = inert_to_RTN_313(Target_kep.raan, Target_kep.i, Target_kep.argp)
+# chaser_pos_RTN = R_IN.T @ np.array([0, 0, -0.3])   # 300 m behind in RTN [km]
+# chaser_pos     = tar_pos + chaser_pos_RTN
+# chaser_vel     = tar_vel
+# How far behind the chaser starts (positive = behind target in orbit)
+delta_nu = np.deg2rad(0.0003)   # ~300 m behind at 6500 km altitude (arc ≈ r*Δν)
 
+# Create chaser elements with reduced true anomaly
+# Also recompute mean anomaly M from the new nu using the same eccentricity
+e   = Target_kep.e
+nu  = Target_kep.nu - delta_nu
+
+# Convert true anomaly → eccentric anomaly → mean anomaly
+E   = 2 * np.arctan2(np.sqrt(1 - e) * np.sin(nu / 2),
+                      np.sqrt(1 + e) * np.cos(nu / 2))
+M   = E - e * np.sin(E)
+
+chaser_kep = replace(Target_kep, nu=nu, M=M)
+
+chaser_pos, chaser_vel = keplerian_to_cartesian(chaser_kep)
+chaser_theta = np.deg2rad(180)
 CHASER_EP      = np.array([0, 0, 0, 1], dtype=float)
 CHASER_ANG_VEL = np.array([0, 0, 0],    dtype=float)
 
@@ -45,6 +62,8 @@ CHASER_I = np.diag([
     (1/6) * m_s * s**2,
 ])
 
+u_cmd_max = 10
+
 # ── Parameter Initial State ───────────────────────────────────────────────────
 b_w_c  = np.zeros(3)
 ep_S_S = np.zeros(3)
@@ -55,7 +74,7 @@ sigma_b = 1e-8; sigma_s = 1e-8; sigma_o = 1e-8
 
 # ── Simulation Window ─────────────────────────────────────────────────────────
 SIM_START = 0
-SIM_END   = 0.4 * 60 * 60    # 24 min
+SIM_END   = 0.5 * 60 * 60    # s
 SIM_DT    = 1.0               # s
 N         = int(SIM_END / SIM_DT)
 
@@ -85,8 +104,8 @@ sigma_Ss   = 1e-10           # realistic: 1e-3
 sigma_Oo   = 1e-10           # realistic: 1e-3
 
 # ── Rendezvous Tolerances ─────────────────────────────────────────────────────
-POS_TOL = 0.01    # km  (10 m) — relaxed for initial testing
-ATT_TOL = 0.1     # rad
+POS_TOL = 0.0001    # km  (10 m) — relaxed for initial testing
+ATT_TOL = 2     # rad
 
 # ── Sensor Parameters ─────────────────────────────────────────────────────────
 # IMPORTANT: R matrices must be nonzero — S = HPH^T + R must be invertible.
@@ -112,11 +131,17 @@ DT_LIDAR    = 1.0     # s
 sigma_lidar = 1e-10   # km    # realistic: 1e-3
 R_LIDAR     = np.array([[sigma_lidar**2]])
 
+# Target attitude from feature tracking (proxy for pose estimation)
+DT_TARGET_ATT       = 10.0                        # s — same cadence as star tracker
+sigma_target_att    = np.deg2rad(0.1)             # rad — 0.1° (worse than star tracker)
+R_TARGET_ATT        = (sigma_target_att**2) * np.eye(3)
+
 # ── Guidance Parameters ───────────────────────────────────────────────────────
 r_dock_T    = np.array([0,  0, -4]) * 1e-3   # km
 r_rel_des_D = np.zeros(3)
 r_attach_C  = np.array([0,  2,  0]) * 1e-3   # km
 
 v_rel_des_D = np.zeros(3)
-q_D_T       = np.array([0, 0, 0, 1], dtype=float)
+theta_dock = np.deg2rad(-90)
+q_D_T       = np.array([0, 0, np.sin(theta_dock), np.cos(theta_dock)], dtype=float)
 w_des_C     = np.zeros(3)

@@ -94,3 +94,21 @@ def measure_lidar(r_T, r_C):
     true_range = np.linalg.norm(r_T - r_C)
     noise = np.random.normal(0, config.sigma_lidar)
     return true_range + noise
+
+def measure_target_attitude(q_T):
+    """
+    Proxy for feature-tracking pose estimation — returns noisy target quaternion.
+    Uses same noise model as star tracker with interpretation that attitude
+    is recovered from tracked features on the target body.
+    """
+    sigma   = config.sigma_target_att if hasattr(config, 'sigma_target_att') \
+              else np.deg2rad(0.1)    # 0.1° — slightly worse than star tracker
+    d_theta = np.random.normal(0, sigma, 3)
+    angle   = np.linalg.norm(d_theta)
+    if angle < 1e-10:
+        dq = np.array([0., 0., 0., 1.])
+    else:
+        axis = d_theta / angle
+        dq   = np.concatenate([np.sin(angle/2)*axis, [np.cos(angle/2)]])
+    q_meas = quat_multiply(q_T, dq)
+    return q_meas / np.linalg.norm(q_meas)

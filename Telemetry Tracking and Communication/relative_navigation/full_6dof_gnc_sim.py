@@ -19,92 +19,125 @@ from navigation.update import *
 from tqdm import tqdm
 import time
 
+np.random.seed(0)
 
-np.random.seed(0) # Set random seed
 
 def main():
     results = gnc_sim()
 
-    # Extract histories
-    target_hist = results['target']    # (N, 13)
-    chaser_hist = results['chaser']    # (N, 10)
+    target_hist = results['target']      # (N, 13)
+    chaser_hist = results['chaser']      # (N, 10)
+    x_est_hist  = results['x_est']       # (N, 32)
+    u_applied   = results['u_applied']   # (N, 3)
     N_sim       = target_hist.shape[0]
 
-    # Extract estimated states
-    x_est_hist    = results['x_est']   # (N, 32)
-    target_est    = x_est_hist[:, 0:13]
-    chaser_est    = x_est_hist[:, 13:23]
-
     # Transpose for plotting
-    target_est_states = target_est.T
-    chaser_est_states = chaser_est.T
+    target_states     = target_hist.T             # (13, N)
+    chaser_states     = np.zeros((13, N_sim))
+    chaser_states[0:10, :] = chaser_hist.T        # pad to 13
 
-    # Build time vector
+    target_est_states = x_est_hist[:, 0:13].T     # (13, N)
+    chaser_est_states = x_est_hist[:, 13:23].T    # (10, N)
+
     t = np.arange(N_sim) * config.SIM_DT
 
-    # Fix shape for plotting
-    target_states = target_hist.T      # (13, N)
-
-    # Chaser only stores 10 states → pad to 13 for plotting compatibility
-    chaser_states = np.zeros((13, N_sim))
-    chaser_states[0:10, :] = chaser_hist.T
-
-    # Plot
+    # ── Existing plots ────────────────────────────────────────────────────────
     plot_relative_state(t, target_states, chaser_states)
+
     plot_relative_state_overlay(
-        t,
-        target_states,
-        chaser_states,
-        target_est_states,
-        chaser_est_states,
+        t, target_states, chaser_states,
+        target_est_states, chaser_est_states,
     )
+
     plot_orbits_3d(t, target_states, chaser_states)
+
+    # ── New plots ─────────────────────────────────────────────────────────────
+
+    # Chaser quaternion — truth vs estimated
+    plot_chaser_quaternion_truth_vs_est(t, chaser_states, chaser_est_states)
+
+    # Chaser angular velocity / gyro bias estimate
+    plot_chaser_omega_truth_vs_est(t, chaser_states, x_est_hist)
+
+    # Target vs Chaser quaternion (truth overlay — attitude matching check)
+    plot_target_vs_chaser_quaternion(t, target_states, chaser_states)
+ 
+    # Target quaternion truth vs EKF estimate
+    plot_target_quaternion_truth_vs_est(t, target_states, x_est_hist)
+ 
+
+    # Relative trajectory with thrust and attitude arrows
+    plot_relative_with_arrows(
+        t, target_states, chaser_states,
+        x_est_hist, u_applied,
+        arrow_stride=50,
+        thrust_scale=5e3,
+        att_scale=0.015,
+    )
+
+    # All estimated states with ±3σ covariance bounds
+    plot_estimated_states_with_covariance(
+        t, x_est_hist, results['P_diag'],
+        target_hist=target_hist,
+        chaser_hist=chaser_hist,
+    )
+
+        # 3D rendezvous animation — cylinder target, box chaser, principal axes
+    # Set save_path='rendezvous.mp4' to save instead of display
+    """
+    animate_rendezvous(
+        target_hist, chaser_hist, x_est_hist,
+        stride=5,
+        target_radius=1.85e-3,
+        target_length=8e-3,
+        chaser_size=(2e-3, 2e-3, 2e-3),
+        axis_scale=8e-3,
+        save_path=None,   # change to 'rendezvous.mp4' to save
+    )
+    """
 
     plt.show()
 
 
 def gnc_sim():
-    # -- Initialization -----------------------
-    # Target Init
-    target_translational_state = np.concatenate([config.tar_pos, config.tar_vel])
-    target_attitude            = np.concatenate([config.TARGET_EP, config.TARGET_ANG_VEL])
-    target_state               = np.concatenate([target_translational_state, target_attitude])
-    I_r = config.TARGET_I
-
-    # Chaser Init
-    chaser_translational_state = np.concatenate([config.chaser_pos, config.chaser_vel])
-    chaser_attitude            = np.concatenate([config.CHASER_EP, config.CHASER_ANG_VEL])
-    chaser_state               = np.concatenate([chaser_translational_state, chaser_attitude])
-    I_c = config.CHASER_I
-
-    # Bias Parameters
+    # -- Initialization ---------------------------------------------------
+    target_state = np.concatenate([
+        config.tar_pos, config.tar_vel,
+        config.TARGET_EP, config.TARGET_ANG_VEL,
+    ])
+    chaser_state = np.concatenate([
+        config.chaser_pos, config.chaser_vel,
+        config.CHASER_EP, config.CHASER_ANG_VEL,
+    ])
+    I_r        = config.TARGET_I
+    I_c        = config.CHASER_I
     param_init = np.concatenate([config.b_w_c, config.ep_S_S, config.ep_O_O])
 
-    # -- Trajectory History Storage -----------
+    # -- History storage --------------------------------------------------
     last_opt_cam_meas    = 0
     last_star_track_meas = 0
     last_gyro_meas       = 0
     last_gps_meas        = 0
     last_lidar_meas      = 0
+    last_target_att_meas = 0
 
-    hist_target_truth = np.zeros((config.N, 13))
-    hist_chaser_truth = np.zeros((config.N, 10))
-    hist_u_cmd        = np.zeros((config.N, 3))
-    hist_tau_cmd      = np.zeros((config.N, 3))
-    hist_u_input      = np.zeros((config.N, 3))
-    hist_tau_input    = np.zeros((config.N, 3))
-    hist_x_est        = np.zeros((config.N, 32))
-    hist_P_diag       = np.zeros((config.N, 30))
-    hist_z_opt        = np.zeros((config.N, 2))
-    hist_z_st         = np.zeros((config.N, 4))
-    hist_z_gps        = np.zeros((config.N, 3))
+    N = config.N
+    hist_target_truth = np.zeros((N, 13))
+    hist_chaser_truth = np.zeros((N, 10))
+    hist_u_cmd        = np.zeros((N, 3))
+    hist_tau_cmd      = np.zeros((N, 3))
+    hist_u_input      = np.zeros((N, 3))
+    hist_tau_input    = np.zeros((N, 3))
+    hist_x_est        = np.zeros((N, 32))
+    hist_P_diag       = np.zeros((N, 30))
+    hist_z_opt        = np.zeros((N, 2))
+    hist_z_st         = np.zeros((N, 4))
+    hist_z_gps        = np.zeros((N, 3))
+    hist_z_lidar      = np.zeros((N, 1))
 
-    # -- 6-dof sim -----------------------------
-
-    # Initial True State Vector  (13 + 13 + 9 = 35)
+    # -- Initial states ---------------------------------------------------
     x_true = np.concatenate([target_state, chaser_state, param_init])
 
-    # Initial Estimation State Vector  (13 + 10 + 9 = 32)
     x_est = np.concatenate([
         target_state + np.concatenate([
             config.sigma_r_T  * np.random.randn(3),
@@ -124,8 +157,7 @@ def gnc_sim():
         ]),
     ])
 
-    # Initial Estimation Covariance  (30×30)
-    P0 = np.diag(np.concatenate([
+    P = np.diag(np.concatenate([
         (config.sigma_r_T  * np.ones(3))**2,
         (config.sigma_v_T  * np.ones(3))**2,
         (config.sigma_th_T * np.ones(3))**2,
@@ -137,9 +169,7 @@ def gnc_sim():
         (config.sigma_Ss   * np.ones(3))**2,
         (config.sigma_Oo   * np.ones(3))**2,
     ]))
-    P = P0.copy()
 
-    # Noise vectors
     noise = np.concatenate([
         np.atleast_1d(config.sigma_vel_T)   * np.ones(3),
         np.atleast_1d(config.sigma_omega_T) * np.ones(3),
@@ -155,24 +185,18 @@ def gnc_sim():
         np.atleast_1d(config.sigma_o) * np.ones(3),
     ])
 
-    # -- Main Loop -----------------------------
-    delta_r  = np.zeros(3)
-    t0_wall  = time.time()
+    delta_r = np.zeros(3)
+    t0_wall = time.time()
 
-    for k in tqdm(range(config.N), desc="GNC Sim", unit="step", ncols=80):
+    for k in tqdm(range(N), desc="GNC Sim", unit="step", ncols=80):
         t_start, t_end = k * config.SIM_DT, (k+1) * config.SIM_DT
-        tspan = [t_start, t_end]
 
-        # -- Guidance --------------------------------------------------
+        # -- Guidance & Control -------------------------------------------
         r_des, v_des, q_des, w_des = guidance_law(x_est)
-
-        # -- Control ---------------------------------------------------
-        w_C = x_true[23:26]
-        u_cmd, tau_cmd = control_law(x_est, w_C, r_des, v_des, q_des, w_des, I_c)
-
-        # -- Actuator models -------------------------------------------
-        u_applied   = translational_control(u_cmd)
-        tau_applied = momentum_wheel_model(tau_cmd)
+        w_C         = x_true[23:26]
+        u_cmd, tau_cmd  = control_law(x_est, w_C, r_des, v_des, q_des, w_des, I_c)
+        u_applied       = translational_control(u_cmd)
+        tau_applied     = momentum_wheel_model(tau_cmd)
 
         if k < 5:
             print(f"\n[k={k}] DIAG")
@@ -184,10 +208,9 @@ def gnc_sim():
             print(f"  u_applied  = {u_applied}  km/s²")
             print(f"  tau_cmd    = {tau_cmd}")
 
-        # -- Simulate Truth State --------------------------------------
+        # -- Truth propagation --------------------------------------------
         sol = solve_ivp(
-            dynamics_truth,
-            tspan, x_true, method='RK45',
+            dynamics_truth, [t_start, t_end], x_true, method='RK45',
             args=(u_applied, tau_applied, I_r, I_c, noise, param_noise,),
             rtol=config.tol, atol=config.tol,
         )
@@ -195,21 +218,18 @@ def gnc_sim():
         x_true[6:10]  = normalize_quat(x_true[6:10])
         x_true[19:23] = normalize_quat(x_true[19:23])
 
-        # -- Sensor Measurements ---------------------------------------
-        t_now      = t_end
-        omega_gyro = None
-        z_st       = None
-        z_opt      = None
-        z_gps      = None
-        z_lidar    = None
+        # -- Sensor measurements ------------------------------------------
+        t_now        = t_end
+        omega_gyro   = None
+        z_st         = None
+        z_opt        = None
+        z_gps        = None
+        z_lidar      = None
+        z_target_att = None
 
         if (t_now - last_gyro_meas) >= config.DT_GYRO:
             omega_gyro = measure_gyro(
-                x_true[23:26],   # w_C  — true angular velocity
-                x_est[23:26],    # b_w  — estimated bias
-                x_est[26:29],    # S_s  — estimated scale factor
-                x_est[29:32],    # O_o  — estimated misalignment
-            )
+                x_true[23:26], x_est[23:26], x_est[26:29], x_est[29:32])
             last_gyro_meas = t_now
 
         if (t_now - last_star_track_meas) >= config.DT_STAR_TRACKER:
@@ -217,21 +237,24 @@ def gnc_sim():
             last_star_track_meas = t_now
 
         if (t_now - last_opt_cam_meas) >= config.DT_OPT_CAM:
-            z_opt = measure_optical_camera(x_true[0:3], x_true[13:16],
-                                           x_true[19:23])
+            z_opt = measure_optical_camera(
+                x_true[0:3], x_true[13:16], x_true[19:23])
             last_opt_cam_meas = t_now
-
-        if (t_now - last_lidar_meas) >= config.DT_LIDAR:
-            z_lidar = measure_lidar(x_true[0:3], x_true[13:16])
-            last_lidar_meas = t_now
 
         if (t_now - last_gps_meas) >= config.DT_GPS:
             z_gps = measure_gps(x_true[13:16])
             last_gps_meas = t_now
 
-            
+        if (t_now - last_lidar_meas) >= config.DT_LIDAR:
+            z_lidar = measure_lidar(x_true[0:3], x_true[13:16])
+            last_lidar_meas = t_now
 
-        # -- Navigation ------------------------------------------------
+        if (t_now - last_target_att_meas) >= config.DT_TARGET_ATT:
+            z_target_att = measure_target_attitude(x_true[6:10])   # true target quat
+            last_target_att_meas = t_now
+
+
+        # -- Navigation ---------------------------------------------------
         x_est, P = ekf_predict(x_est, P, omega_gyro, u_applied, tau_applied,
                                 I_r, I_c, noise, param_noise, config.SIM_DT)
 
@@ -241,23 +264,25 @@ def gnc_sim():
         if z_gps is not None:
             x_est, P, _ = ekf_update_gps(x_est, P, z_gps, config.R_GPS)
 
+        if z_lidar is not None:
+            x_est, P, _ = ekf_update_lidar(x_est, P, z_lidar, config.R_LIDAR)
+
         if z_opt is not None:
             x_est, P, _ = ekf_update_optical_cam(x_est, P, z_opt, config.R_OPT_CAM)
         
-        if z_lidar is not None:
-            x_est, P, _ = ekf_update_lidar(x_est, P, z_lidar, config.R_LIDAR)
+        if z_target_att is not None:
+            x_est, P, _ = ekf_update_target_attitude(x_est, P, z_target_att, config.R_TARGET_ATT)
 
         x_est[6:10]  = normalize_quat(x_est[6:10])
         x_est[19:23] = normalize_quat(x_est[19:23])
 
-        # -- Compute Errors --------------------------------------------
+        # -- Errors & logging ---------------------------------------------
         delta_r = x_true[13:16] - x_true[0:3] - (x_est[13:16] - x_est[0:3])
         delta_q = quat_multiply(x_true[19:23], quat_inv(x_est[19:23]))
 
-        # -- Status Print (every 100 steps) ----------------------------
         if k % 100 == 0:
             elapsed    = time.time() - t0_wall
-            eta        = (elapsed / (k + 1)) * (config.N - k - 1)
+            eta        = (elapsed / (k+1)) * (N - k - 1)
             pos_err_m  = np.linalg.norm(x_true[13:16] - x_true[0:3]) * 1e3
             vel_err_ms = np.linalg.norm(x_true[16:19] - x_true[3:6]) * 1e3
             nav_err_m  = np.linalg.norm(delta_r) * 1e3
@@ -269,7 +294,6 @@ def gnc_sim():
                 f"elapsed={elapsed:5.1f}s  ETA={eta:6.1f}s"
             )
 
-        # -- Simulation Variable Storage -------------------------------
         hist_target_truth[k, :] = x_true[0:13]
         hist_chaser_truth[k, :] = x_true[13:23]
         hist_u_cmd[k, :]        = u_cmd
@@ -278,27 +302,21 @@ def gnc_sim():
         hist_tau_input[k, :]    = tau_applied
         hist_x_est[k, :]        = x_est
         hist_P_diag[k, :]       = np.diag(P)
+        if z_opt   is not None: hist_z_opt[k, :]   = z_opt
+        if z_st    is not None: hist_z_st[k, :]    = z_st
+        if z_gps   is not None: hist_z_gps[k, :]   = z_gps
+        if z_lidar is not None: hist_z_lidar[k, :] = z_lidar
 
-        if z_opt is not None:
-            hist_z_opt[k, :] = z_opt
-        if z_st is not None:
-            hist_z_st[k, :]  = z_st
-        if z_gps is not None:
-            hist_z_gps[k, :] = z_gps
-
-        # -- Check for Rendezvous Success ------------------------------
         pos_err = np.linalg.norm(x_true[13:16] - x_true[0:3])
         att_err = 2 * np.arccos(np.clip(abs(quat_multiply(
                       x_true[19:23], quat_inv(x_true[6:10]))[3]), 0, 1))
-
         if pos_err < config.POS_TOL and att_err < config.ATT_TOL:
             tqdm.write(f"  ✓ Rendezvous achieved at t = {t_end:.1f} s (k={k})")
             break
 
     elapsed_total = time.time() - t0_wall
     print(f"Simulation complete after {k+1} steps "
-          f"({(k+1)*config.SIM_DT:.1f} s simulated, "
-          f"{elapsed_total:.1f} s wall time).")
+          f"({(k+1)*config.SIM_DT:.1f} s simulated, {elapsed_total:.1f} s wall time).")
 
     return {
         'target':    hist_target_truth[:k+1],
@@ -310,6 +328,7 @@ def gnc_sim():
         'z_opt':     hist_z_opt[:k+1],
         'z_st':      hist_z_st[:k+1],
         'z_gps':     hist_z_gps[:k+1],
+        'z_lidar':   hist_z_lidar[:k+1],
     }
 
 
