@@ -12,15 +12,16 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 char_star = load_charecteristic_values_Earth();
-nd_scalar = [char_star.l * ones([3, 1]); char_star.v * ones([3, 1]); char_star.m];
+nd_scalar = [ones([6, 1]); char_star.m];
+g_0 = 9.81; % [m / s2]
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = [303; 232]; % [s]
+spacecraft_params.Isp = [4100; 232]; % [s]
 spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = [0.8; 100]; % [N]
-F_max_nd = spacecraft_params.F_max / 1000; % F_max in N, char_star.F in kN
+spacecraft_params.F_max = [0.25; 100]; % [N]
+F_max_nd = spacecraft_params.F_max; % F_max in N, char_star.F in kN
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = 6728; % [km] semi-major axis
@@ -33,12 +34,12 @@ M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
 % Rendezvous time
-tf = 1000; % [s] (nondimensionalized)
+tf = 500; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
 r_0 = [0.5; -0.5; 0.2]; % [km]
 v_0 = [0.001; 1e-3; 0]; % [km / s]
-x_0 = [r_0; v_0; spacecraft_params.m_0];
+x_0 = [r_0; v_0; spacecraft_params.m_0 / char_star.m];
 
 % Terminal conditions
 r_f = [0; 0.2; 0]; % [km]
@@ -46,7 +47,7 @@ v_f = [0e-3; 0; 0]; % [km / s]
 x_f = [r_f; v_f];
 
 %% Initialize
-N = 100;
+N = 200;
 t_k_actual = linspace(0, tf, N);
 tspan = [0, tf];
 t_k = linspace(tspan(1), tspan(2), N);
@@ -80,15 +81,15 @@ ptr_ops.alpha_p = 0;
 % Scaling currently not helping...
 scale = false;
 % 
-% scale_hint.x_max = [max(x_0(1:3)) * ones([3, 1]); max(x_0(4:6)) * ones([3, 1]); spacecraft_params.m_0 / char_star.m];
-% scale_hint.x_min = [-max(x_0(1:3)) * ones([3, 1]); -max(x_0(4:6)) * ones([3, 1]); spacecraft_params.m_0 / char_star.m * 0.95];
-% scale_hint.u_max = [F_max_nd * ones([6, 1])];
-% scale_hint.u_min = [zeros([3, 1])];
-% scale_hint.p_max = [];
-% scale_hint.p_min = [];
+scale_hint.x_max = [ones([6, 1]); spacecraft_params.m_0 / char_star.m];
+scale_hint.x_min = [zeros([7, 1])];
+scale_hint.u_max = [ones([6, 1])];
+scale_hint.u_min = [zeros([6, 1])];
+scale_hint.p_max = [];
+scale_hint.p_min = [];
 
 %% Get Dynamics
-f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM_twothruster(t, x ./ nd_scalar, u, p, [x_keplerian_c; spacecraft_params.Isp]);
+f_nonlinear = @(t, x, u, p) nonlinear_relative_orbit_EoM_twothruster_dim(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp; char_star.mu; g_0]);
 
 f_opt = f_nonlinear; % Dynamics to use for optimization
 f_eval = f_nonlinear; % Dynamics to use for propagation and plotting
@@ -106,9 +107,9 @@ convex_constraints = [state_convex_constraints, control_convex_constraints];
 
 % Nonconvex state constraints
 keep_out_distance = 0.2; % [km]
-keep_out_sphere_constraint = @(t, x, u, p) keep_out_distance ^ 2 - nd_scalar(1) ^ 2 * (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2);
+keep_out_sphere_constraint = @(t, x, u, p) keep_out_distance ^ 2 - (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2);
 keep_out_sphere_constraint_linearized = {1:N, linearize_constraint(keep_out_sphere_constraint, nx, nu, np, "x", 1:3)};
-state_nonconvex_constraints = {};
+state_nonconvex_constraints = {keep_out_sphere_constraint_linearized};
 
 % Nonconvex control constraints
 control_nonconvex_constraints = {};
@@ -121,8 +122,8 @@ initial_bc = @(x, p) [x - x_0];
 terminal_bc = @(x, p, x_ref, p_ref) [x(1:6) - x_f; 0]; % Don't constrain final mass
 
 %% Specify Objective
-objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(1:3, :))) * delta_t / (spacecraft_params.Isp(1) * 9.81e-3) * 1000 ...
-                                                   + sum(norms(u(4:6, :))) * delta_t / (spacecraft_params.Isp(2) * 9.81e-3) * 1000;
+objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(1:3, :))) * delta_t / (spacecraft_params.Isp(1) * g_0)*0 ...
+                                                   + sum(norms(u(4:6, :))) * delta_t / (spacecraft_params.Isp(2) * g_0);
 
 %% Create Guess
 % Straight Line Initial Guess
@@ -131,7 +132,7 @@ guess.u = ones([6, Nu]) * 1e-6;
 guess.p = [];
 
 %% Construct Problem Object
-problem = DeterministicProblem(x_0, x_f, N, u_hold, tf, f_opt, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = 1e-12, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous_twothruster");
+problem = DeterministicProblem(x_0, x_f, N, u_hold, tf, f_opt, guess, convex_constraints, objective_min_fuel, scale = scale, scale_hint = scale_hint, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = 1e-12, discretization_method = "error", N_sub = 1, Name = "nonlinear_rendezvous_twothruster");
 
 [problem, Delta_disc] = problem.discretize(guess.x, guess.u, guess.p);
 
@@ -167,12 +168,13 @@ grid on
 
 %% Extract Solution
 i = ptr_sol.converged_i + 1;
-x = ptr_sol.x(:, :, i);
-u = ptr_sol.u(:, :, i) * 1000;
+x = ptr_sol.x(:, :, i) .* nd_scalar;
+u = ptr_sol.u(:, :, i);
 
 problem.cont.f = f_eval;
 [t_cont_sol, x_cont_sol, u_cont_sol] = problem.cont_prop(ptr_sol.u(:, :, i), ptr_sol.p(:, i));
-u_cont_sol = u_cont_sol * 1000;
+x_cont_sol = x_cont_sol .* nd_scalar;
+u_cont_sol = u_cont_sol;
 
 %% Plot Trajectory
 figure

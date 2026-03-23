@@ -12,7 +12,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 char_star = load_charecteristic_values_Earth();
-nd_scalar = [char_star.l * ones([3, 1]); char_star.v * ones([3, 1]); ones([7, 1]); char_star.m];
+nd_scalar = [ones([13, 1]); char_star.m];
+g_0 = 9.81; % [km / s2]
 
 % Estimate spacecraft moment of inertia
 cylinder_MoI = @(m, r, h) [1 / 2 * m * r ^ 2; ...
@@ -21,18 +22,26 @@ cylinder_MoI = @(m, r, h) [1 / 2 * m * r ^ 2; ...
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = [300; 232]; % [s]
-spacecraft_params.m_0 = 800; % [kg]
+spacecraft_params.Isp = [4100; 232]; % [s]
+spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
 spacecraft_params.r = 1.85; % [m]
 spacecraft_params.h = 4; % [m]
 spacecraft_params.I = cylinder_MoI(spacecraft_params.m_0, spacecraft_params.r, spacecraft_params.h);
-spacecraft_params.F_max = [0.8; 22]; % [N]
+spacecraft_params.F_max = [0.25, 22]; % [N]
+% RCS (direction axis, position axis) x+y, x-y, x+z, x-z, y+z, y-z, y+x, y-x, z+x, z-x, z+y, z-y
 spacecraft_params.thrust_directions = {[1; 0; 0], ... % Main thruster
-                                       {}}; % RCS thrusters
-spacecraft_params.tau_max = spacecraft_params.F_max(2) * spacecraft_params.r * 4; % [N m]
-F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
-tau_max_nd = spacecraft_params.tau_max;% / 1000 / char_star.F / char_star.l; 
+                                       [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0;
+                                        0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0;
+                                        0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1]}; % RCS thruster directions
+spacecraft_params.thrust_positions = {[1; 0; 0], ... % Main thruster
+                                      [0, 0, 0, 0, 0, 0, 1, -1, 1, -1, 0, 0;
+                                       1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1;
+                                       0, 0, 1, -1, 1, -1, 0, 0, 0, 0, 0, 0] * spacecraft_params.r}; % RCS thruster positions
+spacecraft_params.R_C_S = calculate_RCS_allocation_matrix(spacecraft_params.thrust_directions{2}, spacecraft_params.thrust_positions{2}); % RCS thruster force and torque allocation matrix
+spacecraft_params.tau_max = 15; % [N m] Max reaction wheel torque
+F_max_nd = spacecraft_params.F_max; % F_max in N, char_star.F in kN
+tau_max_nd = spacecraft_params.tau_max; 
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = 6728; % [km] semi-major axis
@@ -45,23 +54,23 @@ M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
 % Rendezvous time
-tf = 15000 / char_star.t; % [s] (nondimensionalized)
+tf = 100; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
-r_0 = [0.5; -0.5; 0.2]; % [km]
-v_0 = [0.001; 1e-3; 0]; % [km / s]
-theta_0 = [deg2rad(0); deg2rad(90); deg2rad(0)]; % [rad]
+r_0 = [0.5; -0.5; 0.2]/10; % [km]
+v_0 = [0.001; 1e-3; 0]/10; % [km / s]
+theta_0 = [deg2rad(0); deg2rad(45); deg2rad(45)]; % [rad]
 R_0 = angle2dcm(theta_0(1), theta_0(2), theta_0(3));
-q_0 = qexp(RLog(R_0));
+q_0 = qExp(RLog(R_0));
 w_0 = deg2rad([0; 0; 0]); % [rad / s]
 x_0 = [r_0; v_0; q_0; w_0; spacecraft_params.m_0] ./ nd_scalar;
 
 % Terminal conditions
-r_f = [0; 0.2; 0]; % [km]
-v_f = [0e-3; 0; 0]; % [km / s]
-theta_f = deg2rad([0; 0; 90]); % [rad]
+r_f = [0e-6; 0.2; 0e-6]/10; % [km]
+v_f = [0e-4; 0; 0]; % [km / s]
+theta_f = deg2rad([0; 0; 0]); % [rad]
 R_f = angle2dcm(theta_f(1), theta_f(2), theta_f(3));
-q_f = qexp(RLog(R_f));
+q_f = qExp(RLog(R_f));
 w_f = deg2rad([0; 0; 0]); % [rad / s]
 x_f = [r_f; v_f; q_f; w_f] ./ nd_scalar(1:13);
 
@@ -80,21 +89,21 @@ Nu = (u_hold == "ZOH") * (N - 1) + (u_hold == "FOH") * N;
 
 parser = "CVX"; % Can use CVXPY for more speed if needed (needs setup)
 nx = 14; % Number of states (r, v, q, w, m)
-nu = 7; % Number of controls (T_1_mag, T_2, tau_rw)
+nu = 16; % Number of controls (T_1_mag, T_2, tau_rw)
 np = 0; % Number of parameters (tf, v_0, etc)
 
 % PTR algorithm parameters
-ptr_ops.iter_max = 25;
+ptr_ops.iter_max = 20;
 ptr_ops.iter_min = 1;
-ptr_ops.Delta_min = 5e-7;
+ptr_ops.Delta_min = 5e-6;
 ptr_ops.w_vc = 5e5;
-ptr_ops.w_tr = ones(1, Nu) * 5e-2;
+ptr_ops.w_tr = ones(1, Nu) * 5e-4;
 ptr_ops.w_tr_p = 0;
 ptr_ops.update_w_tr = false;
 ptr_ops.delta_tol = 1e-2;
 ptr_ops.q = 2;
 ptr_ops.alpha_x = 1;
-ptr_ops.alpha_u = 0;
+ptr_ops.alpha_u = 0e-2;
 ptr_ops.alpha_p = 0;
 
 % Scaling currently not helping...
@@ -108,27 +117,27 @@ scale = false;
 % scale_hint.p_min = [];
 
 %% Get Dynamics
-f = @(t, x, u, p) relative_orbit_6DoF_twothruster_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp; spacecraft_params.I; spacecraft_params.thrust_directions{1}]);
+f = @(t, x, u, p) relative_orbit_6DoF_twothruster_EoM(t, x, u, p, [x_keplerian_c; spacecraft_params.Isp; char_star.mu; g_0; spacecraft_params.I; spacecraft_params.thrust_directions{1}; spacecraft_params.R_C_S(:)]);
 
 %% Specify Constraints
 mass_constraint = {1:N, @(t, x, u, p) spacecraft_params.m_dry / char_star.m - x(14)};
 %angular_velocity_constraint = {1:N, @(t, x, u, p) norm(x(11:13), Inf) - norm([w_0; deg2rad(20)], Inf)};
-% sensor seeing target
+% sensor seeing target - convex??
 state_convex_constraints = {mass_constraint};
 
 % Convex control constraints
 max_thrust_constraint_1 = {1:N, @(t, x, u, p) u(1) - F_max_nd(1)};
 min_thrust_constraint_1 = {1:N, @(t, x, u, p) 0 - u(1)};
-max_thrust_constraint_2 = {1:N, @(t, x, u, p) norm(u(2:4)) - F_max_nd(2)};
-max_reaction_wheel_torque_constraint = {1:N, @(t, x, u, p) norm(u(5:7)) - tau_max_nd};
-control_convex_constraints = {max_thrust_constraint_1, min_thrust_constraint_1, max_thrust_constraint_2, max_reaction_wheel_torque_constraint};
+max_RCS_thrust_constraint = {1:N, @(t, x, u, p) norm(u(2:13), Inf) - F_max_nd(2)};
+max_reaction_wheel_torque_constraint = {1:N, @(t, x, u, p) norm(u(14:16), Inf) - tau_max_nd};
+control_convex_constraints = {max_thrust_constraint_1, min_thrust_constraint_1, max_RCS_thrust_constraint, max_reaction_wheel_torque_constraint};
 
 % Combine convex constraints
 convex_constraints = [state_convex_constraints, control_convex_constraints];
 
 % Nonconvex state constraints
-keep_out_distance = 0.2; % [km]
-keep_out_sphere_constraint = @(t, x, u, p) keep_out_distance ^ 2 - nd_scalar(1) ^ 2 * (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2);
+keep_out_distance = 0.02; % [km]
+keep_out_sphere_constraint = @(t, x, u, p) keep_out_distance ^ 2 - (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2);
 keep_out_sphere_constraint_linearized = {1:N, linearize_constraint(keep_out_sphere_constraint, nx, nu, np, "x", 1:3)};
 state_nonconvex_constraints = {keep_out_sphere_constraint_linearized};
 
@@ -141,17 +150,19 @@ nonconvex_constraints = [state_nonconvex_constraints, control_nonconvex_constrai
 
 %% Boundary conditions
 initial_bc = @(x, p) [x - x_0];
-terminal_bc = @(x, p, x_ref, p_ref) [x([1:6, 11:13]') - x_f([1:6, 11:13]'); zeros([4, 1]); 0]; % Don't constrain final mass
+terminal_bc = @(x, p, x_ref, p_ref) [x(1:13) - x_f(1:13); 0]; % Don't constrain final mass
 
 %% Specify Objective
-objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(u(1, :)) * delta_t * char_star.F / (spacecraft_params.Isp(1) * 9.81e-3) * 1000 ...
-                                                   + sum(norms(u(2:4, :))) * delta_t * char_star.F / (spacecraft_params.Isp(2) * 9.81e-3) * 1000 ...
-                                                   + sum(norms(u(5:7, :), 1))*0;
+objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(2:13, :), 1)) * delta_t / (spacecraft_params.Isp(2) * g_0) ...
+                                                   + sum(norms(u(14:16, :), 1)) * delta_t * 1e-6 ...
+                                                   + sum(norms(u(1, :), 1)) * delta_t / (spacecraft_params.Isp(1) * g_0);
 
 %% Create Guess
-% Straight Line Initial Guess - Definitely need to actually slerp for
-% proper quaternion interpolation
-guess.x = linspace(0, 1, N) .* ([x_f; x_0(14)] - x_0) + x_0;
+% Straight Line Initial Guess
+rv_int = linspace(0, 1, N) .* (x_f(1:6) - x_0(1:6)) + x_0(1:6);
+[q_int, w_int_const] = q_interp(q_0, q_f, t_k);
+w_int = repmat(w_int_const, 1, numel(t_k));
+guess.x = [rv_int; q_int; w_int; x_0(14) * ones([1, N])];%linspace(0, 1, N) .* ([x_f; x_0(14)] - x_0) + x_0;
 guess.u = ones([nu, Nu]) * 1e-6;
 guess.p = [];
 
@@ -159,6 +170,37 @@ guess.p = [];
 problem = DeterministicProblem(x_0, x_f, N, u_hold, tf, f, guess, convex_constraints, objective_min_fuel, scale = scale, nonconvex_constraints = nonconvex_constraints, initial_bc = initial_bc, terminal_bc = terminal_bc, integration_tolerance = 1e-12, discretization_method = "error", N_sub = 1, Name = "rendezvous_6DoF_twothruster");
 
 [problem, Delta_disc] = problem.discretize(guess.x, guess.u, guess.p);
+
+%% Test with known solution
+% t_cont_sol = linspace(0, tf, 1000);
+% [~, x_cont_sol_ck] = problem.cont_prop([zeros([1, Nu]); ptr_sol.u(:, :, i)], ptr_sol.p(:, i), tspan = t_cont_sol);
+% 
+% figure
+% tiledlayout(3, 1)
+% 
+% nexttile
+% plot(t_cont_sol, x_cont_sol_ck(7:10, :))
+% xlabel("Time")
+% ylabel("Quaternions")
+% title("Quaternion History")
+% grid on
+% 
+% nexttile
+% plot(t_cont_sol, rad2deg(x_cont_sol_ck(11:13, :)))
+% xlabel("Time")
+% ylabel("Angular Velocities")
+% title("Angular Velocity History")
+% grid on
+% 
+% % Plot Control
+% nexttile
+% plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(13:15,:), LineWidth=1); hold on
+% plot(t_cont_sol(1:end - (N - Nu)), vecnorm(u_cont_sol(13:15,:)), LineWidth=1)
+% title("Reaction Wheel Torque")
+% xlabel("Time")
+% ylabel("Torque [N m]")
+% legend("\hat{b}_1", "\hat{b}_2", "\hat{b}_3", "||\tau||", Interpreter="latex")
+% grid on
 
 %% Solve
 ptr_sol = ptr(problem, ptr_ops, parser);
@@ -193,18 +235,18 @@ grid on
 %% Extract Solution
 i = ptr_sol.converged_i + 1;
 x = ptr_sol.x(:, :, i) .* nd_scalar;
-u = ptr_sol.u(:, :, i) * char_star.F * 1000;
+u = ptr_sol.u(:, :, i);
 
-[t_cont_sol, x_cont_sol, u_cont_sol] = problem.cont_prop(ptr_sol.u(:, :, i), ptr_sol.p(:, i));
-t_cont_sol = t_cont_sol * char_star.t;
+t_cont_sol = linspace(0, tf, 1000);
+[~, x_cont_sol, u_cont_sol] = problem.cont_prop(ptr_sol.u(:, :, i), ptr_sol.p(:, i), tspan = t_cont_sol);
 x_cont_sol = x_cont_sol .* nd_scalar;
-u_cont_sol = u_cont_sol * char_star.F * 1000;
 
 %% Plot Trajectory
 
 u_main_vec = quat_rot_array(x(7:10, 1:Nu), spacecraft_params.thrust_directions{1} .* u(1, :)); % Rotate 
 u_cont_sol_main_vec = quat_rot_array(x_cont_sol(7:10, 1:end - (N - Nu)), spacecraft_params.thrust_directions{1} .* u_cont_sol(1, :)); % Rotate 
-u_RCS_vec = quat_rot_array(x(7:10, 1:Nu), u(2:4, :)); % Rotate 
+u_RCS_vec = squeeze(quat_rot_array(x(7:10, 1:Nu), pagemtimes(spacecraft_params.R_C_S, reshape(u(2:13, :), 12, 1, [])))); % Rotate 
+u_cont_sol_RCS_vec = squeeze(quat_rot_array(x_cont_sol(7:10, 1:end - (N - Nu)), pagemtimes(spacecraft_params.R_C_S, reshape(u_cont_sol(2:13, :), 12, 1, [])))); % Rotate 
 
 figure
 scatter3(0, 0, 0, 60, "blue", "filled", "diamond"); hold on
@@ -213,7 +255,7 @@ quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u_main_vec(1, :), u_main_vec(2, :), 
 quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u_RCS_vec(1, :), u_RCS_vec(2, :), u_RCS_vec(3, :), 2, "filled", Color = "m")
 scatter3(r_0(1), r_0(2), r_0(3), 48, "green", "filled", "square"); hold on
 scatter3(r_f(1), r_f(2), r_f(3), 48, "red", "x"); hold on
-plot3(guess.x(1, :) * nd_scalar(1), guess.x(2, :) * nd_scalar(2), guess.x(3, :) * nd_scalar(3), Color = "green", LineStyle = "--");
+plot3(guess.x(1, :), guess.x(2, :), guess.x(3, :), Color = "green", LineStyle = "--");
 [s_x, s_y, s_z] = sphere(128);
 h = surfl(s_x * keep_out_distance, s_y * keep_out_distance, s_z * keep_out_distance); 
 set(h, 'FaceAlpha', 0.5)
@@ -256,8 +298,8 @@ legend("\hat{r}", "\hat{\theta}", "\hat{h}", "||u||", Interpreter="latex")
 grid on
 
 nexttile
-plot(t_cont_sol(1:end - (N - Nu)), quat_rot_array(x_cont_sol(7:10, 1:end - (N - Nu)), u_cont_sol(2:4,:)), LineWidth=1); hold on
-plot(t_cont_sol(1:end - (N - Nu)), vecnorm(u_cont_sol(2:4,:)), LineWidth=1)
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol_RCS_vec, LineWidth=1); hold on
+plot(t_cont_sol(1:end - (N - Nu)), vecnorm(u_cont_sol_RCS_vec), LineWidth=1)
 title("Reaction Control Thrusters")
 xlabel("Time")
 ylabel("Force [N]")
@@ -265,20 +307,114 @@ legend("\hat{r}", "\hat{\theta}", "\hat{h}", "||u||", Interpreter="latex")
 grid on
 
 nexttile
-plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(5:7,:), LineWidth=1); hold on
-plot(t_cont_sol(1:end - (N - Nu)), vecnorm(u_cont_sol(5:7,:)), LineWidth=1)
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(14:16,:), LineWidth=1); hold on
+plot(t_cont_sol(1:end - (N - Nu)), vecnorm(u_cont_sol(14:16,:)), LineWidth=1)
 title("Reaction Wheel Torque")
 xlabel("Time")
 ylabel("Torque [N m]")
 legend("\hat{b}_1", "\hat{b}_2", "\hat{b}_3", "||\tau||", Interpreter="latex")
 grid on
 
-%% Helper Functions
+%% Plot RCS Thrusters
+% RCS (direction axis, position axis) x+y, x-y, x+z, x-z, y+z, y-z, y+x, y-x, z+x, z-x, z+y, z-y
+figure
+tiledlayout(2, 3)
 
-function [q] = qexp(tau)
-    theta = norm(tau);
-    u = tau / theta;
-    q = [u * sin(theta / 2); cos(theta / 2)];
+nexttile % xy
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(2, :), Color = "r", LineWidth=1); hold on
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(3, :), Color = "b", LineWidth=1);
+xlabel("Time [s]")
+ylabel("Force [N]")
+legend("x+y", "x-y")
+title("X Directed Y Positioned")
+grid on
+ylim(spacecraft_params.F_max(2) * [-1; 1])
+
+nexttile % yz
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(6, :), Color = "r", LineWidth=1); hold on
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(7, :), Color = "b", LineWidth=1);
+xlabel("Time [s]")
+ylabel("Force [N]")
+legend("y+z", "y-z")
+title("Y Directed Z Positioned")
+grid on
+ylim(spacecraft_params.F_max(2) * [-1; 1])
+
+nexttile % zx
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(10, :), Color = "r", LineWidth=1); hold on
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(11, :), Color = "b", LineWidth=1);
+xlabel("Time [s]")
+ylabel("Force [N]")
+legend("z+x", "z-x")
+title("Z Directed X Positioned")
+grid on
+ylim(spacecraft_params.F_max(2) * [-1; 1])
+
+nexttile % xz
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(4, :), Color = "r", LineWidth=1); hold on
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(5, :), Color = "b", LineWidth=1);
+xlabel("Time [s]")
+ylabel("Force [N]")
+legend("x+z", "x-z")
+title("X Directed Z Positioned")
+grid on
+ylim(spacecraft_params.F_max(2) * [-1; 1])
+
+nexttile % yx
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(8, :), Color = "r", LineWidth=1); hold on
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(9, :), Color = "b", LineWidth=1);
+xlabel("Time [s]")
+ylabel("Force [N]")
+legend("y+x", "y-x")
+title("Y Directed X Positioned")
+grid on
+ylim(spacecraft_params.F_max(2) * [-1; 1])
+
+nexttile % zy
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(12, :), Color = "r", LineWidth=1); hold on
+plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(13, :), Color = "b", LineWidth=1);
+xlabel("Time [s]")
+ylabel("Force [N]")
+legend("z+y", "z-y")
+title("Z Directed Y Positioned")
+grid on
+ylim(spacecraft_params.F_max(2) * [-1; 1])
+
+sgtitle("Reaction Control System Thrusters Control History")
+
+%% Save to CSV for Blender Animation
+output_array = [t_cont_sol(2:end)', x_cont_sol(:, 2:end)', u_cont_sol'];
+state_names = ["r_Hill_1", "r_Hill_2", "r_Hill_3", ...
+               "v_Hill_1", "v_Hill_2", "v_Hill_3", ...
+               "q_1", "q_2", "q_3", "q_4", ...
+               "w_1", "w_2", "w_3", ...
+               "mass"];
+control_names = strings(1, nu);
+control_names(1) = "u_main";
+for i = 1 : size(spacecraft_params.thrust_directions{2}, 2)
+    control_names(i + 1) = sprintf("u_RCS_%g", i);
+end
+for i = 1 : 3
+    control_names(i + size(spacecraft_params.thrust_directions{2}, 2) + 1) = sprintf("u_W_%g", i);
+end
+output_names = ["Time", state_names, control_names];
+
+output_table = array2table(output_array, VariableNames = output_names);
+writetable(output_table,"./Animation/6DoF_test_animation_output.csv")
+
+%% Helper Functions
+function [q] = qExp(tau)
+    N = size(tau, 2);
+    q = zeros([4, N]);
+    for k = 1 : N
+        theta = norm(tau(:, k));
+        if theta > 1e-10
+            u = tau(:, k) / theta;
+            q(:, k) = [u * sin(theta / 2); cos(theta / 2)];
+        else
+            q(:, k) = [0; 0; 0; 1];
+        end
+    end
 end
 
 function [tau] = qLog(q)
@@ -301,4 +437,16 @@ function [tau] = RLog(R)
     function [tau] = vee(tau_hat)
         tau = [tau_hat(3, 2); tau_hat(1, 3); tau_hat(2, 1)];
     end
+end
+
+function [q_interp, w_diff] = q_interp(q_0, q_f, tspan)
+    q_diff = q_mul(q_0, q_conj(q_f));
+
+    theta_diff = qLog(q_diff);
+
+    w_diff = theta_diff ./ tspan(end);
+
+    tau_interp = qExp(interp1([0, 1]', [zeros([3, 1]), theta_diff]', linspace(0, 1, numel(tspan)))');
+
+    q_interp = q_mul_array(repmat(q_0, 1, numel(tspan)), tau_interp);
 end

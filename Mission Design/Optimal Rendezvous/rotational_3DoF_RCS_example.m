@@ -295,21 +295,21 @@ ylim(spacecraft_params.F_max * [-1; 1])
 sgtitle("Reaction Control System Thrusters Control History")
 
 %% Save to CSV for Blender Animation
-output_array = [t_cont_sol', [zeros([3, size(x_cont_sol, 2)]); x_cont_sol]', u_cont_sol'];
-state_names = ["r_Hill_1", "r_Hill_2", "r_Hill_3", ...
-               "q_1", "q_2", "q_3", "q_4", ...
-               "w_1", "w_2", "w_3"];
-control_names = strings(1, nu);
-for i = 1 : size(spacecraft_params.thrust_directions, 2)
-    control_names(i) = sprintf("u_RCS_%g", i);
-end
-for i = 1 : 3
-    control_names(i + size(spacecraft_params.thrust_directions, 2)) = sprintf("u_W_%g", i);
-end
-output_names = ["Time", state_names, control_names];
-
-output_table = array2table(output_array, VariableNames = output_names);
-writetable(output_table,"./Animation/3DoF_test_animation_output.csv")
+% output_array = [t_cont_sol', [zeros([3, size(x_cont_sol, 2)]); x_cont_sol]', u_cont_sol'];
+% state_names = ["r_Hill_1", "r_Hill_2", "r_Hill_3", ...
+%                "q_1", "q_2", "q_3", "q_4", ...
+%                "w_1", "w_2", "w_3"];
+% control_names = strings(1, nu);
+% for i = 1 : size(spacecraft_params.thrust_directions, 2)
+%     control_names(i) = sprintf("u_RCS_%g", i);
+% end
+% for i = 1 : 3
+%     control_names(i + size(spacecraft_params.thrust_directions, 2)) = sprintf("u_W_%g", i);
+% end
+% output_names = ["Time", state_names, control_names];
+% 
+% output_table = array2table(output_array, VariableNames = output_names);
+% writetable(output_table,"./Animation/3DoF_test_animation_output.csv")
 
 %% Helper Functions
 function [q] = qExp(tau)
