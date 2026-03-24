@@ -15,12 +15,12 @@ J_2_val = 1.0826e-3; % [] Earth J2
 m = 800; % [kg]
 
 % Initial conditions for s/c in Earth orbit (in Earth Centered Inertial (ECI) frame)
-r_a_0 = R_E + 600; % [km] periapsis
-r_p_0 = R_E + 126; % [km] periapsis
+r_a_0 = R_E + 894; % [km] periapsis
+r_p_0 = R_E + 893.9; % [km] periapsis
 e_0 = (1 - r_p_0 / r_a_0) / (1 + r_p_0 / r_a_0); % [] eccentricity
 a_0 = r_p_0 / (1 - e_0); % [km] semi-major axis
-i_0 = deg2rad(8.6); % [rad] inclination
-Omega_0 = deg2rad(30); % [rad] right ascension of ascending node
+i_0 = deg2rad(99); % [rad] inclination
+Omega_0 = deg2rad(0); % [rad] right ascension of ascending node
 omega_0 = deg2rad(20); % [rad] argument of periapsis
 nu_0 = deg2rad(180); % [rad] true anomaly at epoch
 
@@ -29,7 +29,7 @@ x0_keplerian = [a_0; e_0; i_0; Omega_0; omega_0; M_0];
 x0_cartesian = keplerian_to_cartesian(x0_keplerian, nu_0, mu_E);
 
 % Propagation Time 
-orbits = 10;
+orbits = 40;
 tspan = linspace(0, orbits * period(a_0, mu_E), 1e5);
 t_orbits = linspace(0, orbits, numel(tspan));
 t_hr = tspan / 60 / 60;
@@ -65,16 +65,35 @@ a_d_thrust = @(t,x) [accel_thrust * sind(0); ...
                      accel_thrust * sind(0)]; % [km / s2] Orbital RTN frame (Radial-Theta-Normal frame)
 
 %a_d = @(t,x) a_d_J2(t,x) + cartesian_to_RTN_DCM_from_cart(x, mu_E) * a_d_thrust(t,x) ...
-a_d = @(t,x) a_d_J2(t,x) ...
-                         + drag_perturbation_nrlmsise(t, x, mu_E, C_D, A_over_m, t0_datetime, false);
+a_d = @(t,x) a_d_J2(t,x);% ...
+                         %+ drag_perturbation_nrlmsise(t, x, mu_E, C_D, A_over_m, t0_datetime, false);
                          %+ drag_perturbation_simple(t, x, mu_E, R_E, C_D, A_over_m);
 
 % Simulate 
-tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance, Events = @(t, x) combine_event_funcs(t, x, {@(t, x) altitude_event_function(t, x, R_E, stop_altitude, t0_datetime), @(t, x) into_solar_eclipse_event_function(t, x, R_E, AU, n_E), @(t, x) outof_solar_eclipse_event_function(t, x, R_E, AU, n_E)}));
+tolerances_events = odeset(RelTol=default_tolerance, AbsTol=default_tolerance, Events = @(t, x) combine_event_funcs(t, x, {@(t, x) altitude_event_function(t, x, R_E, stop_altitude, t0_datetime), @(t, x) into_solar_eclipse_event_function(t, x, R_E, AU, n_E), @(t, x) outof_solar_eclipse_event_function(t, x, R_E, AU, n_E)}));
+tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance);
     
-[t_keplerian,x_keplerian_cartesian, t_e, x_cart_e, i_e] = ode45(@(t,x) gauss_planetary_eqn(f0_cartesian(x, mu_E), B_cartesian(x, mu_E), a_d(t,x)), tspan, x0_cartesian, tolerances);
+[t_keplerian,x_keplerian_cartesian, t_e, x_cart_e, i_e] = ode45(@(t,x) gauss_planetary_eqn(f0_cartesian(x, mu_E), B_cartesian(x, mu_E), a_d(t,x)), tspan, x0_cartesian, tolerances_events);
+%[t_keplerian,x_keplerian_cartesian] = ode45(@(t,x) gauss_planetary_eqn(f0_cartesian(x, mu_E), B_cartesian(x, mu_E), a_d(t,x)), tspan, x0_cartesian, tolerances);
 x_keplerian_cartesian = x_keplerian_cartesian';
-x_keplerian = cartesian_to_keplerian_array(x_keplerian_cartesian, [0; 0; 1], [1; 0; 0], mu_E);
+% x_keplerian = cartesian_to_keplerian_array(x_keplerian_cartesian, [0; 0; 1], [1; 0; 0], mu_E);
+
+%% Plot Eclipsing Function
+eclipses = zeros(size(t_keplerian));
+for i = 1 : numel(t_keplerian)
+    eclipses(i) = check_eclipse(t_keplerian(i), x_keplerian_cartesian(1:3, i), R_E, AU, n_E);
+end
+
+figure
+plot(t_keplerian / 60 / 60 / 24, eclipses); hold on
+stairs(t_e(any([i_e == 2, i_e == 3], 2)) / 60 / 60 / 24, i_e(any([i_e == 2, i_e == 3], 2)) == 2)
+scatter(t_e(any([i_e == 2, i_e == 3], 2)) / 60 / 60 / 24, i_e(any([i_e == 2, i_e == 3], 2)) == 2)
+grid on
+xlabel("Time [days]")
+ylabel("Value")
+legend("Eclipse Function", "Detected Eclipse")
+title("Eclipsing vs Time")
+subtitle("Positive means eclipsed")
 
 %%
 % clear as
@@ -114,38 +133,38 @@ ylabel("Y [km]")
 zlabel("Z [km]")
 
 %%
-figure
-tiledlayout(2, 3)
-
-nexttile
-plot(t_keplerian, x_keplerian(1, :) .* (1 - x_keplerian(2, :) .* cos(mean_to_eccentric_anomaly(x_keplerian(6, :), x_keplerian(2, :)))) - R_E)
-title("Radius vs Time")
-grid on
-
-nexttile
-plot(t_keplerian, x_keplerian(2, :))
-title("Eccentricity vs Time")
-grid on
-
-nexttile
-plot(t_keplerian, rad2deg(x_keplerian(3, :)))
-title("Inclination vs Time")
-grid on
-
-nexttile
-plot(t_keplerian, rad2deg(x_keplerian(4, :)))
-title("RAAN vs Time")
-grid on
-
-nexttile
-plot(t_keplerian, rad2deg(x_keplerian(5, :)))
-title("Argument of Periapsis Axis vs Time")
-grid on
-
-nexttile
-plot(t_keplerian, wrapTo360(rad2deg(x_keplerian(6, :))))
-title("Mean Anomaly vs Time")
-grid on
+% figure
+% tiledlayout(2, 3)
+% 
+% nexttile
+% plot(t_keplerian, x_keplerian(1, :) .* (1 - x_keplerian(2, :) .* cos(mean_to_eccentric_anomaly(x_keplerian(6, :), x_keplerian(2, :)))) - R_E)
+% title("Radius vs Time")
+% grid on
+% 
+% nexttile
+% plot(t_keplerian, x_keplerian(2, :))
+% title("Eccentricity vs Time")
+% grid on
+% 
+% nexttile
+% plot(t_keplerian, rad2deg(x_keplerian(3, :)))
+% title("Inclination vs Time")
+% grid on
+% 
+% nexttile
+% plot(t_keplerian, rad2deg(x_keplerian(4, :)))
+% title("RAAN vs Time")
+% grid on
+% 
+% nexttile
+% plot(t_keplerian, rad2deg(x_keplerian(5, :)))
+% title("Argument of Periapsis Axis vs Time")
+% grid on
+% 
+% nexttile
+% plot(t_keplerian, wrapTo360(rad2deg(x_keplerian(6, :))))
+% title("Mean Anomaly vs Time")
+% grid on
 
 %% Helper Functions
 
@@ -298,21 +317,6 @@ function [a_drag] = drag_perturbation_nrlmsise(t, x_cartesian, mu, C_D, A_over_m
     % nu = eccentric_to_true_anomaly(mean_to_eccentric_anomaly(M, e), e);
     % 
     % a_drag_RTN = cartesian_to_RTN_DCM(i, Omega, omega, nu)' * a_drag;
-end
-
-function [eclipsed] = check_eclipse(t, rvec, R_E, a_E, n_E)
-    
-    nu = n_E * t;
-    sun_vector = [cos(nu); sin(nu); 0]; % Should get solar/Earth position from ephemris...
-
-    eclipse_angle = atan2(R_E, a_E);
-
-    rvec_E = sun_vector * a_E;
-    rvec_sc = rvec_E + rvec;
-    r = norm(rvec_sc);
-    rhat = rvec_sc / r;
-
-    eclipsed = dot(rhat, sun_vector) - cos(eclipse_angle); % > 0
 end
 
 function [eclipsed, isterminal, direction] = into_solar_eclipse_event_function(t, x_cartesian, R_E, a_E, n_E)
