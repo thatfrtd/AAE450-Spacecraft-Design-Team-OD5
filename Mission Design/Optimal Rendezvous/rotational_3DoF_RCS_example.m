@@ -26,7 +26,7 @@ spacecraft_params.m_dry = 600; % [kg]
 spacecraft_params.r = 1.85; % [m]
 spacecraft_params.h = 4; % [m]
 spacecraft_params.I = cylinder_MoI(spacecraft_params.m_0, spacecraft_params.r, spacecraft_params.h);
-spacecraft_params.F_max = 22; % [N]
+spacecraft_params.F_max = 5; % [N]
 % RCS (direction axis, position axis) x+y, x-y, x+z, x-z, y+z, y-z, y+x, y-x, z+x, z-x, z+y, z-y
 spacecraft_params.thrust_directions = [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0;
                                        0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0;
@@ -50,7 +50,7 @@ M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
 % Rendezvous time
-tf = 500; % [s] (nondimensionalized)
+tf = 35; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
 theta_0 = deg2rad([0; 45; 45]); % [rad]
@@ -63,7 +63,7 @@ x_0 = [q_0; w_0];
 theta_f = deg2rad([0; 0; 0]); % [rad]
 R_f = angle2dcm(theta_f(1), theta_f(2), theta_f(3));
 q_f = qExp(RLog(R_f));
-w_f = deg2rad([0; 0; 0]); % [rad / s]
+w_f = deg2rad([0; 10; 0]); % [rad / s]
 x_f = [q_f; w_f];
 
 %% Initialize
@@ -86,7 +86,7 @@ np = 0; % Number of parameters (tf, v_0, etc)
 
 % PTR algorithm parameters
 ptr_ops.iter_max = 25;
-ptr_ops.iter_min = 1;
+ptr_ops.iter_min = 7;
 ptr_ops.Delta_min = 5e-5;
 ptr_ops.w_vc = 5e5;
 ptr_ops.w_tr = ones(1, Nu) * 5e-3;
@@ -95,7 +95,7 @@ ptr_ops.update_w_tr = false;
 ptr_ops.delta_tol = 1e-2;
 ptr_ops.q = 2;
 ptr_ops.alpha_x = 1;
-ptr_ops.alpha_u = 1;
+ptr_ops.alpha_u = 0;
 ptr_ops.alpha_p = 0;
 
 % Scaling currently not helping...
@@ -193,7 +193,8 @@ i = ptr_sol.converged_i + 1;
 x = ptr_sol.x(:, :, i);
 u = ptr_sol.u(:, :, i);
 
-[t_cont_sol, x_cont_sol, u_cont_sol] = problem.cont_prop(ptr_sol.u(:, :, i), ptr_sol.p(:, i));
+t_cont_sol = linspace(0, tf, 1000);
+[~, x_cont_sol, u_cont_sol] = problem.cont_prop(ptr_sol.u(:, :, i), ptr_sol.p(:, i), tspan = t_cont_sol);
 %t_cont_sol = t_cont_sol;
 %x_cont_sol = x_cont_sol;
 %u_cont_sol = u_cont_sol;
@@ -241,7 +242,6 @@ title("X Directed Y Positioned")
 grid on
 ylim(spacecraft_params.F_max * [-1; 1])
 
-
 nexttile % yz
 plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(5, :), Color = "r", LineWidth=1); hold on
 plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(6, :), Color = "b", LineWidth=1);
@@ -261,7 +261,6 @@ legend("z+x", "z-x")
 title("Z Directed X Positioned")
 grid on
 ylim(spacecraft_params.F_max * [-1; 1])
-
 
 nexttile % xz
 plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(3, :), Color = "r", LineWidth=1); hold on
@@ -283,8 +282,6 @@ title("Y Directed X Positioned")
 grid on
 ylim(spacecraft_params.F_max * [-1; 1])
 
-
-
 nexttile % zy
 plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(11, :), Color = "r", LineWidth=1); hold on
 plot(t_cont_sol(1:end - (N - Nu)), u_cont_sol(12, :), Color = "b", LineWidth=1);
@@ -296,6 +293,23 @@ grid on
 ylim(spacecraft_params.F_max * [-1; 1])
 
 sgtitle("Reaction Control System Thrusters Control History")
+
+%% Save to CSV for Blender Animation
+% output_array = [t_cont_sol', [zeros([3, size(x_cont_sol, 2)]); x_cont_sol]', u_cont_sol'];
+% state_names = ["r_Hill_1", "r_Hill_2", "r_Hill_3", ...
+%                "q_1", "q_2", "q_3", "q_4", ...
+%                "w_1", "w_2", "w_3"];
+% control_names = strings(1, nu);
+% for i = 1 : size(spacecraft_params.thrust_directions, 2)
+%     control_names(i) = sprintf("u_RCS_%g", i);
+% end
+% for i = 1 : 3
+%     control_names(i + size(spacecraft_params.thrust_directions, 2)) = sprintf("u_W_%g", i);
+% end
+% output_names = ["Time", state_names, control_names];
+% 
+% output_table = array2table(output_array, VariableNames = output_names);
+% writetable(output_table,"./Animation/3DoF_test_animation_output.csv")
 
 %% Helper Functions
 function [q] = qExp(tau)
