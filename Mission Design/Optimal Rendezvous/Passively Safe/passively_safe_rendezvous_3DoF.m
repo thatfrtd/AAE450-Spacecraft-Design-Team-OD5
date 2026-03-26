@@ -18,29 +18,30 @@ g_0 = 9.81e-3; % [km / s2]
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = [303; 232]; % [s]
+spacecraft_params.Isp = [4100; 232]; % [s]
 spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = [0.8; 100]; % [N]
+spacecraft_params.F_max = [0.25; 100]; % [N]
 F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = 6728; % [km] semi-major axis
-e_c = 0.01; % [] eccentricity
+e_c = 0.003; % [] eccentricity
 i_c = deg2rad(10); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu0_c = deg2rad(0); % [rad] true anomaly at epoch
 M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
+n_c = sqrt(char_star.mu / a_c ^ 3);
 
 % Passive Safety Parameters
 P_c = 2 * pi * sqrt(a_c ^ 3 / char_star.mu); % Chief orbital period
-T = P_c / char_star.t; % [s] Safety horizon length
+T = 2 * P_c / char_star.t; % [s] Safety horizon length
 N_safe = 200; 
 
 % Rendezvous time
-tf = 500 / char_star.t; % [s] (nondimensionalized)
+tf = 3000 / char_star.t; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
 % Initial conditions for spacecraft - specify orbit instead?
@@ -49,12 +50,12 @@ v_0 = [0.001; 1e-3; 0]; % [km / s]
 x_0 = [r_0; v_0; spacecraft_params.m_0] ./ nd_scalar;
 
 % Terminal conditions
-r_f = [0; 0.2; 0]; % [km]
+r_f = [0; 0.08; 0]; % [km]
 v_f = [0e-3; 0; 0]; % [km / s]
 x_f = [r_f; v_f] ./ nd_scalar(1:6);
 
 %% Initialize
-N = 100;
+N = 150;
 t_k_actual = linspace(0, tf, N);
 tspan = [0, tf];
 t_k = linspace(tspan(1), tspan(2), N);
@@ -74,7 +75,7 @@ np = 0; % Number of parameters (tf, v_0, etc)
 % PTR algorithm parameters
 ptr_ops.iter_max = 25;
 ptr_ops.iter_min = 4;
-ptr_ops.Delta_min = 1e-7;
+ptr_ops.Delta_min = 2e-7;
 ptr_ops.w_vc = 5e5;
 ptr_ops.w_tr = ones(1, Nu) * 5e-4;
 ptr_ops.w_tr_p = 0;
@@ -98,7 +99,7 @@ A_func = dynamics_jacobian(f_opt, nx, nu, np);
 
 %% Specify Constraints
 final_position_constraint = {(N-1):N, @(t, x, u, p) nd_scalar(1) * norm(x(1:3)) - norm(r_f)};
-state_convex_constraints = {};
+state_convex_constraints = {final_position_constraint};
 
 % Convex control constraints
 max_thrust_constraint_1 = {1:N, @(t, x, u, p) norm(u(1:3)) - F_max_nd(1)};
@@ -109,13 +110,16 @@ control_convex_constraints = {max_thrust_constraint_1, max_thrust_constraint_2};
 convex_constraints = [state_convex_constraints, control_convex_constraints];
 
 % Nonconvex state constraints
-keep_out_distance = 0.18; % [km]
-keep_out_sphere_constraint = @(t, x, u, p) keep_out_distance ^ 2 - nd_scalar(1) ^ 2 * (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2);
+keep_out_distance = 0.04; % [km]
+keep_out_sphere_constraint = @(t, x, u, p) (keep_out_distance ^ 2 - nd_scalar(1) ^ 2 * (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2)) * 1e3;
 keep_out_sphere_constraint_linearized_func = linearize_constraint(keep_out_sphere_constraint, nx, nu, np, "x", 1:3);
 keep_out_sphere_constraint_linearized = {1:N, keep_out_sphere_constraint_linearized_func};
 %final_position_constraint = {N, @(t, x, u, p, x_ref, u_ref, p_ref, k) nd_scalar(1) * norm(x(1:3)) - norm(r_f)}; % Convex but relax it so put here
 passive_safety_constraint = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) construct_passive_safety_constraint(x, x_ref(:, k), @(t_prop, x_prop) f_opt(t_prop + t, x_prop, zeros([nu, 1]), p_ref), @(t_prop, x_prop) A_func(t_prop + t, x_prop, zeros([nu, 1]), p_ref), @(t_prop, x_prop) keep_out_sphere_constraint(t_prop + t, x_prop, zeros([nu, 1]), p_ref), @(t_prop, x_prop, x_ref_safe) keep_out_sphere_constraint_linearized_func(t_prop + t, x_prop, zeros([nu, 1]), p_ref, x_ref_safe, zeros([nu, 1]), p_ref, 1), T, N_safe)};
-state_nonconvex_constraints = {keep_out_sphere_constraint_linearized, passive_safety_constraint};
+keep_in_distance = 0.08; % [km]
+keep_in_sphere_constraint = @(t, x, u, p) norm(x(1:3)) * nd_scalar(1) - keep_in_distance;
+stable_final_orbit_constraint = {(N - 1):N, @(t, x, u, p, x_ref, u_ref, p_ref, k) construct_passive_safety_constraint(x, x_ref(:, k), @(t_prop, x_prop) f_opt(t_prop + t, x_prop, zeros([nu, 1]), p), @(t_prop, x_prop) A_func(t_prop + t, x_prop, zeros([nu, 1]), p), @(t_prop, x_prop) keep_in_sphere_constraint(t_prop + t, x_prop, zeros([nu, 1]), p), @(t_prop, x_prop, x_ref_safe) keep_in_sphere_constraint(t_prop + t, x_prop, zeros([nu, 1]), p), T, N_safe)};
+state_nonconvex_constraints = {keep_out_sphere_constraint_linearized, passive_safety_constraint, stable_final_orbit_constraint};
 
 % Nonconvex control constraints
 control_nonconvex_constraints = {};
@@ -125,7 +129,7 @@ nonconvex_constraints = [state_nonconvex_constraints, control_nonconvex_constrai
 
 %% Boundary conditions
 initial_bc = @(x, p) [x - x_0];
-terminal_bc = @(x, p, x_ref, p_ref) [x(1:6) - x_f; 0]; % Don't constrain final mass
+terminal_bc = @(x, p, x_ref, p_ref) [4 * x(1) * nd_scalar(1) + 2 / n_c * x(5) * nd_scalar(5); x(2) * nd_scalar(2) - 2 / n_c * x(4) * nd_scalar(4); zeros([3, 1]); 0; 0]; % Don't constrain final mass
 %terminal_bc = @(x, p, x_ref, p_ref) [zeros([3, 1]); x(4:6) - x_f(4:6); 0]; % Don't constrain final mass
 
 %% Specify Objective
@@ -196,8 +200,8 @@ x_safety_ck = x_safety_ck .* nd_scalar;
 %% Plot Trajectory
 figure;
 fig = scatter3(0, 0, 0, 60, "blue", "filled", "diamond"); hold on
-lim = max(abs(x(1:3, :)), [], "all") * 3;
-for k = 1 : N
+lim = max(abs(x(1:3, :)), [], "all") * 1;
+for k = (N - 0):(N - 0)
     if k == 1
         handvis = "on";
     else
