@@ -1,6 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import matplotlib as mpl
+import imageio_ffmpeg
+from matplotlib.animation import FFMpegWriter
+mpl.rcParams['animation.ffmpeg_path'] = imageio_ffmpeg.get_ffmpeg_exe()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -148,34 +152,30 @@ def plot_chaser_quaternion_truth_vs_est(t, chaser_truth, chaser_est):
 # NEW: Chaser angular velocity — truth vs estimated
 # ─────────────────────────────────────────────────────────────────────────────
 
-def plot_chaser_omega_truth_vs_est(t, chaser_truth, x_est_hist):
+def plot_chaser_omega_truth_vs_est(t, omega_true_hist, omega_gyro_hist):
     """
-    Compare chaser angular velocity truth vs gyro measurement over time.
+    Compare chaser true angular velocity vs raw gyro measurement.
 
     Parameters
     ----------
-    t            : (N,)   time vector [s]
-    chaser_truth : (10,N) truth chaser state — no omega stored (only 10 states)
-                          so truth omega is taken from x_true at [23:26] which
-                          is NOT in hist_chaser_truth. Pass None to skip truth line.
-    x_est_hist   : (N,32) full estimated state history — gyro bias at [23:26]
-                          Note: estimated chaser omega is NOT in x_est (gyro
-                          drives attitude directly). We plot the gyro-corrected
-                          omega = w_est - b_w_est as a proxy.
+    t               : (N,)  time vector [s]
+    omega_true_hist : (N,3) true chaser angular velocity [rad/s]
+    omega_gyro_hist : (N,3) raw gyro measurement [rad/s]
+                            (includes bias + scale factor error + noise)
     """
-    # Estimated gyro bias
-    b_w_est = x_est_hist[:, 23:26]        # (N, 3)  bias estimate
-
     labels = ["$\\omega_x$", "$\\omega_y$", "$\\omega_z$"]
     colors = ["tab:blue", "tab:orange", "tab:green"]
 
     fig, axes = plt.subplots(3, 1, figsize=(10, 6), sharex=True)
-    fig.suptitle("Chaser Angular Velocity — Estimated Gyro Bias")
+    fig.suptitle("Chaser Angular Velocity — Truth vs Gyro Measurement")
 
     for i, (lbl, col) in enumerate(zip(labels, colors)):
         ax = axes[i]
-        ax.plot(t, b_w_est[:, i], color=col, lw=1.2, label=f"Bias est {lbl}")
-        ax.set_ylabel(lbl + " bias [rad/s]")
+        ax.plot(t, omega_true_hist[:, i], color=col, lw=1.5,
+                label=f"Truth {lbl}")
+        ax.plot(t, omega_gyro_hist[:, i], color=col, lw=1.0,
+                linestyle='--', alpha=0.8, label=f"Gyro {lbl}")
+        ax.set_ylabel(lbl + " [rad/s]")
         ax.legend(loc='upper right', fontsize=7)
         ax.grid(True, alpha=0.3)
 
@@ -575,8 +575,11 @@ def animate_rendezvous(target_hist, chaser_hist, x_est_hist,
                          interval=40, blit=False)
 
     if save_path:
-        anim.save(save_path, dpi=120,
-                  writer='ffmpeg' if save_path.endswith('.mp4') else 'pillow')
+        if save_path.endswith('.mp4'):
+            writer = FFMpegWriter(fps=25)
+        else:
+            writer = 'pillow'
+        anim.save(save_path, dpi=120, writer=writer)
         print(f"Animation saved to {save_path}")
     else:
         plt.show()
@@ -625,20 +628,37 @@ def plot_estimated_states_with_covariance(t, x_est_hist, P_diag_hist,
 
     sigma = np.sqrt(np.abs(P_diag_hist))   # (N,30) — 1σ for each error-state
 
-    def _truth_error(x_est_col, truth_col):
-        """Return truth - estimate if truth provided, else None."""
-        if truth_col is not None:
-            return truth_col - x_est_col
-        return None
+    def _att_error_rad(truth_q, est_q):
+        """
+        Compute proper rotation-vector attitude error in radians.
+        Returns (N,3) array of [ex, ey, ez] rotation-vector errors.
+        Uses dq = q_truth * q_est^{-1}, error = 2 * dq[0:3].
+        """
+        N = truth_q.shape[0]
+        err = np.zeros((N, 3))
+        for i in range(N):
+            qt = truth_q[i]; qe = est_q[i]
+            # q_est inverse: negate vector part
+            qe_inv = np.array([-qe[0], -qe[1], -qe[2], qe[3]])
+            # dq = qt * qe_inv
+            p, q = qt, qe_inv
+            dq = np.array([
+                 p[3]*q[0]+p[2]*q[1]-p[1]*q[2]+p[0]*q[3],
+                -p[2]*q[0]+p[3]*q[1]+p[0]*q[2]+p[1]*q[3],
+                 p[1]*q[0]-p[0]*q[1]+p[3]*q[2]+p[2]*q[3],
+                -p[0]*q[0]-p[1]*q[1]-p[2]*q[2]+p[3]*q[3],
+            ])
+            if dq[3] < 0:
+                dq = -dq
+            err[i] = 2.0 * dq[0:3]
+        return err
 
     def _plot_group(title, groups, fig_size=(12, 8)):
         """
-        groups: list of dicts with keys:
-          label       : subplot title string
-          est_col     : column index into x_est_hist  (or slice)
-          p_col       : column index into P_diag / sigma (error-state index)
-          truth_vals  : (N,) array of truth values or None
-          units       : y-axis unit string
+        Plots estimation ERROR (truth - estimate) centred at zero with +/-3sigma bounds.
+        scale field multiplies both error and sigma (e.g. 1e3 for km->m).
+        att_err field: if True, uses proper quaternion rotation-vector error.
+        If no truth available, plots estimate with +/-3sigma instead.
         """
         n = len(groups)
         fig, axes = plt.subplots(n, 1, figsize=fig_size, sharex=True)
@@ -647,128 +667,136 @@ def plot_estimated_states_with_covariance(t, x_est_hist, P_diag_hist,
         fig.suptitle(title, fontsize=11)
 
         for ax, g in zip(axes, groups):
-            est  = x_est_hist[:, g['est_col']]
-            sig3 = 3.0 * sigma[:, g['p_col']]
+            sc   = g.get('scale', 1.0)
+            est  = x_est_hist[:, g['est_col']] * sc
+            sig3 = 3.0 * sigma[:, g['p_col']] * sc
 
-            ax.plot(t, est, color='tab:blue', lw=1.2, label='Estimate')
-            ax.fill_between(t, est - sig3, est + sig3,
-                            color='tab:blue', alpha=0.18, label='±3σ')
-            ax.plot(t, est + sig3, color='tab:blue', lw=0.5, linestyle='--', alpha=0.5)
-            ax.plot(t, est - sig3, color='tab:blue', lw=0.5, linestyle='--', alpha=0.5)
+            if g.get('att_err') and g.get('truth_q') is not None and g.get('est_q') is not None:
+                # Proper rotation-vector attitude error
+                att_errs = _att_error_rad(g['truth_q'], g['est_q'])
+                err = att_errs[:, g['att_idx']] * sc
+                ax.fill_between(t, -sig3, sig3,
+                                color='tab:blue', alpha=0.20, label='+-3sigma')
+                ax.plot(t,  sig3, color='tab:blue', lw=0.8, linestyle='--', alpha=0.8)
+                ax.plot(t, -sig3, color='tab:blue', lw=0.8, linestyle='--', alpha=0.8)
+                ax.plot(t, err,   color='tab:orange', lw=1.2, label='Error (truth - est)')
+                ax.axhline(0, color='black', lw=0.5, linestyle=':')
+            elif g['truth_vals'] is not None:
+                err = g['truth_vals'] * sc - est
+                ax.fill_between(t, -sig3, sig3,
+                                color='tab:blue', alpha=0.20, label='+-3sigma')
+                ax.plot(t,  sig3, color='tab:blue', lw=0.8, linestyle='--', alpha=0.8)
+                ax.plot(t, -sig3, color='tab:blue', lw=0.8, linestyle='--', alpha=0.8)
+                ax.plot(t, err,   color='tab:orange', lw=1.2, label='Error (truth - est)')
+                ax.axhline(0, color='black', lw=0.5, linestyle=':')
+            else:
+                ax.fill_between(t, est - sig3, est + sig3,
+                                color='tab:blue', alpha=0.20, label='+-3sigma')
+                ax.plot(t, est + sig3, color='tab:blue', lw=0.8, linestyle='--', alpha=0.8)
+                ax.plot(t, est - sig3, color='tab:blue', lw=0.8, linestyle='--', alpha=0.8)
+                ax.plot(t, est,        color='tab:blue', lw=1.2, label='Estimate')
+                ax.axhline(0, color='black', lw=0.5, linestyle=':')
 
-            if g['truth_vals'] is not None:
-                err = g['truth_vals'] - est
-                ax.plot(t, err + est, color='tab:orange', lw=1.0,
-                        linestyle=':', label='Truth')
-
-            ax.set_ylabel(f"{g['label']}\n[{g['units']}]", fontsize=8)
+            ax.set_ylabel(g['label'] + '\n[' + g['units'] + ']', fontsize=8)
             ax.grid(True, alpha=0.25)
             ax.legend(loc='upper right', fontsize=7, ncol=3)
 
         axes[-1].set_xlabel("Time [s]")
         plt.tight_layout()
 
-    # ── 1. Target Position ───────────────────────────────────────────────────
-    _plot_group("Target Position Estimate ± 3σ", [
-        dict(label='r^T_x', est_col=0, p_col=0,
+    # ── 1. Target Translational: position (m) + velocity (m/s), 6 rows ─────────
+    _plot_group("Target Position & Velocity Error ± 3σ", [
+        dict(label='r^T_x [m]',   est_col=0,  p_col=0,  scale=1e3,
              truth_vals=target_hist[:, 0] if target_hist is not None else None,
-             units='km'),
-        dict(label='r^T_y', est_col=1, p_col=1,
+             units='m'),
+        dict(label='r^T_y [m]',   est_col=1,  p_col=1,  scale=1e3,
              truth_vals=target_hist[:, 1] if target_hist is not None else None,
-             units='km'),
-        dict(label='r^T_z', est_col=2, p_col=2,
+             units='m'),
+        dict(label='r^T_z [m]',   est_col=2,  p_col=2,  scale=1e3,
              truth_vals=target_hist[:, 2] if target_hist is not None else None,
-             units='km'),
-    ])
-
-    # ── 2. Target Velocity ───────────────────────────────────────────────────
-    _plot_group("Target Velocity Estimate ± 3σ", [
-        dict(label='v^T_x', est_col=3, p_col=3,
+             units='m'),
+        dict(label='v^T_x [m/s]', est_col=3,  p_col=3,  scale=1e3,
              truth_vals=target_hist[:, 3] if target_hist is not None else None,
-             units='km/s'),
-        dict(label='v^T_y', est_col=4, p_col=4,
+             units='m/s'),
+        dict(label='v^T_y [m/s]', est_col=4,  p_col=4,  scale=1e3,
              truth_vals=target_hist[:, 4] if target_hist is not None else None,
-             units='km/s'),
-        dict(label='v^T_z', est_col=5, p_col=5,
+             units='m/s'),
+        dict(label='v^T_z [m/s]', est_col=5,  p_col=5,  scale=1e3,
              truth_vals=target_hist[:, 5] if target_hist is not None else None,
-             units='km/s'),
-    ])
+             units='m/s'),
+    ], fig_size=(12, 12))
 
-    # ── 3. Target Attitude + Angular Velocity ────────────────────────────────
-    # Attitude: quaternion vector part (q stored in x_est at 6:10),
-    # but P tracks rotation vector δθ at P_diag cols 6:8
-    _plot_group("Target Attitude (δθ) & Angular Velocity ± 3σ", [
-        dict(label='δθ^T_x', est_col=6,  p_col=6,
-             truth_vals=None, units='rad'),
-        dict(label='δθ^T_y', est_col=7,  p_col=7,
-             truth_vals=None, units='rad'),
-        dict(label='δθ^T_z', est_col=8,  p_col=8,
-             truth_vals=None, units='rad'),
-        dict(label='ω^T_x',  est_col=10, p_col=9,
+    # ── 2. Target Attitude (q vector part) + Angular Velocity, 6 rows ────────
+    _plot_group("Target Attitude & Angular Velocity Error ± 3σ", [
+        dict(label='q^T_x',       est_col=6,  p_col=6,
+             truth_vals=target_hist[:, 6]  if target_hist is not None else None,
+             units='—'),
+        dict(label='q^T_y',       est_col=7,  p_col=7,
+             truth_vals=target_hist[:, 7]  if target_hist is not None else None,
+             units='—'),
+        dict(label='q^T_z',       est_col=8,  p_col=8,
+             truth_vals=target_hist[:, 8]  if target_hist is not None else None,
+             units='—'),
+        dict(label='ω^T_x',       est_col=10, p_col=9,
              truth_vals=target_hist[:, 10] if target_hist is not None else None,
              units='rad/s'),
-        dict(label='ω^T_y',  est_col=11, p_col=10,
+        dict(label='ω^T_y',       est_col=11, p_col=10,
              truth_vals=target_hist[:, 11] if target_hist is not None else None,
              units='rad/s'),
-        dict(label='ω^T_z',  est_col=12, p_col=11,
+        dict(label='ω^T_z',       est_col=12, p_col=11,
              truth_vals=target_hist[:, 12] if target_hist is not None else None,
              units='rad/s'),
-    ], fig_size=(12, 11))
+    ], fig_size=(12, 12))
 
-    # ── 4. Chaser Position ───────────────────────────────────────────────────
-    _plot_group("Chaser Position Estimate ± 3σ", [
-        dict(label='r^C_x', est_col=13, p_col=12,
+    # ── 3. Chaser Translational: position (m) + velocity (m/s), 6 rows ───────
+    _plot_group("Chaser Position & Velocity Error ± 3σ", [
+        dict(label='r^C_x [m]',   est_col=13, p_col=12, scale=1e3,
              truth_vals=chaser_hist[:, 0] if chaser_hist is not None else None,
-             units='km'),
-        dict(label='r^C_y', est_col=14, p_col=13,
+             units='m'),
+        dict(label='r^C_y [m]',   est_col=14, p_col=13, scale=1e3,
              truth_vals=chaser_hist[:, 1] if chaser_hist is not None else None,
-             units='km'),
-        dict(label='r^C_z', est_col=15, p_col=14,
+             units='m'),
+        dict(label='r^C_z [m]',   est_col=15, p_col=14, scale=1e3,
              truth_vals=chaser_hist[:, 2] if chaser_hist is not None else None,
-             units='km'),
-    ])
-
-    # ── 5. Chaser Velocity ───────────────────────────────────────────────────
-    _plot_group("Chaser Velocity Estimate ± 3σ", [
-        dict(label='v^C_x', est_col=16, p_col=15,
+             units='m'),
+        dict(label='v^C_x [m/s]', est_col=16, p_col=15, scale=1e3,
              truth_vals=chaser_hist[:, 3] if chaser_hist is not None else None,
-             units='km/s'),
-        dict(label='v^C_y', est_col=17, p_col=16,
+             units='m/s'),
+        dict(label='v^C_y [m/s]', est_col=17, p_col=16, scale=1e3,
              truth_vals=chaser_hist[:, 4] if chaser_hist is not None else None,
-             units='km/s'),
-        dict(label='v^C_z', est_col=18, p_col=17,
+             units='m/s'),
+        dict(label='v^C_z [m/s]', est_col=18, p_col=17, scale=1e3,
              truth_vals=chaser_hist[:, 5] if chaser_hist is not None else None,
-             units='km/s'),
-    ])
+             units='m/s'),
+    ], fig_size=(12, 12))
 
-    # ── 6. Chaser Attitude ───────────────────────────────────────────────────
-    _plot_group("Chaser Attitude (δθ) ± 3σ", [
-        dict(label='δθ^C_x', est_col=19, p_col=18,
-             truth_vals=None, units='rad'),
-        dict(label='δθ^C_y', est_col=20, p_col=19,
-             truth_vals=None, units='rad'),
-        dict(label='δθ^C_z', est_col=21, p_col=20,
-             truth_vals=None, units='rad'),
-    ])
+    # ── 4. Chaser Attitude (δθ rotation-vector error) + gyro bias, 6 rows ───
+    _truth_qC = chaser_hist[:, 6:10] if chaser_hist is not None else None
+    _est_qC   = x_est_hist[:, 19:23]
+    _plot_group("Chaser Attitude Error & Gyro Bias ± 3σ", [
+        dict(label='δθ^C_x',  est_col=19, p_col=18, units='rad',
+             att_err=True, truth_q=_truth_qC, est_q=_est_qC, att_idx=0,
+             truth_vals=None),
+        dict(label='δθ^C_y',  est_col=20, p_col=19, units='rad',
+             att_err=True, truth_q=_truth_qC, est_q=_est_qC, att_idx=1,
+             truth_vals=None),
+        dict(label='δθ^C_z',  est_col=21, p_col=20, units='rad',
+             att_err=True, truth_q=_truth_qC, est_q=_est_qC, att_idx=2,
+             truth_vals=None),
+        dict(label='b_ω_x',   est_col=23, p_col=21, truth_vals=None,
+             units='rad/s'),
+        dict(label='b_ω_y',   est_col=24, p_col=22, truth_vals=None,
+             units='rad/s'),
+        dict(label='b_ω_z',   est_col=25, p_col=23, truth_vals=None,
+             units='rad/s'),
+    ], fig_size=(12, 12))
 
-    # ── 7. Parameters: gyro bias, scale factor, misalignment ─────────────────
-    _plot_group("Navigation Parameters ± 3σ", [
-        dict(label='b_ω_x', est_col=23, p_col=21,
-             truth_vals=None, units='rad/s'),
-        dict(label='b_ω_y', est_col=24, p_col=22,
-             truth_vals=None, units='rad/s'),
-        dict(label='b_ω_z', est_col=25, p_col=23,
-             truth_vals=None, units='rad/s'),
-        dict(label='S_s_x', est_col=26, p_col=24,
-             truth_vals=None, units='—'),
-        dict(label='S_s_y', est_col=27, p_col=25,
-             truth_vals=None, units='—'),
-        dict(label='S_s_z', est_col=28, p_col=26,
-             truth_vals=None, units='—'),
-        dict(label='O_o_x', est_col=29, p_col=27,
-             truth_vals=None, units='rad'),
-        dict(label='O_o_y', est_col=30, p_col=28,
-             truth_vals=None, units='rad'),
-        dict(label='O_o_z', est_col=31, p_col=29,
-             truth_vals=None, units='rad'),
-    ], fig_size=(12, 14))
+    # ── 5. Navigation Parameters: scale factor + misalignment, 6 rows ────────
+    _plot_group("Navigation Parameters (Scale & Misalignment) ± 3σ", [
+        dict(label='S_s_x', est_col=26, p_col=24, truth_vals=None, units='—'),
+        dict(label='S_s_y', est_col=27, p_col=25, truth_vals=None, units='—'),
+        dict(label='S_s_z', est_col=28, p_col=26, truth_vals=None, units='—'),
+        dict(label='O_o_x', est_col=29, p_col=27, truth_vals=None, units='rad'),
+        dict(label='O_o_y', est_col=30, p_col=28, truth_vals=None, units='rad'),
+        dict(label='O_o_z', est_col=31, p_col=29, truth_vals=None, units='rad'),
+    ], fig_size=(12, 12))

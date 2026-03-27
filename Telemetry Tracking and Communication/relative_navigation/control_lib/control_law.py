@@ -53,15 +53,15 @@ def control_law(x_est, w_C, r_des, v_des, q_des, w_des, I_c):
     # ω_n = 0.002 rad/s → period ~3140 s, max accel ~4e-5 km/s² at 100m range
     # This keeps delta-v per step at ~4e-4 km/s = 0.4 mm/s — safe for proximity
     omega_n = 0.02
-    zeta    = 3.0
+    zeta    = 1
     K_r = (omega_n**2)          * np.eye(3)   # 4e-6  [1/s²]
     K_v = (2 * zeta * omega_n)  * np.eye(3)   # 4e-3  [1/s]
 
     # ── Attitude gains — scaled by MOI so torques are physically sized ────────
     # Using mean diagonal of I_c as representative scalar MOI
     I_scalar    = np.mean(np.diag(I_c))        # [kg·km²]
-    omega_n_att = 0.05                         # rad/s
-    zeta_att    = 1.0
+    omega_n_att = 0.5                        # rad/s
+    zeta_att    = 0.7
     K_theta = I_scalar * (omega_n_att**2)              * np.eye(3)
     K_w     = I_scalar * (2 * zeta_att * omega_n_att)  * np.eye(3)
 

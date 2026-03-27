@@ -103,3 +103,9 @@ def quat_inv(q):
 def quat2rot_vet(q):
     """Get the three dimensional rotation vector. """
     return q[0:3]
+
+# Correctly perturb quaternions multiplicatively
+def perturb_quat(q, sigma_th):
+    dtheta = sigma_th * np.random.randn(3)
+    dq     = delta_theta_to_quat(dtheta)
+    return quat_multiply(q, dq)    # right-multiply noise quaternion

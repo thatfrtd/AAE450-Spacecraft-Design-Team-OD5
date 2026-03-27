@@ -4,12 +4,16 @@ import config
 
 def momentum_wheel_model(u_tau_command, ):
 
-    # To start you get what you command
-    u_tau_actual = u_tau_command
-
     # More advanced model
+    u_dv_command_norm = np.linalg.norm(u_tau_command)
 
-    return u_tau_actual
+    if u_dv_command_norm <= config.u_cmd_max:
+        u_tau_actual = u_tau_command
+    else:
+        u_tau_hat = u_tau_command / u_dv_command_norm
+        u_tau_actual = config.u_cmd_max * u_tau_hat
+
+    return u_tau_command
 
 def translational_control(u_dv_command, ):
     u_dv_command_norm = np.linalg.norm(u_dv_command)
@@ -22,4 +26,4 @@ def translational_control(u_dv_command, ):
 
     # Advanced model
 
-    return u_dv_actual
+    return u_dv_command
