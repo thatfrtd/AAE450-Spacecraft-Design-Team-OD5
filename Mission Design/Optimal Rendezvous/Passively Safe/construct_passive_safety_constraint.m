@@ -1,4 +1,4 @@
-function [passive_safety_constraint, min_safety, x_prop] = construct_passive_safety_constraint(x, x_0, f, A, safety_constraint, safety_constraint_linearized, T, N_safe, integration_tolerance)
+function [passive_safety_constraint, min_safety, x_prop] = construct_passive_safety_constraint(x, x_0, f, A, safety_constraint, safety_constraint_linearized, T, N_safe, integration_tolerance, safety_threshold)
 %CONSTRUCT_PASSIVE_SAFETY_CONSTRAINT Constrains state at least safe time in safety time horizon to be safe
 %   Uses state transition matrix to approximate mapping changes in initial
 %   condition to state at worst safety
@@ -12,6 +12,7 @@ arguments
     T % [s] Safety horizon - how long to propagate into the future to check safety
     N_safe % Number of evenly spaced time nodes to look at safety
     integration_tolerance = 1e-10
+    safety_threshold = -1;
 end
 
 % Propagate for entire safety horizon
@@ -28,7 +29,7 @@ end
 [min_safety, min_safety_i] = max(safety);
 z_min_safety = z_k(min_safety_i);
 x_min_safety = x_prop(:, min_safety_i);
-%fprintf("min safety i: %g , min safety: %.3f\n", min_safety_i, min_safety)
+fprintf("min safety i: %g , min safety: %.3f\n", min_safety_i, min_safety)
 
 % Calculate STM from initial to least safe time
 A_min_safety = integrate_STM(x_0, f, A, [0, z_min_safety], tolerances);
@@ -36,7 +37,11 @@ A_min_safety = integrate_STM(x_0, f, A, [0, z_min_safety], tolerances);
 % Define (approximate) safety constraint using STM to map perturbed initial
 % to perturbed state at min safety
 % Approximate because only doing the worst timestep
-passive_safety_constraint = safety_constraint_linearized(z_min_safety, A_min_safety * x, x_min_safety);
+if min_safety > safety_threshold
+    passive_safety_constraint = safety_constraint_linearized(z_min_safety, real(A_min_safety) * x, x_min_safety);
+else
+    passive_safety_constraint = 0;
+end
 
 end
 

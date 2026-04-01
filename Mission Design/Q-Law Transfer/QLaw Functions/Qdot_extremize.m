@@ -26,11 +26,11 @@ end
 
 if Qdot_opt_params.strategy == "Best Start Points"
     % Just look at the min and max of start point array, no iteration
-
+    
     % Min w.r.t. L (min w.r.t. alpha, beta (Qdot))
     [Qdot_min, L_min_i] = min(Qdot_start);
     L_min = L_start(L_min_i);
-    
+        
     % Max w.r.t. L (min w.r.t. alpha, beta (Qdot))
     [Qdot_max, L_max_i] = max(Qdot_start);
     L_max = L_start(L_max_i);

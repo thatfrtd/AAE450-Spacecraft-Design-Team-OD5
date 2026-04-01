@@ -43,7 +43,7 @@ char_star = load_charecteristic_values_Earth();
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = 3000; % [s]
+spacecraft_params.Isp = 4100; % [s]
 spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
 spacecraft_params.F_max = 0.25; % [N]
@@ -166,7 +166,7 @@ function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_kep
     Q_params.eta_a_min = eta(1); % Minimum absolute efficiency for thrusting instead of coasting
     Q_params.eta_r_min = eta(1); % Minimum relative efficiency for thrusting instead of coasting
 
-    [Qtransfer_to_int] = QLaw_transfer(x_keplerian_0, x_keplerian_int, mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20));
+    [Qtransfer_to_int] = QLaw_transfer_fast(x_keplerian_0, x_keplerian_int, mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20));
     transfer_drift_1 = sum(J2_RAAN_drift(Qtransfer_to_int.x_keplerian_mass(1, :), Qtransfer_to_int.x_keplerian_mass(2, :), Qtransfer_to_int.x_keplerian_mass(3, :), mu, R, J_2_val) .* [diff(Qtransfer_to_int.t)', 0]);
 
     % Transfer to target orbit
@@ -175,7 +175,7 @@ function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_kep
     
     spacecraft_params.m_0 = spacecraft_params.m_0 - Qtransfer_to_int.delta_m;
         
-    [Qtransfer_to_targ] = QLaw_transfer(x_keplerian_int, [x_keplerian_targ(1:3); x_keplerian_0(4); x_keplerian_targ(5:6)], mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20));
+    [Qtransfer_to_targ] = QLaw_transfer_fast(x_keplerian_int, [x_keplerian_targ(1:3); x_keplerian_0(4); x_keplerian_targ(5:6)], mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20));
     transfer_drift_2 = sum(J2_RAAN_drift(Qtransfer_to_targ.x_keplerian_mass(1, :), Qtransfer_to_targ.x_keplerian_mass(2, :), Qtransfer_to_targ.x_keplerian_mass(3, :), mu, R, J_2_val) .* [diff(Qtransfer_to_targ.t)', 0]);
 
     % Calculate wait time for RAAN phasing accounting for drift during transfers

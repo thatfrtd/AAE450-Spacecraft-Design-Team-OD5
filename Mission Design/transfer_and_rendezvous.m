@@ -8,6 +8,8 @@
 % Most Recent Change: 25 February, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+m_debris = 3000; % [kg]
+
 R_E = 6378.137; % [km] Earth radius
 mu_E = 398600.4418; % [km3 / s2] Earth gravitational parameter
 J_2_val = 1.08262668e-3*0; % [] Earth J2
@@ -225,49 +227,63 @@ grid on
 axis equal
 
 %% Deorbit Trajectory
-% x_c_deorbit_ECI = propagate_conic(x_c_engage_ECI, ToF_rendezvous, mu_E);
-% x_d_deorbit = Hill_to_ECI(x_c_deorbit_ECI, optimal_rendezvous.x(1:7, end));
-% x0_d_keplerian_deorbit = [cartesian_to_keplerian(x_d_deorbit, [0; 0; 1], [1; 0; 0], mu_E); x_d_deorbit(7)];
-% 
-% % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-% r_a_c = R_E + 660; % [km] periapsis
-% r_p_c = R_E + 95; % [km] periapsis
-% e_c = (1 - r_p_c / r_a_c) / (1 + r_p_c / r_a_c); % [] eccentricity
-% a_c = r_p_c / (1 - e_c); % [km] semi-major axis
-% i_c = deg2rad(71); % [rad] inclination
-% Omega_c = deg2rad(0); % [rad] right ascension of ascending node
-% omega_c = deg2rad(0); % [rad] argument of periapsis
-% nu_c = deg2rad(0); % [rad] true anomaly at epoch
-% 
-% M_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_c, e_c), e_c);
-% x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
-% x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
-% 
-% %%
-% eta = 0.9;
-% clear Qtransfer
-% % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
-% Q_params = struct();
-% Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
-% Q_params.eta_a_min = eta; % Minimum absolute efficiency for thrusting instead of coasting
-% Q_params.eta_r_min = eta; % Minimum relative efficiency for thrusting instead of coasting
-% Q_params.m = 3;
-% Q_params.n = 4;
-% Q_params.r = 2;
-% Q_params.Theta_rot = 0;
-% 
-% spacecraft_params.m_0 = optimal_rendezvous.x(7, end);
-% [Qtransfer] = QLaw_transfer(x0_d_keplerian_deorbit(1:6), x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20), R_c = 1);
-% 
-% dVs = Qtransfer.delta_V;
-% ToFs = Qtransfer.dt / 60 / 60 / 24;
-% if Qtransfer.converged
-%     fprintf("Q-Law Transfer Converged! Took %.3f Days Using %.3f kg Propellant\n", Qtransfer.dt / 60 / 60 / 24, Qtransfer.delta_m)
-% else
-%     fprintf("Q-Law Transfer Failed with %s\n", Qtransfer.errors)
-% end
-% 
-% plot_Q_transfer(Qtransfer, x0_c_keplerian, x0_d_keplerian, char_star)
+x_c_deorbit_ECI = propagate_conic(x_c_engage_ECI, ToF_rendezvous, mu_E);
+x_d_deorbit = Hill_to_ECI(x_c_deorbit_ECI, optimal_rendezvous.x(1:7, end));
+x0_d_keplerian_deorbit = [cartesian_to_keplerian(x_d_deorbit, [0; 0; 1], [1; 0; 0], mu_E); x_d_deorbit(7)];
+
+% Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
+r_a_c = R_E + 660; % [km] periapsis
+r_p_c = R_E + 95; % [km] periapsis
+e_c = (1 - r_p_c / r_a_c) / (1 + r_p_c / r_a_c); % [] eccentricity
+a_c = r_p_c / (1 - e_c); % [km] semi-major axis
+i_c = deg2rad(71); % [rad] inclination
+Omega_c = deg2rad(0); % [rad] right ascension of ascending node
+omega_c = deg2rad(0); % [rad] argument of periapsis
+nu_c = deg2rad(0); % [rad] true anomaly at epoch
+
+M_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_c, e_c), e_c);
+x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
+x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
+
+%%
+eta = 0.6;
+clear Qtransfer
+% Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
+Q_params = struct();
+Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
+Q_params.eta_a_min = eta; % Minimum absolute efficiency for thrusting instead of coasting
+Q_params.eta_r_min = eta; % Minimum relative efficiency for thrusting instead of coasting
+Q_params.m = 3;
+Q_params.n = 4;
+Q_params.r = 2;
+Q_params.Theta_rot = 0;
+
+spacecraft_params.m_0 = optimal_rendezvous.x(7, end) + m_debris;
+[Qtransfer] = QLaw_transfer(x0_d_keplerian_deorbit(1:6), x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 150000, angular_step=deg2rad(20), R_c = 1);
+
+dVs = Qtransfer.delta_V;
+ToFs = Qtransfer.dt / 60 / 60 / 24;
+if Qtransfer.converged
+    fprintf("Q-Law Transfer Converged! Took %.3f Days Using %.3f kg Propellant\n", Qtransfer.dt / 60 / 60 / 24, Qtransfer.delta_m)
+else
+    fprintf("Q-Law Transfer Failed with %s\n", Qtransfer.errors)
+end
+
+plot_Q_transfer(Qtransfer, x0_c_keplerian, x0_d_keplerian, char_star)
+
+%% Plot Eclipsing Function
+eclipses = zeros(size(t_keplerian));
+for i = 1 : numel(t_keplerian)
+    eclipses(i) = check_eclipse(t_keplerian(i), x_keplerian_cartesian(1:3, i), R_E, AU, n_E);
+end
+
+figure
+plot(t_keplerian / 60 / 60 / 24, eclipses); hold on
+grid on
+xlabel("Time [days]")
+ylabel("Value")
+title("Eclipsing vs Time")
+subtitle("Positive means eclipsed")
 
 
 %% Helper Functions

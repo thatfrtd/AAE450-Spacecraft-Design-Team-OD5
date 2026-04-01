@@ -13,7 +13,7 @@
 R_E = 6378.1; % [km] Earth radius
 mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 
-thrust_during_eclipse = false;
+thrust_during_eclipse = true;
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = R_E + 660; % [km] semi-major axis
@@ -46,7 +46,7 @@ char_star = load_charecteristic_values_Earth();
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
 spacecraft_params.Isp = 4100; % [s]
-spacecraft_params.m_0 = 1500; % [kg]
+spacecraft_params.m_0 = 4500; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
 spacecraft_params.F_max = 0.25; % [N]
 
@@ -69,7 +69,7 @@ Qdot_opt_params.strategy = "Best Start Points";
 Qdot_opt_params.plot_minQdot_vs_L = false;
 
 N_i = 1;
-eta = 0.5; %linspace(0, 0.9, N_i);
+eta = linspace(0.5, 0.9, N_i);
 clear Qtransfer
 for i = 1 : N_i
     % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
@@ -82,7 +82,9 @@ for i = 1 : N_i
     Q_params.r = 2;
     Q_params.Theta_rot = 0;
 
-    [Qtransfer(i)] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20), thrust_during_eclipse = thrust_during_eclipse);
+    tic;
+    [Qtransfer(i)] = QLaw_transfer_fast(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 150000, angular_step=deg2rad(20), thrust_during_eclipse = thrust_during_eclipse, integration_tolerance=1e-10);
+    opt_time = toc
 end
 
 dVs = zeros([N_i, 1]);
@@ -140,7 +142,7 @@ zlabel("Z [km]")
 
 %% Plot Orbit Error and Control Histories
 figure
-plot_orbit_transfer_histories(Qtransfer.t / 60, x_keplerian_c' ./ [R_E, ones([1, 5])], Qtransfer.x_keplerian_mass(1:6, :)' ./ [R_E, ones([1, 5])], interp1(1:numel(Qtransfer.not_coast), Qtransfer.u', linspace(1, numel(Qtransfer.not_coast), numel(Qtransfer.t)), 'nearest'));
+plot_orbit_transfer_histories(Qtransfer.t / 60, x_keplerian_c' ./ [R_E, ones([1, 5])], Qtransfer.x_keplerian_mass(1:6, :)' ./ [R_E, ones([1, 5])], Qtransfer.u_cont');
 sgtitle("Q-Law Orbit Transfer with Periapsis Constraint Results")
 
 %% Plot Q Function

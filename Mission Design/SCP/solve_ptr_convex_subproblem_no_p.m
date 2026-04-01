@@ -13,7 +13,7 @@ end
 cvx_begin quiet
     variable X(prob.n.x, prob.N)
     variable U(prob.n.u, prob.Nu)
-    variable eta(1, prob.Nu)
+    variable eta(1, prob.N)
     variable V(prob.n.x, prob.N - 1)
     variable v_prime(n_ncvx_k)
     variable v_0(prob.n.x, 1)
@@ -43,21 +43,33 @@ cvx_begin quiet
         % Constraints
         % Constraints
         n_ncvx_i = 1;
-        for k = 1:prob.Nu
+        for k = 1:prob.N
             % Convex Constraints
             for cc = 1:prob.n.cvx
                 cc_k = prob.convex_constraints{cc}{1};
                 if ismember(k, cc_k)
+                    if k <= prob.Nu
+                        U_k = U(:, k);
+                    else
+                        U_k = zeros([prob.n.u, 1]);
+                    end
                     cvx_constraint_func = prob.convex_constraints{cc}{2};
-                    cvx_constraint_func(t_k(k), prob.unscale_x(X(:, k)), prob.unscale_u(U(:, k)), 0) <= 0;
+                    cvx_constraint_func(t_k(k), prob.unscale_x(X(:, k)), prob.unscale_u(U_k), 0) <= 0;
                 end
             end
             % Nonconvex Constraints
             for nc = 1:prob.n.ncvx
                 nc_k = prob.nonconvex_constraints{nc}{1};
                 if ismember(k, nc_k)
+                    if k <= prob.Nu
+                        U_k = U(:, k);
+                        u_ref_adjusted = u_ref;
+                    else
+                        U_k = zeros([prob.n.u, 1]);
+                        u_ref_adjusted = [u_ref, zeros([prob.n.u, 1])];
+                    end
                     ncvx_constraint_func = prob.nonconvex_constraints{nc}{2};
-                    ncvx_constraint_func(t_k(k), prob.unscale_x(X(:, k)), prob.unscale_u(U(:, k)), 0, prob.unscale_x(x_ref), prob.unscale_u(u_ref), 0, k) ...
+                    ncvx_constraint_func(t_k(k), prob.unscale_x(X(:, k)), prob.unscale_u(U_k), 0, prob.unscale_x(x_ref), prob.unscale_u(u_ref_adjusted), 0, k) ...
                         - v_prime(n_ncvx_i) <= 0;
                     n_ncvx_i = n_ncvx_i + 1;
                 end
@@ -67,11 +79,11 @@ cvx_begin quiet
 
         % Boundary Conditions
         prob.initial_bc(prob.unscale_x(X(:, 1)), 0) + v_0 == 0;
-        prob.terminal_bc(prob.unscale_x(X(:, prob.N)), 0) + v_N == 0;
+        prob.terminal_bc(prob.unscale_x(X(:, prob.N)), 0, x_ref(:, end), 0) + v_N == 0;
 
         % Trust Region Constraints
         %ptr_ops.alpha_x * norms(X(:, 1:prob.Nu) - x_ref(:, 1:prob.Nu), ptr_ops.q, 1) + ptr_ops.alpha_u * norms(U - u_ref, ptr_ops.q, 1) <= eta;
-        ptr_ops.alpha_x * sum(sum_square(X(:, 1:prob.Nu) - x_ref(:, 1:prob.Nu))) + sum(ptr_ops.alpha_u * sum_square(U - u_ref)) <= eta;
+        ptr_ops.alpha_x * sum_square(X - x_ref) + [ptr_ops.alpha_u * sum_square(U - u_ref), zeros([1, prob.N - prob.Nu])] <= eta;
 cvx_end
 
 x_sol = X;
