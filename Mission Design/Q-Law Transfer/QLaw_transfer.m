@@ -56,14 +56,17 @@ Q_stop = QLaw_stopping_condition(options.R_c, Q_params.W_oe);
 tolerances = odeset(RelTol=options.integration_tolerance, AbsTol=options.integration_tolerance, Stats = "off");
 x_me_mass_nd = [x_me_d_nd; m_0_nd]; % [p, f, g, h, k, L, mass]
 u_nd = zeros([3, 1]); % [F_T, F_R, F_N]
-alpha = 0;
-beta = 0;
+alpha = [];
+beta = [];
 t_nd = 0;
 u_cont_nd = zeros([3, 1]);
 
 % Simulate
 iter = 1;
-Q = 0;
+Q = [];
+P = [];
+eclipsed = [];
+not_coast = [];
 while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass_nd(7, end) > m_dry_nd
     % Create slow QLaw orbital elements (a, f, g, h, k)
     e = sqrt(x_me_mass_nd(2, end) ^ 2 + x_me_mass_nd(3, end) ^ 2);
@@ -74,8 +77,8 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
     L = x_me_mass_nd(6, end);
 
     % Calculate control
-    [D, Q(iter), Qdot, P(iter), partial_Q_partial_oe] = D_Q_Qdot_P_partial_Q_partial_oe_func(oe, L, oe_t, Q_params.W_oe, Q_params.m, Q_params.n, Q_params.r, F_max_nd, penalty_params.W_p, r_p_min_nd, penalty_params.k);
-    [u_nd(:, iter), alpha(iter), beta(iter)] = QLaw_thrust_mapping(D, F_max_nd);
+    [D, Q(end + 1), Qdot, P(end + 1), partial_Q_partial_oe] = D_Q_Qdot_P_partial_Q_partial_oe_func(oe, L, oe_t, Q_params.W_oe, Q_params.m, Q_params.n, Q_params.r, F_max_nd, penalty_params.W_p, r_p_min_nd, penalty_params.k);
+    [u_nd(:, iter), alpha(end + 1), beta(end + 1)] = QLaw_thrust_mapping(D, F_max_nd);
 
     % Determine if thrusting should happen based on heuristic
     [Qdot_min, Qdot_max] = Qdot_extremize(oe, partial_Q_partial_oe, Qdot_opt_params, L, Qdot);
@@ -90,13 +93,13 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
         x_cartesian = x_me_nd_to_cartesian(x_me_mass_nd(1:6, end), nd_scalar, Q_params.Theta_rot, mu);
         rvec = x_cartesian(1:3);
 
-        [~, eclipsed(iter)] = check_eclipse(t_nd(end) * char_star.t, rvec, R_E, AU, n_E); % Need to properly get sun position and Earth tilt
+        [~, eclipsed(end + 1)] = check_eclipse(t_nd(end) * char_star.t, rvec, R_E, AU, n_E); % Need to properly get sun position and Earth tilt
 
         eclipse_no_thrust = eclipsed(iter);
     else % Thrust during eclispe
         eclipse_no_thrust = false;
     end
-    not_coast(iter) = (eta_a >= Q_params.eta_a_min ...
+    not_coast(end + 1) = (eta_a >= Q_params.eta_a_min ...
               && eta_r >= Q_params.eta_r_min) ...
               && ~eclipse_no_thrust;
     u_nd(:, iter) = u_nd(:, iter) * not_coast(iter);

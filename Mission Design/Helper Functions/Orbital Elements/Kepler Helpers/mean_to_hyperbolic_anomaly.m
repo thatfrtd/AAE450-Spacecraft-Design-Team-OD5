@@ -2,6 +2,7 @@ function H = mean_to_hyperbolic_anomaly(M,e)
     tol = 1e-12;
 
     % Solve Kepler's equation M = e sinh(H) - H
+    H = zeros(size(M));
     H(1:numel(M)) = M;
     for index = 1:numel(M)
         % Initial guess

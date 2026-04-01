@@ -15,8 +15,8 @@ J_2_val = 1.0826e-3; % [] Earth J2
 m = 800; % [kg]
 
 % Initial conditions for s/c in Earth orbit (in Earth Centered Inertial (ECI) frame)
-r_a_0 = R_E + 894; % [km] periapsis
-r_p_0 = R_E + 893.9; % [km] periapsis
+r_a_0 = R_E + 600; % [km] periapsis
+r_p_0 = R_E + 120.9; % [km] periapsis
 e_0 = (1 - r_p_0 / r_a_0) / (1 + r_p_0 / r_a_0); % [] eccentricity
 a_0 = r_p_0 / (1 - e_0); % [km] semi-major axis
 i_0 = deg2rad(99); % [rad] inclination
@@ -29,7 +29,7 @@ x0_keplerian = [a_0; e_0; i_0; Omega_0; omega_0; M_0];
 x0_cartesian = keplerian_to_cartesian(x0_keplerian, nu_0, mu_E);
 
 % Propagation Time 
-orbits = 40;
+orbits = 5;
 tspan = linspace(0, orbits * period(a_0, mu_E), 1e5);
 t_orbits = linspace(0, orbits, numel(tspan));
 t_hr = tspan / 60 / 60;

@@ -13,7 +13,7 @@ end
 cvx_begin quiet
     variable X(prob.n.x, prob.N)
     variable U(prob.n.u, prob.Nu)
-    variable eta(1, prob.Nu)
+    variable eta(1, prob.N)
     variable V(prob.n.x, prob.N - 1)
     variable v_prime(n_ncvx_k)
     variable v_0(prob.n.x, 1)
@@ -79,11 +79,11 @@ cvx_begin quiet
 
         % Boundary Conditions
         prob.initial_bc(prob.unscale_x(X(:, 1)), 0) + v_0 == 0;
-        prob.terminal_bc(prob.unscale_x(X(:, prob.N)), 0) + v_N == 0;
+        prob.terminal_bc(prob.unscale_x(X(:, prob.N)), 0, x_ref(:, end), 0) + v_N == 0;
 
         % Trust Region Constraints
         %ptr_ops.alpha_x * norms(X(:, 1:prob.Nu) - x_ref(:, 1:prob.Nu), ptr_ops.q, 1) + ptr_ops.alpha_u * norms(U - u_ref, ptr_ops.q, 1) <= eta;
-        ptr_ops.alpha_x * sum(sum_square(X(:, 1:prob.Nu) - x_ref(:, 1:prob.Nu))) + sum(ptr_ops.alpha_u * sum_square(U - u_ref)) <= eta;
+        ptr_ops.alpha_x * sum_square(X - x_ref) + [ptr_ops.alpha_u * sum_square(U - u_ref), zeros([1, prob.N - prob.Nu])] <= eta;
 cvx_end
 
 x_sol = X;
