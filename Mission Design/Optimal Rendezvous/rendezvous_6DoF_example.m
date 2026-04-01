@@ -42,6 +42,8 @@ spacecraft_params.R_C_S = calculate_RCS_allocation_matrix(spacecraft_params.thru
 spacecraft_params.tau_max = 15; % [N m] Max reaction wheel torque
 F_max_nd = spacecraft_params.F_max; % F_max in N, char_star.F in kN
 tau_max_nd = spacecraft_params.tau_max; 
+tau_max_RCS = 15; % [N m] Max allowable RCS torque (could make soft constraint lambda_RCS_tau * max(RCS_torque - tau_max_RCS, 0) )
+max_angvel = deg2rad(5);
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = 6728; % [km] semi-major axis
@@ -52,13 +54,14 @@ omega_c = deg2rad(0); % [rad] argument of periapsis
 nu0_c = deg2rad(0); % [rad] true anomaly at epoch
 M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
+n_c = sqrt(char_star.mu / a_c ^ 3);
 
 % Rendezvous time
-tf = 100; % [s] (nondimensionalized)
+tf = 500; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
-r_0 = [0.5; -0.5; 0.2]/10; % [km]
-v_0 = [0.001; 1e-3; 0]/10; % [km / s]
+r_0 = [0.05; -0.05; 0.02]; % [km]
+v_0 = [0.001; 1e-3; 0]; % [km / s]
 theta_0 = [deg2rad(0); deg2rad(45); deg2rad(45)]; % [rad]
 R_0 = angle2dcm(theta_0(1), theta_0(2), theta_0(3));
 q_0 = qExp(RLog(R_0));
@@ -68,7 +71,7 @@ x_0 = [r_0; v_0; q_0; w_0; spacecraft_params.m_0] ./ nd_scalar;
 % Terminal conditions
 r_f = [0e-6; 0.2; 0e-6]/10; % [km]
 v_f = [0e-4; 0; 0]; % [km / s]
-theta_f = deg2rad([0; 0; 0]); % [rad]
+theta_f = deg2rad([0; 0; -90]); % [rad]
 R_f = angle2dcm(theta_f(1), theta_f(2), theta_f(3));
 q_f = qExp(RLog(R_f));
 w_f = deg2rad([0; 0; 0]); % [rad / s]
@@ -93,9 +96,9 @@ nu = 16; % Number of controls (T_1_mag, T_2, tau_rw)
 np = 0; % Number of parameters (tf, v_0, etc)
 
 % PTR algorithm parameters
-ptr_ops.iter_max = 20;
+ptr_ops.iter_max = 15;
 ptr_ops.iter_min = 1;
-ptr_ops.Delta_min = 5e-6;
+ptr_ops.Delta_min = 2e-3;
 ptr_ops.w_vc = 5e5;
 ptr_ops.w_tr = ones(1, Nu) * 5e-4;
 ptr_ops.w_tr_p = 0;
@@ -121,22 +124,23 @@ f = @(t, x, u, p) relative_orbit_6DoF_twothruster_EoM(t, x, u, p, [x_keplerian_c
 
 %% Specify Constraints
 mass_constraint = {1:N, @(t, x, u, p) spacecraft_params.m_dry / char_star.m - x(14)};
-%angular_velocity_constraint = {1:N, @(t, x, u, p) norm(x(11:13), Inf) - norm([w_0; deg2rad(20)], Inf)};
-% sensor seeing target - convex??
-state_convex_constraints = {mass_constraint};
+angular_velocity_constraint = {1:N, @(t, x, u, p) norm(x(11:13)) - max_angvel};
+final_position_constraint = {N, @(t, x, u, p) norm(x(1:3)) - norm(r_f)};
+state_convex_constraints = {mass_constraint, angular_velocity_constraint, final_position_constraint};
 
 % Convex control constraints
-max_thrust_constraint_1 = {1:N, @(t, x, u, p) u(1) - F_max_nd(1)};
-min_thrust_constraint_1 = {1:N, @(t, x, u, p) 0 - u(1)};
-max_RCS_thrust_constraint = {1:N, @(t, x, u, p) norm(u(2:13), Inf) - F_max_nd(2)};
-max_reaction_wheel_torque_constraint = {1:N, @(t, x, u, p) norm(u(14:16), Inf) - tau_max_nd};
+max_thrust_constraint_1 = {1:Nu, @(t, x, u, p) u(1) - F_max_nd(1)};
+min_thrust_constraint_1 = {1:Nu, @(t, x, u, p) 0 - u(1)};
+max_RCS_thrust_constraint = {1:Nu, @(t, x, u, p) norm(u(2:13), Inf) - F_max_nd(2)};
+max_RCS_torque_constraint = {1:Nu, @(t, x, u, p) norm(spacecraft_params.R_C_S * u(2:13), Inf) - tau_max_RCS};
+max_reaction_wheel_torque_constraint = {1:Nu, @(t, x, u, p) norm(u(14:16), Inf) - tau_max_nd};
 control_convex_constraints = {max_thrust_constraint_1, min_thrust_constraint_1, max_RCS_thrust_constraint, max_reaction_wheel_torque_constraint};
 
 % Combine convex constraints
 convex_constraints = [state_convex_constraints, control_convex_constraints];
 
 % Nonconvex state constraints
-keep_out_distance = 0.02; % [km]
+keep_out_distance = 0.015; % [km]
 keep_out_sphere_constraint = @(t, x, u, p) keep_out_distance ^ 2 - (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2);
 keep_out_sphere_constraint_linearized = {1:N, linearize_constraint(keep_out_sphere_constraint, nx, nu, np, "x", 1:3)};
 state_nonconvex_constraints = {keep_out_sphere_constraint_linearized};
@@ -150,7 +154,10 @@ nonconvex_constraints = [state_nonconvex_constraints, control_nonconvex_constrai
 
 %% Boundary conditions
 initial_bc = @(x, p) [x - x_0];
-terminal_bc = @(x, p, x_ref, p_ref) [x(1:13) - x_f(1:13); 0]; % Don't constrain final mass
+%terminal_bc = @(x, p, x_ref, p_ref) [x(1:13) - x_f(1:13); 0]; % Don't constrain final mass
+terminal_bc = @(x, p, x_ref, p_ref) [4 * x(1) * nd_scalar(1) + 2 / n_c * x(5) * nd_scalar(5); 
+                                         x(2) * nd_scalar(2) - 2 / n_c * x(4) * nd_scalar(4); 
+                                         x(7:13) - x_f(7:13); x(3); x(6); 0; 0; 0]; % Don't constrain final mass
 
 %% Specify Objective
 objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(2:13, :), 1)) * delta_t / (spacecraft_params.Isp(2) * g_0) ...
@@ -383,7 +390,7 @@ ylim(spacecraft_params.F_max(2) * [-1; 1])
 sgtitle("Reaction Control System Thrusters Control History")
 
 %% Save to CSV for Blender Animation
-output_array = [t_cont_sol(2:end)', x_cont_sol(:, 2:end)', u_cont_sol'];
+output_array = [t_cont_sol(1:(end-1))', x_cont_sol(:, 1:(end-1))', u_cont_sol'];
 state_names = ["r_Hill_1", "r_Hill_2", "r_Hill_3", ...
                "v_Hill_1", "v_Hill_2", "v_Hill_3", ...
                "q_1", "q_2", "q_3", "q_4", ...

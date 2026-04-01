@@ -42,9 +42,9 @@ x0_d_cartesian = keplerian_to_cartesian(x0_d_keplerian, nu_d, mu_E);
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
 spacecraft_params.Isp = 3000; % [s]
-spacecraft_params.m_0 = 800; % [kg]
+spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = 1; % [N]
+spacecraft_params.F_max = 0.25; % [N]
 
 % Min Periapsis soft constraint
 penalty_params = struct();
@@ -69,7 +69,7 @@ Theta_rot_bounds = [0, 2 * pi]; % [0, 2pi)
 var_bounds = [W_oe_bounds; eta_a_min_bounds; eta_r_min_bounds; m_bounds; n_bounds; r_bounds; Theta_rot_bounds];
 
 % Set up MultiObj
-MultiObj.fun = @(x) batch_QLaw(x(:, 1:11), repmat(x0_d_keplerian, 1, size(x, 1)), repmat(x0_c_keplerian, 1, size(x, 1)), spacecraft_params, penalty_params, Qdot_opt_params, iter_max = 10000);
+MultiObj.fun = @(x) batch_QLaw(x(:, 1:11), repmat(x0_d_keplerian, 1, size(x, 1)), repmat(x0_c_keplerian, 1, size(x, 1)), spacecraft_params, penalty_params, Qdot_opt_params, iter_max = 100000);
 MultiObj.nVar = size(var_bounds, 1);
 MultiObj.var_min = var_bounds(:, 1)';
 MultiObj.var_max = var_bounds(:, 2)';
