@@ -27,7 +27,7 @@ parfor i = 1 : N_i
     Q_params.r = basic_vars(i, 10);
     Q_params.Theta_rot = basic_vars(i, 11);
 
-    Qtransfer = QLaw_transfer(x0_d_keplerian(:, i), x0_c_keplerian(:, i), options.mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = true, iter_max = options.iter_max, angular_step = options.angular_step);
+    Qtransfer = QLaw_transfer_fast(x0_d_keplerian(:, i), x0_c_keplerian(:, i), options.mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = true, iter_max = options.iter_max, angular_step = options.angular_step);
     
     if Qtransfer.converged
         dV_ToF(i, :) = [Qtransfer.delta_V, Qtransfer.dt / 60 / 60 /24];

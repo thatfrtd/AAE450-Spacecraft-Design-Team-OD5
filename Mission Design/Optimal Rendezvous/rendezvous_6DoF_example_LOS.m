@@ -14,6 +14,7 @@
 char_star = load_charecteristic_values_Earth();
 nd_scalar = [ones([13, 1]); char_star.m];
 g_0 = 9.81; % [km / s2]
+mu_E = char_star.mu;
 
 % Estimate spacecraft moment of inertia
 cylinder_MoI = @(m, r, h) [1 / 2 * m * r ^ 2; ...
@@ -54,6 +55,7 @@ omega_c = deg2rad(0); % [rad] argument of periapsis
 nu0_c = deg2rad(0); % [rad] true anomaly at epoch
 M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
+n_c = sqrt(mu_E / a_c ^ 3);
 
 % Rendezvous time
 tf = 800; % [s] (nondimensionalized)

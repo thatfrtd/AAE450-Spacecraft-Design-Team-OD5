@@ -14,10 +14,10 @@ mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = R_E + 1000; % [km] semi-major axis
+a_c = R_E + 800; % [km] semi-major axis
 e_c = 1e-3; % [] eccentricity
-i_c = deg2rad(71); % [rad] inclination
-Omega_c = deg2rad(0); % [rad] right ascension of ascending node
+i_c = deg2rad(98); % [rad] inclination
+Omega_c = deg2rad(10); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu_c = deg2rad(0); % [rad] true anomaly at epoch
 
@@ -26,12 +26,12 @@ x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
-r_a_d = R_E + 2200; % [km] periapsis
-r_p_d = R_E + 2000; % [km] periapsis
+r_a_d = R_E + 800; % [km] periapsis
+r_p_d = R_E + 100; % [km] periapsis
 e_d = (1 - r_p_d / r_a_d) / (1 + r_p_d / r_a_d); % [] eccentricity
 a_d = r_p_d / (1 - e_d); % [km] semi-major axis
-i_d = deg2rad(65); % [rad] inclination
-Omega_d = deg2rad(0); % [rad] right ascension of ascending node
+i_d = deg2rad(98); % [rad] inclination
+Omega_d = deg2rad(10); % [rad] right ascension of ascending node
 omega_d = deg2rad(0); % [rad] argument of periapsis
 nu_d = deg2rad(0); % [rad] true anomaly at epoch
 
@@ -41,8 +41,8 @@ x0_d_cartesian = keplerian_to_cartesian(x0_d_keplerian, nu_d, mu_E);
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = 3000; % [s]
-spacecraft_params.m_0 = 1500; % [kg]
+spacecraft_params.Isp = 4100; % [s]
+spacecraft_params.m_0 = 2000; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
 spacecraft_params.F_max = 0.25; % [N]
 
@@ -50,7 +50,7 @@ spacecraft_params.F_max = 0.25; % [N]
 penalty_params = struct();
 penalty_params.k = 100; % Smoothing parameter
 penalty_params.W_p = 1; % Penalty weight
-penalty_params.r_p_min = R_E + 400; % [km] min periapsis
+penalty_params.r_p_min = R_E + 0; % [km] min periapsis
 
 % Parameters for the optimization needed to determine efficiencies
 Qdot_opt_params = struct();
@@ -60,8 +60,8 @@ Qdot_opt_params.plot_minQdot_vs_L = false;
 
 % Optimization Variables
 W_oe_bounds = repmat([1, 5], 5, 1); % [1, 10] ? Element scaling
-eta_a_min_bounds = [0, 0.95]; % [0, 1) Minimum absolute efficiency
-eta_r_min_bounds = [0, 0.95]; % [0, 1) Minimum relative efficiency
+eta_a_min_bounds = [0.8, 0.95]; % [0, 1) Minimum absolute efficiency
+eta_r_min_bounds = [0.8, 0.95]; % [0, 1) Minimum relative efficiency
 m_bounds = [2, 5]; % (1, 5) ? S_a scaling parameter
 n_bounds = [2, 5]; % (1, 5) ? S_a scaling parameter
 r_bounds = [2, 5]; % (1, 5) ? S_a scaling parameter

@@ -9,18 +9,6 @@
 % Most Recent Change: 15 March, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% Load Dataset Inputs
-transfer_dataset_inputs = load("Multi Debris Mission Optimization\transfer_dataset_inputs.mat").transfer_dataset_inputs;
-
-%% Create Pool
-p = gcp("nocreate"); % If no pool, do not create new one.
-if isempty(p)
-    p = parpool(8);
-end
-
-%% Initialize Run
-run_name = sprintf("transfer_%g", transfer_number);
-
 R_E = 6378.137; % [km] Earth radius
 mu_E = 398600.4418; % [km3 / s2] Earth gravitational parameter
 J_2_val = 1.08262668e-3; % [] Earth J2
@@ -54,7 +42,11 @@ x0_d_cartesian = keplerian_to_cartesian(x0_d_keplerian, nu_d, mu_E);
 char_star = load_charecteristic_values_Earth();
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
-spacecraft_params = transfer_dataset_inputs.spacecraft_params;
+spacecraft_params = struct();
+spacecraft_params.Isp = 4100; % [s]
+spacecraft_params.m_0 = 1500; % [kg]
+spacecraft_params.m_dry = 600; % [kg]
+spacecraft_params.F_max = 0.25; % [N]
 
 % Min Periapsis soft constraint
 penalty_params = struct();
@@ -99,6 +91,16 @@ MultiObj.var_min = var_bounds(:, 1)';
 MultiObj.var_max = var_bounds(:, 2)';
 MultiObj.obj_names = ["ToF [days]", "Delta V [km / s]"];
 
+%% Test
+x_test = var_bounds(:, 1)';
+MultiObj.fun(x_test)
+
+%% Create Pool
+p = gcp("nocreate"); % If no pool, do not create new one.
+if isempty(p)
+    p = parpool(8);
+end
+
 %% Optimize Pareto front
 options = optimoptions('paretosearch', 'ParetoSetSize', 60, 'UseParallel',true, 'MaxTime', 1200,'Display','iter',...
     'PlotFcn',{'psplotparetof','psplotparetox'}); % Could use custom plotting function that shows orbits
@@ -108,14 +110,6 @@ ub = MultiObj.var_max;
 rng shuffle % For reproducibility
 min_r_p = 400; % [km] minimum allowable periapsis (for drag reasons)
 [x,fval,exitflag,output] = paretosearch(fun,MultiObj.nVar,[],[],[],[],lb,ub,@(x) min_periapsis_constraint(x(:, 3) * R_E, x(:, 4), min_r_p, R_E),options);
-
-%% Save results
-pareto_opt = struct();
-pareto_opt.x = x;
-pareto_opt.fval = fval;
-pareto_opt.exitflag = exitflag;
-pareto_opt.output = output;
-save(run_name, "pareto_opt");
 
 %% Analyze Results
 figure

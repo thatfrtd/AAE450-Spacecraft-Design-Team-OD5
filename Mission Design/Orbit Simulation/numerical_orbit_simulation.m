@@ -12,7 +12,7 @@ mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 J_2_val = 1.0826e-3; % [] Earth J2
 
 % Spacecraft parameters
-m = 800; % [kg]
+m = 4000; % [kg]
 
 % Initial conditions for s/c in Earth orbit (in Earth Centered Inertial (ECI) frame)
 r_a_0 = R_E + 600; % [km] periapsis
@@ -29,7 +29,7 @@ x0_keplerian = [a_0; e_0; i_0; Omega_0; omega_0; M_0];
 x0_cartesian = keplerian_to_cartesian(x0_keplerian, nu_0, mu_E);
 
 % Propagation Time 
-orbits = 5;
+orbits = 10;
 tspan = linspace(0, orbits * period(a_0, mu_E), 1e5);
 t_orbits = linspace(0, orbits, numel(tspan));
 t_hr = tspan / 60 / 60;
