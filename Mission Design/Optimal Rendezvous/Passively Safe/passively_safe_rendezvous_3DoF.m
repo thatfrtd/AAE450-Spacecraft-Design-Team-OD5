@@ -41,22 +41,31 @@ T = 2 * P_c / char_star.t; % [s] Safety horizon length
 N_safe = 200; 
 
 % Rendezvous time
-tf = 10000 / char_star.t; % [s] (nondimensionalized)
+tf = 800 / char_star.t; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
 % Initial conditions for spacecraft - specify orbit instead?
-r_0 = [0.05; -0.05; 0.05]; % [km]
-v_0 = [-0.001; -1e-3; 0]; % [km / s]
+b = 35 * 1e-3;
+phi = 0.95;
+psi = 1.31;
+c = 10*1e-3;
+nu = 5.4;
+r_0 = [b * sin(nu + phi); 2 * b * cos(nu + phi); c * sin(nu + psi)];
+R_E = 6378.137; % [km] Earth radius
+mu_E = 398600.4418; % [km3 / s2] Earth gravitational parameter
+v_0 = [b * n_c * cos(nu); -2 * b * n_c * sin(nu); c * n_c * cos(psi) * ones(size(nu))];
+% r_0 = [0.05; -0.05; 0.05]; % [km]
+% v_0 = [-0.001; -1e-3; 0]; % [km / s]
 x_0 = [r_0; v_0; spacecraft_params.m_0] ./ nd_scalar;
 
 % Terminal conditions
-r_f = [0; 0.05; 1e-5]; % [km]
+r_f = [0; 0.02; 1e-5]; % [km]
 v_f = [0e-3; 0; 0]; % [km / s]
 x_f = [r_f; v_f] ./ nd_scalar(1:6);
 b_final_orbit = 0.02; % [km]
 
 %% Initialize
-N = 50;
+N = 100;
 t_k_actual = linspace(0, tf, N);
 tspan = [0, tf];
 t_k = linspace(tspan(1), tspan(2), N);
@@ -112,7 +121,7 @@ control_convex_constraints = {max_thrust_constraint_1, max_thrust_constraint_2};
 convex_constraints = [state_convex_constraints, control_convex_constraints];
 
 % Nonconvex state constraints
-keep_out_distance = 0.01; % [km]
+keep_out_distance = 0.015; % [km]
 keep_out_sphere_constraint = @(t, x, u, p) (keep_out_distance ^ 2 - nd_scalar(1) ^ 2 * (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2)) * 1e3;
 keep_out_sphere_constraint_linearized_func = linearize_constraint(keep_out_sphere_constraint, nx, nu, np, "x", 1:3);
 keep_out_sphere_constraint_linearized = {1:N, keep_out_sphere_constraint_linearized_func};
@@ -138,7 +147,7 @@ terminal_bc = @(x, p, x_ref, p_ref) [4 * x(1) * nd_scalar(1) + 2 / n_c * x(5) * 
 %terminal_bc = @(x, p, x_ref, p_ref) [zeros([3, 1]); x(4:6) - x_f(4:6); 0]; % Don't constrain final mass
 
 %% Specify Objective
-objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(1:3, :))) * delta_t * char_star.F / (spacecraft_params.Isp(1) * g_0) * 1000 ...
+objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(1:3, :))) * delta_t * char_star.F / (spacecraft_params.Isp(1) * g_0) * 1000000 ...
                                                    + sum(norms(u(4:6, :))) * delta_t * char_star.F / (spacecraft_params.Isp(2) * g_0) * 1000;
 
 %% Create Guess
@@ -205,8 +214,8 @@ x_safety_ck = x_safety_ck .* nd_scalar;
 %% Plot Trajectory
 figure;
 fig = scatter3(0, 0, 0, 60, "blue", "filled", "diamond"); hold on
-lim = max(abs(x(1:3, :)), [], "all") * 1;
-for k = (N):(N - 0)
+lim = max(abs(x(1:3, :)), [], "all") * 2;
+for k = (N - N + 1):(N - 0)
     if k == 1
         handvis = "on";
     else
