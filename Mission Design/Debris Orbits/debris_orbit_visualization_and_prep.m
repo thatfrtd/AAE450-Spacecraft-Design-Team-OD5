@@ -13,7 +13,7 @@ mission.StartDate = datetime(2026, 1, 3, 12, 0, 0);
 duration_yr = 5;
 mission.Duration  = years(duration_yr);
 mission.StopDate = mission.StartDate + mission.Duration;
-sampleTime = 6000;
+sampleTime = 60000;
 sc = satelliteScenario(mission.StartDate, mission.StopDate, sampleTime);
 
 % Load Debris
@@ -37,7 +37,7 @@ end
 
 % Visualize
 %v = satelliteScenarioViewer(sc);
-% play(sc)
+%play(sc)
 
 %%
 char_star = load_charecteristic_values_Earth;
@@ -133,7 +133,8 @@ parfor i = 1 : N_debris
     spacecraft_params_i = spacecraft_params;
     spacecraft_params_i.m_0 = spacecraft_params.m_0 + debris_mass(i);
     [Qtransfer_deorbit(i)] = QLaw_transfer_fast(x_keplerian_array(:, 1, i), x_deorbit_keplerian, mu_E, spacecraft_params_i, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 1500000, angular_step=deg2rad(2), thrust_during_eclipse = true, integration_tolerance=default_tolerance);
-      
+
+    deorbit_initial_drifts(i) = sum(J2_RAAN_drift(Qtransfer_deorbit(i).x_keplerian_mass(1, 1), Qtransfer_deorbit(i).x_keplerian_mass(2, 1), Qtransfer_deorbit(i).x_keplerian_mass(3, 1), mu_E, R_E) .* [diff(Qtransfer_deorbit(i).t)', 0]);
     deorbit_transfer_drifts(i) = sum(J2_RAAN_drift(Qtransfer_deorbit(i).x_keplerian_mass(1, :), Qtransfer_deorbit(i).x_keplerian_mass(2, :), Qtransfer_deorbit(i).x_keplerian_mass(3, :), mu_E, R_E) .* [diff(Qtransfer_deorbit(i).t)', 0]);
     dVs_deorbit(i) = Qtransfer_deorbit(i).delta_V;
     ToFs_deorbit(i) = Qtransfer_deorbit(i).dt;

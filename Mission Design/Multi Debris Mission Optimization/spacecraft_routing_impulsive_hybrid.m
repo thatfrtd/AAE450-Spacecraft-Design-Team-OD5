@@ -10,8 +10,6 @@
 % to optimize spacecraft routing
 % Hybrid because fmincon is used to improve solution returned by GA
 %
-% Right now it uses impulsive Lambert transfers to make sure the procedure
-% works.
 % Most Recent Change: 15 March, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % 1) Load all Paretos
@@ -241,6 +239,35 @@ function [dVs] = interp_paretos(IDs, ToFs, paretos)
                 %     fprintf("Error: Not unique ToFs...\n")
                 % end
                 ToF_bounded = max(min(ToFs(s, t), paretos.bounds(2, IDs(s, t), IDs(s, t + 1))), paretos.bounds(1, IDs(s, t), IDs(s, t + 1)));
+                dVs(s, t) = interp1(paretos.ToF(:, IDs(s, t), IDs(s, t + 1)), paretos.dV(:, IDs(s, t), IDs(s, t + 1)), ToF_bounded,"linear");
+            else
+                break;
+            end
+        end
+    end
+end
+
+function [dVs] = interp_paretos_time_varying(IDs, ToFs, paretos)
+    % Need to flatten vars to make interp1 happy....
+    % Use IDs into paretos...
+    % IDs has shape [N_ships, N_debris_max]
+    % ToFs has shape [N_ships, N_debris_max - 1]
+    % dVs has shape [N_ships, N_debris_max - 1]
+    % Pareto has .ToF and .dV like {N_debris, N_debris}[N_pareto, N_times] 
+    % and .t like {N_debris, N_debris}[N_times]
+
+
+    dVs = zeros(size(ToFs));
+    for s = 1 : size(ToFs, 1)
+        for t = 1 : size(ToFs, 2)
+            if IDs(s, t + 1) ~= 0 && IDs(s, t) ~= IDs(s, t + 1)
+                % Interpolate Bounds
+
+
+                % Bound ToFs
+                ToF_bounded = max(min(ToFs(s, t), paretos.bounds(2, IDs(s, t), IDs(s, t + 1))), paretos.bounds(1, IDs(s, t), IDs(s, t + 1)));
+                
+                % Interpolate Pareto
                 dVs(s, t) = interp1(paretos.ToF(:, IDs(s, t), IDs(s, t + 1)), paretos.dV(:, IDs(s, t), IDs(s, t + 1)), ToF_bounded,"linear");
             else
                 break;
