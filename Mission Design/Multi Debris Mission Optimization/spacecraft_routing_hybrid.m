@@ -34,44 +34,32 @@
 %   * Debris IDs: (discrete) one for each debris + one for not going to a debris
 %   * ToFs: (continuous) use to interpolate Pareto to get Delta V
 
-% ADD DEORBIT ORBIT DV AND TOF AND DRIFT (drift has to be included in pareto)
-dV_deorbit = 0.6 * 3; % Mass about 3 times larger with debris so multiply dV by 3 (uses 3 times for fuel)
-ToF_deorbit = 240 / 365; % [yr]
+% Create function that adjusts results based on changing initial mass
 
 %% Initialize Problem
+% Load deorbit transfer info
+deorbit_info = load("deorbit_transfers_info.mat");
+dV_deorbit = deorbit_info.dVs_deorbit;
+
+% Load Pareto creation info
+transfer_dataset_inputs = load("Multi Debris Mission Optimization\transfer_dataset_inputs.mat").transfer_dataset_inputs;
+debris_IDs = transfer_dataset_inputs.debris_ID;
+debris_weights = ones(size(debris_IDs)); % Use McKnight top 50 list score? - all the same??
 
 % Load debris paretos
 % Pareto has .ToF and .dV like [N_pareto, N_debris, N_debris] where 3rd dim 
 % is starting debris ID and 4rth dim is ending debris ID.
-paretos = load("C:\Users\thatf\OneDrive\Documents\Purdue Classes\AAE 450\AAE450-Spacecraft-Design-Team-OD5\Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Impulsive\fake_paretos.mat").pareto;
-% debris_IDs = paretos.debris_IDs;
-debris_IDs = 1 : size(paretos.dV, 2);
-debris_weights = ones(size(debris_IDs)); % Use McKnight top 50 list score? - all the same??
-%% Sort Paretos and Create Bounds (should be done already!!!)
-paretos.bounds = zeros(2, numel(debris_IDs), numel(debris_IDs));
-for d_1 = 1 : numel(debris_IDs)
-    for d_2 = 1 : numel(debris_IDs)
-        [ToF_sorted, ToF_sorted_i] = sort(paretos.ToF(:, d_1, d_2));
-        for i = 1 : (numel(ToF_sorted) - 1) % Fix duplicate ToFs...
-            if ToF_sorted(i) == ToF_sorted(i + 1)
-                ToF_sorted(i + 1) = ToF_sorted(i + 1) + 1e-10;
-            end
-        end
-        paretos.ToF(:, d_1, d_2) = ToF_sorted;
-        paretos.dV(:, d_1, d_2) = paretos.dV(ToF_sorted_i, d_1, d_2);
-        paretos.bounds(:, d_1, d_2) = [min(ToF_sorted); max(ToF_sorted)];
-    end
-end
+paretos = load("Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Low Thrust\low_thrust_paretos.mat").paretos;
 
 %%
 % Problem parameters
-N_ships = 4;
+N_ships = 3;
 N_debris = numel(debris_IDs);
 N_debris_max = 3;
 N_IDs = N_debris + 1;
 N_vars = N_ships * (2 * N_debris_max - 1);
-max_dV = 6.2; % [km / s]
-max_t = 8; % [yr]
+max_dV = 10; % [km / s]
+max_t = 5.25; % [yr]
 J_weights = [1, ... % Debris weight left
              0.1]; % Avg dV
 
@@ -86,7 +74,7 @@ integer_vars_i = find(var_layout_table.var_i == 1); % Every ID is integer valued
 % Variable bounds
 IDs = 0:N_debris;
 ID_weights = [0, debris_weights];
-ToF_bounds = [min(paretos.ToF, [], "all"), max(paretos.ToF, [], "all")]; % [yr]
+ToF_bounds = [min([paretos.ToF{:}], [], "all"), max([paretos.ToF{:}], [], "all")]; % [yr]
 var_bounds = [min(IDs), max(IDs);
               ToF_bounds];
 lb = var_bounds(var_layout_table.var_i, 1);
@@ -94,20 +82,20 @@ ub = var_bounds(var_layout_table.var_i, 2);
 
 % Optimization parameters
 opts = optimoptions(@ga, ...
-                    'PopulationSize', 4000, ...
+                    'PopulationSize', 5000, ...
                     'MaxGenerations', 500, ...
-                    'EliteCount',400, ...
+                    'EliteCount',1000, ...
                     'FunctionTolerance', 1e-12, ...
                     'PlotFcn', @gaplotbestf);
 
 %% Solve
 rng(0, 'twister');
 [xbest, fbest, exitflag] = ga(@(x) spacecraft_routing_objective(x, var_layout_table, ID_weights, J_weights, paretos, N_ships), N_vars, [], [], [], [], ...
-    lb, ub, @(x) spacecraft_routing_nonlconstraints(x, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, ToF_deorbit), integer_vars_i, opts);
+    lb, ub, @(x) spacecraft_routing_nonlconstraints(x, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, transfer_dataset_inputs.spacecraft_params.m_0, transfer_dataset_inputs.debris_mass'), integer_vars_i, opts);
 
 %%
 [IDs_best, ToFs_best, dVs_best] = extract_routing_info(xbest, var_layout_table, paretos, N_ships);
-[c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(xbest, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, ToF_deorbit);
+[c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(xbest, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, transfer_dataset_inputs.spacecraft_params.m_0, transfer_dataset_inputs.debris_mass');
 
 %%
 ToFs_best_2 = zeros(size(ToFs_best));
@@ -124,14 +112,14 @@ for s = 1 : N_ships
         paretos_dV(:, t) = paretos.dV(:, IDs_best(s, t), IDs_best(s, t + 1));
         ToF_bounds(:, t) = paretos.bounds(:, IDs_best(s, t), IDs_best(s, t + 1));
     end
-    [ToFs_best_2(s, 1:N_transfers), dVs_best_2(s, 1:N_transfers)] = optimize_transfer_ToFs(paretos_ToF, paretos_dV, ToF_bounds, max_t - ToF_deorbit * N_debris);
+    [ToFs_best_2(s, 1:N_transfers), dVs_best_2(s, 1:N_transfers)] = optimize_transfer_ToFs_time_varying(paretos_ToF, paretos_dV, ToF_bounds, max_t - ToF_deorbit * N_debris);
 end
 num_debris_per_sc = sum(IDs_best ~= 0, 2);
 dV_per_sc_2 = sum(dVs_best_2, 2) + num_debris_per_sc * dV_deorbit;
 t_per_sc_2 = sum(ToFs_best_2, 2) + num_debris_per_sc * ToF_deorbit;
 
 %% Helper Functions
-function [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(x, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, ToF_deorbit)
+function [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(x, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, spacecraft_mass, debris_mass)
     % Constraints:
     %   * One ship per debris (ineq) - not equality because sum debris
     %     might not be visited so number is 0 or 1
@@ -143,26 +131,80 @@ function [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(x, v
     [IDs, ToFs, dVs] = extract_routing_info(x, var_layout_table, paretos, N_ships);
     num_debris_per_sc = sum(IDs ~= 0, 2);
 
+    % Make debris matrix with #rows = #ships and #cols = #debris storing
+    % which debris ships went to so ToF and deorbit dV per ship can be
+    % found easily
+    debris_matrix = zeros([N_ships, N_debris]);
+    for s = 1 : N_ships
+        for i = 1 : N_debris
+            debris_matrix(s, i) = any(IDs(s, :) == i);
+        end
+    end
+
     % One ship per debris - N_debris
     % Count how many times each ID shows up
     c_one_ship_debris = arrayfun(@(x) sum(IDs == x, "all"), (1:N_debris)') - 1; % Skips IDs with 0
 
     % Max total time - N_ships
-    t_per_sc = sum(ToFs, 2) + num_debris_per_sc * ToF_deorbit;
+    ToF_deorbit = zeros([N_ships, 1]);
+    for s = 1 : N_ships
+        employed_i = find(IDs(s, :) ~= 0);  % Should always be in order
+        for t = 1 : numel(employed_i)
+            % First element of .t is the deorbit time which doesn't depend
+            % on destination
+            if IDs(s, t) ~= 1
+                ToF_deorbit(s) = ToF_deorbit(s) + paretos.t{IDs(s, t), 1}(1);
+            else
+                ToF_deorbit(s) = ToF_deorbit(s) + paretos.t{IDs(s, t), 2}(1);
+            end
+        end
+    end
+    t_per_sc = sum(ToFs, 2) + ToF_deorbit;
+    ToF_deorbit = zeros([N_ships, 1]);
+    for s = 1 : N_ships
+        employed_i = find(IDs(s, :) ~= 0);  % Should always be in order
+        for t = 1 : numel(employed_i)
+            % First element of .t is the deorbit time which doesn't depend
+            % on destination
+            if IDs(s, t) ~= 1
+                ToF_deorbit(s) = ToF_deorbit(s) + paretos.t{IDs(s, t), 1}(1);
+            else
+                ToF_deorbit(s) = ToF_deorbit(s) + paretos.t{IDs(s, t), 2}(1);
+            end
+        end
+    end
+    t_per_sc = sum(ToFs, 2) + ToF_deorbit;
     c_max_t = t_per_sc - max_t;
 
-    % Max total Delta V - N_ships
-    dV_per_sc = sum(dVs, 2) + num_debris_per_sc * dV_deorbit;
+    % Max total Delta V - N_ships (Get approximate adjusted delta V as if
+    % the spacecraft's mass never changed from the debris, should be within a few percent)
+    dV_per_sc = sum(dVs, 2) + debris_matrix * (dV_deorbit .* (spacecraft_mass + debris_mass) ./ spacecraft_mass);
     c_max_dV = dV_per_sc - max_dV;
     
     % ToF within Pareto bounds - 2 * N_ships * (N_debris_max - 1)
+    % NEED TO INTERPOLATE
     c_pareto_min_ToF = zeros([N_ships, N_debris_max - 1]);
     c_pareto_max_ToF = zeros([N_ships, N_debris_max - 1]);
     for s = 1 : N_ships
+        t0 = 0;
         employed_i = find(IDs(s, :) ~= 0);  % Should always be in order
         for t = 1 : numel(employed_i) - 1
-            c_pareto_min_ToF(s, t) = paretos.bounds(1, IDs(s, t), IDs(s, t + 1)) - ToFs(s, t);
-            c_pareto_max_ToF(s, t) = ToFs(s, t) - paretos.bounds(2, IDs(s, t), IDs(s, t + 1));
+            if IDs(s, t) ~= IDs(s, t + 1)
+                ID1 = IDs(s, t); % From 
+                ID2 = IDs(s, t + 1); % To
+                t0 = t0 + paretos.t{ID1, ID2}(1);
+
+                % Calculate starting time of transfer
+                if t ~= 1
+                    ToF_total_t = sum(ToFs(s, 1 : (t - 1)));
+                else
+                    ToF_total_t = 0;
+                end
+                t0_transfer = min(ToF_total_t + t0, paretos.t{ID1, ID2}(end));
+
+                c_pareto_min_ToF(s, t) = interp1(paretos.t{ID1, IDs(s, t + 1)}, paretos.ToF{ID1, ID2}(1, :), t0_transfer) - ToFs(s, t);
+                c_pareto_max_ToF(s, t) = ToFs(s, t) - interp1(paretos.t{ID1, ID2}, paretos.ToF{ID1, ID2}(end, :), t0_transfer);
+            end
         end
     end
     c_pareto_ToF = [c_pareto_min_ToF(:); c_pareto_max_ToF(:)];
@@ -200,8 +242,24 @@ function [J] = spacecraft_routing_objective(x, var_layout_table, ID_weights, J_w
         J_avgdv = 0;
     end
 
+    % Calculate mission time for each spacecraft
+    ToF_deorbit = zeros([N_ships, 1]);
+    for s = 1 : N_ships
+        employed_i = find(IDs(s, :) ~= 0);  % Should always be in order
+        for t = 1 : numel(employed_i)
+            % First element of .t is the deorbit time which doesn't depend
+            % on destination
+            if IDs(s, t) ~= 1
+                ToF_deorbit(s) = ToF_deorbit(s) + paretos.t{IDs(s, t), 1}(1);
+            else
+                ToF_deorbit(s) = ToF_deorbit(s) + paretos.t{IDs(s, t), 2}(1);
+            end
+        end
+    end
+    t_per_sc = sum(ToFs, 2) + ToF_deorbit;
+
     % Combine objectives
-    J = dot(J_weights, [J_deorbit; J_avgdv]);
+    J = dot(J_weights, [J_deorbit; J_avgdv]) + sum(t_per_sc) * 0.01;
 end
 
 function [IDs, ToFs, dVs] = extract_routing_info(x, var_layout_table, paretos, N_ships)
@@ -219,32 +277,7 @@ function [IDs, ToFs, dVs] = extract_routing_info(x, var_layout_table, paretos, N
     end
 
     % Interploate Pareto curves to get dV
-    dVs = interp_paretos(IDs, ToFs, paretos);
-end
-
-function [dVs] = interp_paretos(IDs, ToFs, paretos)
-    % Need to flatten vars to make interp1 happy....
-    % Use IDs into paretos...
-    % IDs has shape [N_ships, N_debris_max]
-    % ToFs has shape [N_ships, N_debris_max - 1]
-    % dVs has shape [N_ships, N_debris_max - 1]
-    % Pareto has .ToF and .dV like [N_pareto, N_debris, N_debris] where 3rd dim 
-    % is starting debris ID and 4rth dim is ending debris ID.
-
-    dVs = zeros(size(ToFs));
-    for s = 1 : size(ToFs, 1)
-        for t = 1 : size(ToFs, 2)
-            if IDs(s, t + 1) ~= 0 && IDs(s, t) ~= IDs(s, t + 1)
-                % if numel(unique(paretos.ToF(:, IDs(s, t), IDs(s, t + 1)))) ~= numel(paretos.ToF(:, IDs(s, t), IDs(s, t + 1)))
-                %     fprintf("Error: Not unique ToFs...\n")
-                % end
-                ToF_bounded = max(min(ToFs(s, t), paretos.bounds(2, IDs(s, t), IDs(s, t + 1))), paretos.bounds(1, IDs(s, t), IDs(s, t + 1)));
-                dVs(s, t) = interp1(paretos.ToF(:, IDs(s, t), IDs(s, t + 1)), paretos.dV(:, IDs(s, t), IDs(s, t + 1)), ToF_bounded,"linear");
-            else
-                break;
-            end
-        end
-    end
+    dVs = interp_paretos_time_varying(IDs, ToFs, paretos);
 end
 
 function [dVs] = interp_paretos_time_varying(IDs, ToFs, paretos)
@@ -256,19 +289,32 @@ function [dVs] = interp_paretos_time_varying(IDs, ToFs, paretos)
     % Pareto has .ToF and .dV like {N_debris, N_debris}[N_pareto, N_times] 
     % and .t like {N_debris, N_debris}[N_times]
 
-
     dVs = zeros(size(ToFs));
     for s = 1 : size(ToFs, 1)
+        t0 = 0;
         for t = 1 : size(ToFs, 2)
             if IDs(s, t + 1) ~= 0 && IDs(s, t) ~= IDs(s, t + 1)
-                % Interpolate Bounds
+                ID1 = IDs(s, t); % From 
+                ID2 = IDs(s, t + 1); % To
+                t0 = t0 + paretos.t{ID1, ID2}(1);
 
+                % Calculate starting time of transfer
+                if t ~= 1
+                    ToF_total_t = sum(ToFs(s, 1 : (t - 1)));
+                else
+                    ToF_total_t = 0;
+                end
+                t0_transfer = min(ToF_total_t + t0, paretos.t{ID1, ID2}(end));
+
+                % Interplolate points
+                interpolated_paretos_ToF = interp1(paretos.t{ID1, ID2}, paretos.ToF{ID1, ID2}', t0_transfer)';
+                interpolated_paretos_dV = interp1(paretos.t{ID1, ID2}, paretos.dV{ID1, ID2}', t0_transfer)';
 
                 % Bound ToFs
-                ToF_bounded = max(min(ToFs(s, t), paretos.bounds(2, IDs(s, t), IDs(s, t + 1))), paretos.bounds(1, IDs(s, t), IDs(s, t + 1)));
+                ToF_bounded = max(min(ToFs(s, t), interpolated_paretos_ToF(end)), interpolated_paretos_ToF(1));
                 
                 % Interpolate Pareto
-                dVs(s, t) = interp1(paretos.ToF(:, IDs(s, t), IDs(s, t + 1)), paretos.dV(:, IDs(s, t), IDs(s, t + 1)), ToF_bounded,"linear");
+                dVs(s, t) = interp1(interpolated_paretos_ToF, interpolated_paretos_dV, ToF_bounded, "linear");
             else
                 break;
             end

@@ -146,10 +146,10 @@ parfor i = 1 : N_debris
     end
 end
 
-save("Multi Debris Mission Optimization\deorbit_transfers_info.mat", "ToFs_deorbit", "dVs_deorbit", "deorbit_transfer_drifts")
+% save("Multi Debris Mission Optimization\deorbit_transfers_info.mat", "ToFs_deorbit", "dVs_deorbit", "deorbit_transfer_drifts")
 
 %% Construct Dataset Inputs
-% For each delta RAAN point for two debris save the starting terminator
+% For each delta RAAN point for two debris % save the starting terminator
 % orbit and the next debris orbit to call deorbit_to_new_debris
 t_transfer = zeros([1, total_transfers]);
 x_initial_keplerian = zeros([6, total_transfers]);
@@ -185,4 +185,4 @@ transfer_dataset_inputs.debris_mass = debris_mass;
 transfer_dataset_inputs.debris_ID = debris_ID;
 transfer_dataset_inputs.spacecraft_params = spacecraft_params;
 
-save("Multi Debris Mission Optimization\transfer_dataset_inputs.mat", "transfer_dataset_inputs");
+% save("Multi Debris Mission Optimization\transfer_dataset_inputs.mat", "transfer_dataset_inputs");

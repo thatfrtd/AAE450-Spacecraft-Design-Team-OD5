@@ -70,10 +70,10 @@ Qdot_opt_params.num_start_points = 10;
 Qdot_opt_params.strategy = "Best Start Points";
 Qdot_opt_params.plot_minQdot_vs_L = false;
 
-N_i = 1;
-eta = linspace(0.1, 0.5, N_i);
+N_i = 10;
+eta = linspace(0.1, 0.8, N_i);
 clear Qtransfer
-for i = 1 : N_i
+parfor i = 1 : N_i
     % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
     Q_params = struct();
     Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
@@ -85,7 +85,7 @@ for i = 1 : N_i
     Q_params.Theta_rot = 0;
 
     tic;
-    [Qtransfer(i)] = QLaw_transfer_fast(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 1500000, angular_step=deg2rad(2), thrust_during_eclipse = thrust_during_eclipse, integration_tolerance=1e-10);
+    [Qtransfer(i)] = QLaw_transfer_fast(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 1500000, angular_step=deg2rad(10), thrust_during_eclipse = thrust_during_eclipse, integration_tolerance=1e-10, max_t=356.25*1.5*60*60*24);
     opt_time = toc
 end
 
@@ -104,6 +104,7 @@ end
 Qtransfer = Qtransfer(round(N_i / 2));
 
 %%
+figure
 plot(ToFs, dVs)
 title("Delta V vs ToF Pareto")
 xlabel("Tof [days]")

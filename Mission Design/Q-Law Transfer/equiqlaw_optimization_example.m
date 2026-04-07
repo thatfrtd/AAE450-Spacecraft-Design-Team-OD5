@@ -14,7 +14,7 @@ mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = R_E + 800; % [km] semi-major axis
+a_c = R_E + 900; % [km] semi-major axis
 e_c = 1e-3; % [] eccentricity
 i_c = deg2rad(98); % [rad] inclination
 Omega_c = deg2rad(10); % [rad] right ascension of ascending node
@@ -26,8 +26,8 @@ x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
-r_a_d = R_E + 800; % [km] periapsis
-r_p_d = R_E + 100; % [km] periapsis
+r_a_d = R_E + 200; % [km] periapsis
+r_p_d = R_E + 125; % [km] periapsis
 e_d = (1 - r_p_d / r_a_d) / (1 + r_p_d / r_a_d); % [] eccentricity
 a_d = r_p_d / (1 - e_d); % [km] semi-major axis
 i_d = deg2rad(98); % [rad] inclination
@@ -44,7 +44,7 @@ spacecraft_params = struct();
 spacecraft_params.Isp = 4100; % [s]
 spacecraft_params.m_0 = 2000; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = 0.25; % [N]
+spacecraft_params.F_max = 0.235; % [N]
 
 % Min Periapsis soft constraint
 penalty_params = struct();
@@ -60,8 +60,8 @@ Qdot_opt_params.plot_minQdot_vs_L = false;
 
 % Optimization Variables
 W_oe_bounds = repmat([1, 5], 5, 1); % [1, 10] ? Element scaling
-eta_a_min_bounds = [0.8, 0.95]; % [0, 1) Minimum absolute efficiency
-eta_r_min_bounds = [0.8, 0.95]; % [0, 1) Minimum relative efficiency
+eta_a_min_bounds = [0.0, 0.95]; % [0, 1) Minimum absolute efficiency
+eta_r_min_bounds = [0.0, 0.95]; % [0, 1) Minimum relative efficiency
 m_bounds = [2, 5]; % (1, 5) ? S_a scaling parameter
 n_bounds = [2, 5]; % (1, 5) ? S_a scaling parameter
 r_bounds = [2, 5]; % (1, 5) ? S_a scaling parameter
@@ -94,7 +94,7 @@ MultiObj.fun(x_test)
 % built in Matlab one
 % NSGAII(params, MultiObj);   
 
-options = optimoptions('paretosearch', 'UseParallel',true,'Display','iter',...
+options = optimoptions('paretosearch', 'UseParallel',true,'Display','iter','ParetoSetSize',30,...
     'PlotFcn',{'psplotparetof' 'psplotparetox'});
 fun = MultiObj.fun;
 lb = MultiObj.var_min;
