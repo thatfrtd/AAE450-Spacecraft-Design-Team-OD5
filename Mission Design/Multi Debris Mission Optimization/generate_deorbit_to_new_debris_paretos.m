@@ -10,9 +10,9 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Load Dataset Inputs
-transfer_dataset_inputs = load("Multi Debris Mission Optimization\transfer_dataset_inputs.mat").transfer_dataset_inputs;
+transfer_dataset_inputs = load("Multi Debris Mission Optimization\transfer_dataset_inputs_fixedreorbit.mat").transfer_dataset_inputs;
 
-transfers_i = 1:250;
+transfers_i = 1:2;
 
 N_transfers = numel(transfers_i);
 
@@ -22,7 +22,7 @@ if isempty(p)
     p = parpool(8);
 end
 
-for transfer_number = 2 : N_transfers
+for transfer_number = 1 : N_transfers
     %% Initialize Run
     run_name = sprintf("transfer_%g.mat", transfers_i(transfer_number));
     ID1 = transfer_dataset_inputs.debris_ID(transfer_dataset_inputs.IDs(1, transfers_i(transfer_number)));
@@ -74,7 +74,7 @@ for transfer_number = 2 : N_transfers
     % Optimization variables
     eta1_bounds = [0, 0.9]; % [] initial -> intermediate transfer min efficiency
     eta2_bounds = [0, 0.9]; % [] intermediate -> target transfer min efficiency
-    a_int_bounds = ([600, 2000] + R_E) / char_star.l; % [km] 
+    a_int_bounds = ([500, 2000] + R_E) / char_star.l; % [km] 
     %e_int_bounds = [1e-5, 0.04]; % []
     i_int_bounds = [0.97, 1.03] * x0_c_keplerian(3); % [rad]
     % Omega_int - assume same as original - all adjustments done by J2
@@ -82,7 +82,7 @@ for transfer_number = 2 : N_transfers
     var_bounds = [eta1_bounds; eta2_bounds; a_int_bounds; i_int_bounds];
     
     % Set up MultiObj
-    MultiObj.fun = @(x) QLaw_J2_drift_transfer(x0_d_keplerian, [x(3) * char_star.l; [1e-5; x(4)]; x0_d_keplerian(4:6)], x0_c_keplerian, x(1:2), mu_E, R_E, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, 1.5, 365.25 * 1.5);
+    MultiObj.fun = @(x) QLaw_J2_drift_transfer(x0_d_keplerian, [x(3) * char_star.l; [1e-5; x(4)]; x0_d_keplerian(4:6)], x0_c_keplerian, x(1:2), mu_E, R_E, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, 1.5, 365.25 * 2);
     MultiObj.nVar = size(var_bounds, 1);
     MultiObj.var_min = var_bounds(:, 1)';
     MultiObj.var_max = var_bounds(:, 2)';
@@ -108,7 +108,7 @@ for transfer_number = 2 : N_transfers
     pareto.fval = fval;
     pareto.exitflag = exitflag;
     pareto.output = output;
-    save("Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Low Thrust\" + run_name, "pareto");
+    %save("Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Low Thrust\" + run_name, "pareto");
 
     %% Analyze Results
     % figure
@@ -142,6 +142,10 @@ for transfer_number = 2 : N_transfers
     axis equal
 end
 
+
+%%
+QLaw_J2_drift_transfer(x0_d_keplerian, [x(15, 3) * char_star.l; [1e-5; x(15, 4)]; x0_d_keplerian(4:6)], x0_c_keplerian, x(15, 1:2), mu_E, R_E, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, 1.5, 365.25 * 1.5)
+
 %% Helper Functions
 function [c, ceq] = min_periapsis_constraint(a, e, min_r_p, R_E)
     ceq = [];
@@ -170,7 +174,7 @@ function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_kep
     Q_params.eta_a_min = eta(1); % Minimum absolute efficiency for thrusting instead of coasting
     Q_params.eta_r_min = eta(1); % Minimum relative efficiency for thrusting instead of coasting
 
-    [Qtransfer_to_int] = QLaw_transfer_fast(x_keplerian_0, x_keplerian_int, mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20));
+    [Qtransfer_to_int] = QLaw_transfer_fast(x_keplerian_0, x_keplerian_int, mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20), max_dV = max_dV, max_t = max_ToF * 60 * 60 * 24);
     transfer_drift_1 = sum(J2_RAAN_drift(Qtransfer_to_int.x_keplerian_mass(1, :), Qtransfer_to_int.x_keplerian_mass(2, :), Qtransfer_to_int.x_keplerian_mass(3, :), mu, R, J_2_val) .* [diff(Qtransfer_to_int.t)', 0]);
 
     % Transfer to target orbit

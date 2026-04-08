@@ -1,0 +1,62 @@
+2026-04-07 01:35:43,820 - INFO - dmf.workflows.DmfWorkflow - Creating workflow e090f14e-1e50-401e-9794-30ceddf70b88
+2026-04-07 01:35:46,299 - INFO - dmf.workflows.DmfWorkflow - Creating configurations
+2026-04-07 01:35:46,300 - INFO - dmf.workflows.analysis_modules.OscarOnlyWorkflow - Creating configurations
+2026-04-07 01:35:46,300 - INFO - dmf.workflows.DmfWorkflow - Adapting aspect angle in Earth-fixed frame to 0 deg and 0 deg
+2026-04-07 01:35:46,302 - INFO - dmf.workflows.DmfWorkflow - Creating workflow 0c306639-2766-4ed5-bf05-59e58f6e648e
+2026-04-07 01:35:46,302 - INFO - dmf.workflows.analysis_modules.CEOnlyWorkflow - Attitude not simulated
+will override to default tumbling
+2026-04-07 01:35:46,304 - INFO - dmf.processes.DmfProcess - Creating coefficient estimator process 94d76f01-22c5-4320-bc0d-009e055d2a82
+2026-04-07 01:35:50,830 - INFO - dmf.processes.CoefficientEstimatorProcess - Starting to execute COEFFICIENT ESTIMATOR 94d76f01-22c5-4320-bc0d-009e055d2a82
+2026-04-07 01:35:50,840 - INFO - dmf.PyCe - sys.executable: C:\\Program Files\\DRAMA-4.1.2\\bin\\resources\\assets\\dmf_server.exe
+2026-04-07 01:35:50,840 - INFO - dmf.PyCe - PyCe_executable_path: C:\\Program Files\\DRAMA-4.1.2\\TOOLS\\CE
+2026-04-07 01:35:50,860 - INFO - dmf.PyCe - Got revision identifyer: 2.0.2
+2026-04-07 01:35:50,863 - INFO - dmf.PyCe - Geometry hash: 2d5e5faef84b49ed5cec3d16c5f9968a
+2026-04-07 01:35:50,864 - INFO - dmf.PyCe - 2d5e5faef84b49ed5cec3d16c5f9968a_aero_coefficients.nc does not exists in DB_cache_dir (C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\data).
+2026-04-07 01:35:50,864 - INFO - dmf.PyCe - 2d5e5faef84b49ed5cec3d16c5f9968a_srp_coefficients.nc does not exists in DB_cache_dir (C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\data).
+2026-04-07 01:35:50,865 - INFO - dmf.PyCe - 2d5e5faef84b49ed5cec3d16c5f9968a_cross_section.nc does not exists in DB_cache_dir (C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\data).
+2026-04-07 01:35:50,865 - INFO - dmf.PyCe - 2d5e5faef84b49ed5cec3d16c5f9968a_opticalEquivalentArea.nc does not exists in DB_cache_dir (C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\data).
+2026-04-07 01:35:50,866 - INFO - dmf.PyCe - 2d5e5faef84b49ed5cec3d16c5f9968a_radarEquivalentArea.nc does not exists in DB_cache_dir (C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\data).
+2026-04-07 01:35:50,937 - INFO - dmf.PyCe - calling C:\\Program Files\\DRAMA-4.1.2\\TOOLS\\CE\\bin\\CE_Core.exe
+2026-04-07 01:35:51,560 - INFO - dmf.PyCe - CE_Core done
+2026-04-07 01:35:51,561 - INFO - dmf.PyCe - Copying DB files from C:\\Users\\thatf\\AppData\\Local\\Temp\\PyCe_xvl3n824 to C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\data
+2026-04-07 01:35:51,570 - INFO - dmf.PyCe - Start postprocessing.
+2026-04-07 01:35:51,640 - INFO - dmf.PyCe - saving of output files not requested.
+2026-04-07 01:35:51,664 - INFO - dmf.processes.CoefficientEstimatorProcess - Finished coefficient estimator process 94d76f01-22c5-4320-bc0d-009e055d2a82
+2026-04-07 01:35:52,497 - INFO - dmf.processes.DmfProcess - Creating oscar process e3a28732-b20d-48b1-aa29-88fd43b3fff1
+2026-04-07 01:35:57,200 - INFO - dmf.processes.OscarProcess - Starting to execute OSCAR e3a28732-b20d-48b1-aa29-88fd43b3fff1
+2026-04-07 01:35:57,201 - INFO - dmf.processes.OscarProcess - Stored pyOSCAR inputs in C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\input\\last_oscar.json
+2026-04-07 01:36:06,343 - INFO - oscar_live_log - tmpsdv0v5jt                  _/_/      _/_/_/    _/_/_/    _/_/    _/_/_/
+2026-04-07 01:36:06,374 - INFO - oscar_live_log - tmpsdv0v5jt               _/    _/  _/        _/        _/    _/  _/    _/
+2026-04-07 01:36:06,390 - INFO - oscar_live_log - tmpsdv0v5jt              _/    _/    _/_/    _/        _/_/_/_/  _/_/_/
+2026-04-07 01:36:06,406 - INFO - oscar_live_log - tmpsdv0v5jt             _/    _/        _/  _/        _/    _/  _/    _/
+2026-04-07 01:36:06,422 - INFO - oscar_live_log - tmpsdv0v5jt              _/_/    _/_/_/      _/_/_/  _/    _/  _/    _/
+2026-04-07 01:36:06,454 - INFO - oscar_live_log - tmpsdv0v5jt    Debris Risk Assessment and Mitigation Analysis Tool Suite (v2.5.2)
+2026-04-07 01:36:06,469 - INFO - oscar_live_log - tmpsdv0v5jt                       Orbital Spacecraft Active Removal
+2026-04-07 01:36:06,485 - INFO - oscar_live_log - tmpsdv0v5jt  ___________________________ DRAMA - OSCAR ___________________________
+2026-04-07 01:36:06,516 - INFO - oscar_live_log - tmpsdv0v5jt  - Started OSCAR run at 2026-04-07T01:36:06.
+2026-04-07 01:36:06,532 - INFO - oscar_live_log - tmpsdv0v5jt  - Preparing solar and geomagnetic activity scenario...
+2026-04-07 01:36:06,563 - INFO - oscar_live_log - tmpsdv0v5jt REMARK in subroutine sogmact:
+2026-04-07 01:36:06,579 - INFO - oscar_live_log - tmpsdv0v5jt   Using ESA solar and geomagnetic activity data for the specified scenario.
+2026-04-07 01:36:06,594 - INFO - oscar_live_log - tmpsdv0v5jt REMARK in subroutine sogmact:
+"2026-04-07 01:36:06,610 - INFO - oscar_live_log - tmpsdv0v5jt   Using ESA daily solar & geomagnetic activity data file from 2021-05-03."
+2026-04-07 01:36:06,625 - INFO - oscar_live_log - tmpsdv0v5jt REMARK in subroutine sogmact:
+"2026-04-07 01:36:06,640 - INFO - oscar_live_log - tmpsdv0v5jt   Using ESA monthly solar & geomagnetic activity data file from 2021-05-04."
+2026-04-07 01:36:06,861 - INFO - oscar_live_log - tmpsdv0v5jt REMARK in subroutine rdesa:
+2026-04-07 01:36:06,874 - INFO - oscar_live_log - tmpsdv0v5jt   Solar and geomagnetic activity scenario can be covered by observed/available data. No forecast required.
+2026-04-07 01:36:06,890 - INFO - oscar_live_log - tmpsdv0v5jt  - Initializing FOCUS v2.6.2...
+2026-04-07 01:36:06,905 - INFO - oscar_live_log - tmpsdv0v5jt  - Starting propagation...
+2026-04-07 01:36:07,498 - INFO - oscar_live_log - tmpsdv0v5jt REMARK in subroutine chemical:
+2026-04-07 01:36:07,512 - INFO - oscar_live_log - tmpsdv0v5jt   Orbit lifetime of initial target orbit below remaining lifetime recommended by the ESA Space Debris Mitigation Requirements. No maneuver required to be
+2026-04-07 01:36:07,528 - INFO - oscar_live_log - tmpsdv0v5jt   compliant.
+2026-04-07 01:36:07,991 - INFO - oscar_live_log - tmpsdv0v5jt REMARK in subroutine chemical:
+2026-04-07 01:36:08,011 - INFO - oscar_live_log - tmpsdv0v5jt   Orbit lifetime of initial target orbit below specified lifetime limit. No maneuver required in this case.
+2026-04-07 01:36:08,027 - INFO - oscar_live_log - tmpsdv0v5jt  - Checking propagation exceptions...
+2026-04-07 01:36:08,043 - INFO - oscar_live_log - tmpsdv0v5jt  - SDMG compliance check...
+2026-04-07 01:36:08,058 - INFO - oscar_live_log - tmpsdv0v5jt  - Writing output files...
+2026-04-07 01:36:08,167 - INFO - oscar_live_log - tmpsdv0v5jt REMARK in subroutine plot:
+"2026-04-07 01:36:08,183 - INFO - oscar_live_log - tmpsdv0v5jt   Note that the requested plot Altitude vs. Declination is only generated for objects in the geosynchronous region and will thus not be displayed."
+2026-04-07 01:36:08,199 - INFO - oscar_live_log - tmpsdv0v5jt REMARK in subroutine plot:
+"2026-04-07 01:36:08,214 - INFO - oscar_live_log - tmpsdv0v5jt   Note that the requested plot Inclination vs. RAAN is only generated for objects in the geosynchronous region and will thus not be displayed."
+2026-04-07 01:36:08,230 - INFO - oscar_live_log - tmpsdv0v5jt OSCAR finished nominally at 2026-04-07T01:36:08. Elapsed user time: 1.562 s.
+2026-04-07 01:36:08,704 - INFO - dmf.processes.OscarProcess - Finished oscar process e3a28732-b20d-48b1-aa29-88fd43b3fff1
+2026-04-07 01:36:20,112 - INFO - dmf.workflows.DmfWorkflow - Workflow e090f14e-1e50-401e-9794-30ceddf70b88 finished

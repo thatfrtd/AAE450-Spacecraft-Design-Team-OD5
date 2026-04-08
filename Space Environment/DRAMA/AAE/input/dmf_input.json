@@ -37488,8 +37488,8 @@
         "version": "4.1.2",
         "descriptionLine0": "Debris Mitigation Facility",
         "descriptionLine1": "Default project",
-        "projectSaveTime": "2026-04-07T00:55:18.79Z",
-        "projectFolder": "C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\DRAMA/AAE",
+        "projectSaveTime": "2026-04-07T05:30:59.81Z",
+        "projectFolder": "C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\DRAMA\\AAE",
         "materialsUpdate": "ask_about_update",
         "solMagUpdate": "ask_about_update",
         "protectedRegionsUpdate": "ask_about_update"
@@ -37502,5 +37502,5 @@
     },
     "name": "AAE",
     "id": "712c528a-f195-46a6-96af-89b281b591e3",
-    "editedItem": "105f6def-7def-435d-97f0-bb1b1f1b393f"
+    "editedItem": null
 }

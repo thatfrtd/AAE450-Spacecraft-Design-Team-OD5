@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<objects>
+    <object>
+        <name>ReactionWheel-simple</name>
+        <uniqueID>5ea1ad42-b4b8-4aba-8715-d43927df8037</uniqueID>
+        <primitive>
+            <cylinder>
+                <radius>0.203</radius>
+                <height>0.135</height>
+            </cylinder>
+        </primitive>
+        <color>
+            <Red>255</Red>
+            <Green>255</Green>
+            <Blue>255</Blue>
+        </color>
+        <mass>17.1</mass>
+        <material>drama-A316</material>
+        <relativePosition>
+            <cartX>0.0</cartX>
+            <cartY>0.0</cartY>
+            <cartZ>0.0</cartZ>
+            <yaw>0.0</yaw>
+            <pitch>0.0</pitch>
+            <roll>0.0</roll>
+        </relativePosition>
+        <quantity>1</quantity>
+        <scalingFactors>
+            <drag>1.0</drag>
+            <lift>1.0</lift>
+            <sideForce>1.0</sideForce>
+            <averageHeatFlux>1.0</averageHeatFlux>
+        </scalingFactors>
+        <temperature>300.0</temperature>
+    </object>
+</objects>

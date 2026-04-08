@@ -10,7 +10,7 @@
 
 % Create Mission
 mission.StartDate = datetime(2026, 1, 3, 12, 0, 0);
-duration_yr = 5;
+duration_yr = 6;
 mission.Duration  = years(duration_yr);
 mission.StopDate = mission.StartDate + mission.Duration;
 sampleTime = 60000;
@@ -165,7 +165,15 @@ for i = 1 : N_debris
             t_k_index = interp1(linspace(0, duration_yr, size(x_keplerian, 2)), 1 : size(x_keplerian, 2), t_k, "nearest");
 
             for k = 1 : num_transfers_per_debris(i, j)
-                x_initial_keplerian(:, transfer_count) = x_keplerian_array(:, t_k_index(k), i);
+                r_a_deorbit = R_E + 500; % [km] apoapsis - CHECK DRAG DURING DEORBIT FOR BETTER ESTIMATE FOR SOME RCS USED
+                r_p_deorbit = R_E + 135; % [km] periapsis
+                e_deorbit = (1 - r_p_deorbit / r_a_deorbit) / (1 + r_p_deorbit / r_a_deorbit); % [] eccentricity
+                a_deorbit = r_p_deorbit / (1 - e_deorbit); % [km] semi-major axis
+            
+                x_deorbit_keplerian = x_keplerian_array(:, t_k_index(k), i);
+                x_deorbit_keplerian(1:2) = [a_deorbit; e_deorbit];
+
+                x_initial_keplerian(:, transfer_count) = x_deorbit_keplerian;
                 x_final_keplerian(:, transfer_count) = x_keplerian_array(:, t_k_index(k), j);
 
                 t_transfer(transfer_count) = t_k(k);
@@ -185,4 +193,4 @@ transfer_dataset_inputs.debris_mass = debris_mass;
 transfer_dataset_inputs.debris_ID = debris_ID;
 transfer_dataset_inputs.spacecraft_params = spacecraft_params;
 
-% save("Multi Debris Mission Optimization\transfer_dataset_inputs.mat", "transfer_dataset_inputs");
+save("Multi Debris Mission Optimization\transfer_dataset_inputs_fixedreorbit.mat", "transfer_dataset_inputs");

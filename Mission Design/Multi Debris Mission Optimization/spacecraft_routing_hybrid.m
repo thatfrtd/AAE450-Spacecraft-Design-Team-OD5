@@ -98,21 +98,24 @@ rng(0, 'twister');
 [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(xbest, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, transfer_dataset_inputs.spacecraft_params.m_0, transfer_dataset_inputs.debris_mass');
 
 %%
+debris_IDs_best = debris_IDs(IDs_best);
+
+%%
 ToFs_best_2 = zeros(size(ToFs_best));
 dVs_best_2 = zeros(size(dVs_best));
 N_pareto = size(paretos.dV, 1);
 for s = 1 : N_ships
     N_debris = nnz(IDs_best(s, :));
     N_transfers = N_debris - 1;
-    paretos_ToF = zeros([N_pareto, N_transfers]);
-    paretos_dV = zeros([N_pareto, N_transfers]);
-    ToF_bounds = zeros([2, N_transfers]);
-    for t = 1 : N_transfers
-        paretos_ToF(:, t) = paretos.ToF(:, IDs_best(s, t), IDs_best(s, t + 1));
-        paretos_dV(:, t) = paretos.dV(:, IDs_best(s, t), IDs_best(s, t + 1));
-        ToF_bounds(:, t) = paretos.bounds(:, IDs_best(s, t), IDs_best(s, t + 1));
+    ToF_deorbit = 0;
+    for t = 1 : N_debris
+        if IDs_best(s, t) ~= 1
+            ToF_deorbit = ToF_deorbit + paretos.t{IDs_best(s, t), 1}(1);
+        else
+            ToF_deorbit = ToF_deorbit + paretos.t{IDs_best(s, t), 2}(1);
+        end
     end
-    [ToFs_best_2(s, 1:N_transfers), dVs_best_2(s, 1:N_transfers)] = optimize_transfer_ToFs_time_varying(paretos_ToF, paretos_dV, ToF_bounds, max_t - ToF_deorbit * N_debris);
+    [ToFs_best_2(s, 1:N_transfers), dVs_best_2(s, 1:N_transfers)] = optimize_transfer_ToFs_time_varying(paretos, IDs_best(s, :), max_t - ToF_deorbit * N_debris, ToFs_best(s, :)');
 end
 num_debris_per_sc = sum(IDs_best ~= 0, 2);
 dV_per_sc_2 = sum(dVs_best_2, 2) + num_debris_per_sc * dV_deorbit;
