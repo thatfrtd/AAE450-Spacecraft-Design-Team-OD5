@@ -12,7 +12,7 @@
 %% Load Dataset Inputs
 transfer_dataset_inputs = load("Multi Debris Mission Optimization\transfer_dataset_inputs_fixedreorbit.mat").transfer_dataset_inputs;
 
-transfers_i = 1:2;
+transfers_i = 1;
 
 N_transfers = numel(transfers_i);
 
@@ -74,7 +74,7 @@ for transfer_number = 1 : N_transfers
     % Optimization variables
     eta1_bounds = [0, 0.9]; % [] initial -> intermediate transfer min efficiency
     eta2_bounds = [0, 0.9]; % [] intermediate -> target transfer min efficiency
-    a_int_bounds = ([500, 2000] + R_E) / char_star.l; % [km] 
+    a_int_bounds = ([600, 2000] + R_E) / char_star.l; % [km] 
     %e_int_bounds = [1e-5, 0.04]; % []
     i_int_bounds = [0.97, 1.03] * x0_c_keplerian(3); % [rad]
     % Omega_int - assume same as original - all adjustments done by J2
@@ -144,7 +144,24 @@ end
 
 
 %%
-QLaw_J2_drift_transfer(x0_d_keplerian, [x(15, 3) * char_star.l; [1e-5; x(15, 4)]; x0_d_keplerian(4:6)], x0_c_keplerian, x(15, 1:2), mu_E, R_E, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, 1.5, 365.25 * 1.5)
+[ToF_sorted, ToF_sorted_i] = sort(fval(:, 2));
+for k = 1 : (numel(ToF_sorted) - 1) % Fix duplicate ToFs...
+    if ToF_sorted(k) == ToF_sorted(k + 1)
+        ToF_sorted(k + 1) = ToF_sorted(k + 1) + 1e-10;
+    end
+end
+
+ToF = ToF_sorted / 365.25;
+dV = fval(ToF_sorted_i, 1);
+
+figure
+plot(ToF, dV);
+xlabel("ToF [year]")
+ylabel("Delta V [km / s]")
+grid on
+
+%%
+QLaw_J2_drift_transfer(x0_d_keplerian, [x(40, 3) * char_star.l; [1e-5; x(40, 4)]; x0_d_keplerian(4:6)], x0_c_keplerian, x(40, 1:2), mu_E, R_E, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, 1.5, 365.25 * 2, true)
 
 %% Helper Functions
 function [c, ceq] = min_periapsis_constraint(a, e, min_r_p, R_E)
@@ -153,7 +170,7 @@ function [c, ceq] = min_periapsis_constraint(a, e, min_r_p, R_E)
     c = min_r_p - r_p;
 end
 
-function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_keplerian_targ, eta, mu, R, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, max_dV, max_ToF)
+function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_keplerian_targ, eta, mu, R, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, max_dV, max_ToF, plot_results)
     arguments
         x_keplerian_0
         x_keplerian_int
@@ -168,6 +185,7 @@ function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_kep
         Qdot_opt_params
         max_dV
         max_ToF
+        plot_results = false
     end
 
     % Transfer to intermediate orbit
@@ -187,7 +205,7 @@ function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_kep
     transfer_drift_2 = sum(J2_RAAN_drift(Qtransfer_to_targ.x_keplerian_mass(1, :), Qtransfer_to_targ.x_keplerian_mass(2, :), Qtransfer_to_targ.x_keplerian_mass(3, :), mu, R, J_2_val) .* [diff(Qtransfer_to_targ.t)', 0]);
 
     % Calculate wait time for RAAN phasing accounting for drift during transfers
-    targ_Omega_transfer_drift = J2_RAAN_drift(x_keplerian_targ(1, :), x_keplerian_targ(2, :), x_keplerian_targ(3, :), mu, R, J_2_val) * (Qtransfer_to_int.dt + Qtransfer_to_targ.dt);
+    targ_Omega_transfer_drift = J2_RAAN_drift(x_keplerian_targ(1), x_keplerian_targ(2), x_keplerian_targ(3), mu, R, J_2_val) * (Qtransfer_to_int.dt + Qtransfer_to_targ.dt);
     delta_Omega = wrapTo2Pi((x_keplerian_targ(4) + targ_Omega_transfer_drift) - (x_keplerian_0(4) + transfer_drift_1 + transfer_drift_2));
     rel_Omega_drift = J2_RAAN_drift(x_keplerian_int(1, :), x_keplerian_int(2, :), x_keplerian_int(3, :), mu, R, J_2_val) ...
                     - J2_RAAN_drift(x_keplerian_targ(1, :), x_keplerian_targ(2, :), x_keplerian_targ(3, :), mu, R, J_2_val);
@@ -203,4 +221,42 @@ function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_kep
     violated_constraints = (dV_total > max_dV) + (ToF_total > max_ToF) + ~Qtransfer_to_int.converged + ~Qtransfer_to_targ.converged;
     dV_ToF = [dV_total .* (violated_constraints == 0) + 1e5 * (violated_constraints / n_constraints),... 
               ToF_total .* (violated_constraints == 0) + 1e5 * (violated_constraints / n_constraints)];
+
+    if plot_results
+        char_star = load_charecteristic_values_Earth();
+
+        Omegachange_to_int = cumsum(J2_RAAN_drift(Qtransfer_to_int.x_keplerian_mass(1, :), Qtransfer_to_int.x_keplerian_mass(2, :), Qtransfer_to_int.x_keplerian_mass(3, :), mu, R, J_2_val) .* [diff(Qtransfer_to_int.t)', 0]);
+        Qtransfer_to_int.x_keplerian_mass(4, :) = x_keplerian_0(4) + Omegachange_to_int - (2 * pi / (365.25 * 60 * 60 * 24) * Qtransfer_to_int.t');
+
+        Omegachange_int = J2_RAAN_drift(x_keplerian_int(1), x_keplerian_int(2), x_keplerian_int(3), mu, R, J_2_val) * t_wait;
+
+        Omegachange_to_targ = cumsum(J2_RAAN_drift(Qtransfer_to_targ.x_keplerian_mass(1, :), Qtransfer_to_targ.x_keplerian_mass(2, :), Qtransfer_to_targ.x_keplerian_mass(3, :), mu, R, J_2_val) .* [diff(Qtransfer_to_targ.t)', 0]);
+        Qtransfer_to_targ.x_keplerian_mass(4, :) = x_keplerian_0(4) + Omegachange_to_int(end) + Omegachange_int + Omegachange_to_targ - (2 * pi / (365.25 * 60 * 60 * 24) * (Qtransfer_to_int.t(end) + t_wait + Qtransfer_to_targ.t'));
+
+        figure
+        x_keplerian_cartesian_d = keplerian_to_cartesian_array(Qtransfer_to_int.x_keplerian_mass(1:6, :), [], char_star.mu);
+        not_coast_colors = interp1(1:numel(Qtransfer_to_int.not_coast), double(Qtransfer_to_int.not_coast), linspace(1, numel(Qtransfer_to_int.not_coast), numel(Qtransfer_to_int.t)), 'nearest');
+        plot_cartesian_orbit_color_varying(x_keplerian_cartesian_d(:, 1:1:end), not_coast_colors, 3); hold on
+
+        x_keplerian_cartesian_d = keplerian_to_cartesian_array(Qtransfer_to_targ.x_keplerian_mass(1:6, :), [], char_star.mu);
+        not_coast_colors = interp1(1:numel(Qtransfer_to_targ.not_coast), double(Qtransfer_to_targ.not_coast), linspace(1, numel(Qtransfer_to_targ.not_coast), numel(Qtransfer_to_targ.t)), 'nearest');
+        plot_cartesian_orbit_color_varying(x_keplerian_cartesian_d(:, 1:1:end), not_coast_colors, 3); hold on
+
+        c = colorbar;
+        plotOrbit3(x_keplerian_0(4), x_keplerian_0(3), x_keplerian_0(5), x_keplerian_0(1) * (1 - x_keplerian_0(2) ^2), x_keplerian_0(2), linspace(0, 2 * pi, 1000), "g", 1, 1, [0, 0, 0], 0.1, 2); hold on
+        plotOrbit3(x_keplerian_0(4) + Omegachange_to_int(end) - (2 * pi / (365.25 * 60 * 60 * 24) * Qtransfer_to_int.t(end)'), x_keplerian_int(3), x_keplerian_int(5), x_keplerian_int(1) * (1 - x_keplerian_int(2) ^2), x_keplerian_int(2), linspace(0, 2 * pi, 1000), "b", 1, 1, [0, 0, 0], 0.1, 2)
+        plotOrbit3(x_keplerian_0(4) + Omegachange_to_int(end) + Omegachange_int - (2 * pi / (365.25 * 60 * 60 * 24) * (Qtransfer_to_int.t(end) + t_wait)'), x_keplerian_int(3), x_keplerian_int(5), x_keplerian_int(1) * (1 - x_keplerian_int(2) ^2), x_keplerian_int(2), linspace(0, 2 * pi, 1000), "b", 1, 1, [0, 0, 0], 0.1, 2)
+        plotOrbit3(x_keplerian_targ(4) + J2_RAAN_drift(x_keplerian_targ(1), x_keplerian_targ(2), x_keplerian_targ(3), mu, R, J_2_val) * (Qtransfer_to_int.t(end) + t_wait + Qtransfer_to_targ.t(end)) - (2 * pi / (365.25 * 60 * 60 * 24) * (Qtransfer_to_int.t(end) + t_wait + Qtransfer_to_targ.t(end))'), x_keplerian_targ(3), x_keplerian_targ(5), x_keplerian_targ(1) * (1 - x_keplerian_targ(2) ^2), x_keplerian_targ(2), linspace(0, 2 * pi, 1000), "k", 1, 1, [0, 0, 0], 0.1, 2); hold on
+        grid on,
+        earthy(char_star.l, "Earth", 0.5, [0;0;0]); hold on; 
+        clim([0, 1])
+        c.Ticks = [0, 0.5, 1];
+        c.TickLabels = {'Coast', 'Eclipse', 'Thrust'};
+        axis equal
+        title("Q-Law Orbit Transfer")
+        %legend("Spacecraft", "Target", "Initial")
+        xlabel("X [km]")
+        ylabel("Y [km]")
+        zlabel("Z [km]")
+    end
 end
