@@ -49,7 +49,7 @@ debris_weights = ones(size(debris_IDs)); % Use McKnight top 50 list score? - all
 % Load debris paretos
 % Pareto has .ToF and .dV like [N_pareto, N_debris, N_debris] where 3rd dim 
 % is starting debris ID and 4rth dim is ending debris ID.
-paretos = load("Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Low Thrust\low_thrust_paretos.mat").paretos;
+paretos = load("Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Low Thrust Old\low_thrust_paretos.mat").paretos;
 
 %%
 % Problem parameters
@@ -103,6 +103,8 @@ debris_IDs_best = debris_IDs(IDs_best);
 %%
 ToFs_best_2 = zeros(size(ToFs_best));
 dVs_best_2 = zeros(size(dVs_best));
+t_per_sc_2 = zeros(size(dVs_best, 1), 1);
+dVs_per_sc_2 = zeros(size(dVs_best, 1), 1);
 N_pareto = size(paretos.dV, 1);
 for s = 1 : N_ships
     N_debris = nnz(IDs_best(s, :));
@@ -115,14 +117,12 @@ for s = 1 : N_ships
             ToF_deorbit = ToF_deorbit + paretos.t{IDs_best(s, t), 2}(1);
         end
     end
-    [ToFs_best_2(s, 1:N_transfers), dVs_best_2(s, 1:N_transfers)] = optimize_transfer_ToFs_time_varying(paretos, IDs_best(s, :), max_t - ToF_deorbit * N_debris, ToFs_best(s, :)');
+    [ToFs_best_2(s, 1:N_transfers), dVs_best_2(s, 1:N_transfers), dVs_per_sc_2(s), t_per_sc_2(s)] = optimize_transfer_ToFs_time_varying(paretos, IDs_best(s, :), max_t - ToF_deorbit, ToFs_best(s, :)' * 0 + 1, dV_deorbit(IDs_best(s, :)), transfer_dataset_inputs.spacecraft_params.m_0, transfer_dataset_inputs.debris_mass(IDs_best(s, :))');
 end
 num_debris_per_sc = sum(IDs_best ~= 0, 2);
-dV_per_sc_2 = sum(dVs_best_2, 2) + num_debris_per_sc * dV_deorbit;
-t_per_sc_2 = sum(ToFs_best_2, 2) + num_debris_per_sc * ToF_deorbit;
 
 %% Helper Functions
-function [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(x, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, spacecraft_mass, debris_mass)
+function [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(x, var_layout_table, paretos, max_t, max_dV, N_debris, dV_deorbit, spacecraft_mass, debris_mass)
     % Constraints:
     %   * One ship per debris (ineq) - not equality because sum debris
     %     might not be visited so number is 0 or 1
@@ -143,7 +143,7 @@ function [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(x, v
             debris_matrix(s, i) = any(IDs(s, :) == i);
         end
     end
-
+    
     % One ship per debris - N_debris
     % Count how many times each ID shows up
     c_one_ship_debris = arrayfun(@(x) sum(IDs == x, "all"), (1:N_debris)') - 1; % Skips IDs with 0

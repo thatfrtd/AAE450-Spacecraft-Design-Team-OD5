@@ -108,7 +108,7 @@ for transfer_number = 1 : N_transfers
     pareto.fval = fval;
     pareto.exitflag = exitflag;
     pareto.output = output;
-    %save("Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Low Thrust\" + run_name, "pareto");
+    save("Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Low Thrust\" + run_name, "pareto");
 
     %% Analyze Results
     % figure

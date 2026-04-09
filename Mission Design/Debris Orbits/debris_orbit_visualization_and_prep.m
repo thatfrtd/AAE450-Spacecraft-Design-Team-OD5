@@ -5,12 +5,12 @@
 % Created On: 1 April, 2026
 % Description: Use Matlab Aerospace toolkit to visualize debris orbits from
 % TLEs
-% Most Recent Change: 1 April, 2026
+% Most Recent Change: 9 April, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Create Mission
-mission.StartDate = datetime(2026, 1, 3, 12, 0, 0);
-duration_yr = 6;
+mission.StartDate = datetime(2026, 4, 1, 12, 0, 0);
+duration_yr = 7;
 mission.Duration  = years(duration_yr);
 mission.StopDate = mission.StartDate + mission.Duration;
 sampleTime = 60000;
@@ -112,7 +112,7 @@ dVs_deorbit = zeros([N_debris, 1]);
 ToFs_deorbit = zeros([N_debris, 1]);
 
 clear Qtransfer_deorbit
-parfor i = 1 : N_debris
+for i = 1 : N_debris
     % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
     Q_params = struct();
     Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
@@ -123,7 +123,7 @@ parfor i = 1 : N_debris
     Q_params.r = 2;
     Q_params.Theta_rot = 0;
 
-    r_a_deorbit = x_keplerian_array(1, 1, i) * (1 + x_keplerian_array(2, 1, i)); % [km] apoapsis
+    r_a_deorbit = R_E + 500;%x_keplerian_array(1, 1, i) * (1 + x_keplerian_array(2, 1, i)); % [km] apoapsis
     r_p_deorbit = R_E + 135; % [km] periapsis
     e_deorbit = (1 - r_p_deorbit / r_a_deorbit) / (1 + r_p_deorbit / r_a_deorbit); % [] eccentricity
     a_deorbit = r_p_deorbit / (1 - e_deorbit); % [km] semi-major axis
@@ -146,7 +146,7 @@ parfor i = 1 : N_debris
     end
 end
 
-% save("Multi Debris Mission Optimization\deorbit_transfers_info.mat", "ToFs_deorbit", "dVs_deorbit", "deorbit_transfer_drifts")
+%save("Multi Debris Mission Optimization\deorbit_transfers_info_fixedreorbit.mat", "ToFs_deorbit", "dVs_deorbit", "deorbit_transfer_drifts")
 
 %% Construct Dataset Inputs
 % For each delta RAAN point for two debris % save the starting terminator

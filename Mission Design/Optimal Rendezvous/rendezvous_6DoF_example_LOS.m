@@ -40,7 +40,7 @@ spacecraft_params.thrust_positions = {[1; 0; 0], ... % Main thruster
                                        1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 1, -1;
                                        0, 0, 1, -1, 1, -1, 0, 0, 0, 0, 0, 0] * spacecraft_params.r}; % RCS thruster positions
 spacecraft_params.R_C_S = calculate_RCS_allocation_matrix(spacecraft_params.thrust_directions{2}, spacecraft_params.thrust_positions{2}); % RCS thruster force and torque allocation matrix
-spacecraft_params.tau_max = 15; % [N m] Max reaction wheel torque
+spacecraft_params.tau_max = 0; % [N m] Max reaction wheel torque
 F_max_nd = spacecraft_params.F_max; % F_max in N, char_star.F in kN
 tau_max_nd = spacecraft_params.tau_max; 
 tau_max_RCS = 15; % [N m] Max allowable RCS torque (could make soft constraint lambda_RCS_tau * max(RCS_torque - tau_max_RCS, 0) )
