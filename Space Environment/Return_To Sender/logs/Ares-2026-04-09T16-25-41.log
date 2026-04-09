@@ -1,0 +1,249 @@
+2026-04-09 12:25:16,791 - INFO - dmf.workflows.DmfWorkflow - Creating workflow c5c27c52-d2ec-4f05-85a8-731937f2fd2e
+2026-04-09 12:25:17,781 - INFO - dmf.workflows.analysis_modules.AresOnlyWorkflow - Validating PRB data files before starting workflow
+2026-04-09 12:25:17,800 - INFO - dmf.workflows.analysis_modules.AresOnlyWorkflow - Creating configurations
+2026-04-09 12:25:17,800 - INFO - dmf.processes.DmfProcess - Creating ares process 8aa93701-c8d4-4ddb-b15e-4f517fc3a373
+2026-04-09 12:25:17,807 - INFO - dmf.processes.DmfProcess - Creating ares process c4f41edf-2114-4f48-8a7f-f8196a903818
+2026-04-09 12:25:17,807 - INFO - dmf.processes.DmfProcess - Creating ares process a1d4cb3f-dcd5-43b4-bb8f-7b9baaf5c48e
+2026-04-09 12:25:17,807 - INFO - dmf.processes.DmfProcess - Creating ares process 4f9e4979-c19d-461b-84e1-537879427564
+2026-04-09 12:25:17,807 - INFO - dmf.processes.DmfProcess - Creating ares process 0b66a3f8-8a9d-45b4-8358-be3278f13f75
+2026-04-09 12:25:32,727 - INFO - dmf.processes.AresProcess - Starting to execute ARES 8aa93701-c8d4-4ddb-b15e-4f517fc3a373
+2026-04-09 12:25:32,727 - INFO - dmf.processes.AresProcess - Stored pyARES inputs in C:\\Users\\zipzi\\Downloads\\DRAMA\\Return_To Sender\\input\\last_ares.json
+2026-04-09 12:25:37,098 - INFO - ares_live_log - tmp7qjxv2fh                  __/__/    __/_/__/    __/__/__/  _/__/_/
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh                __/   __/  __/    __/  __/        __/
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh               __/__/__/  __/_/__/    __/__/      __/__/
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh              __/   __/  __/    __/  __/             __/
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh             __/   __/  __/     __/ __/__/__/  _/__/_/
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh         Debris Risk Assessment and Mitigation Analysis Tool Suite
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh        MASTER(-based) Assessment of Risk Event Statistics Software
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh                            (DRAMA-ARES v4.1.1)
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  -----------------------------------------------------------------------
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  ARES version  : 4.1.1
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  Build date    : 02-Jul-25
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  Platform      : x86_64-linux-gnu
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  Compiler      : GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  -----------------------------------------------------------------------
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  09/04/2026 12:25:37 INFO Starting ARES version 4.1.1
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  09/04/2026 12:25:37 INFO Starting progress report
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  09/04/2026 12:25:37 INFO Loading input file
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  09/04/2026 12:25:37 INFO Validating input file
+2026-04-09 12:25:37,108 - ERROR - ares_live_log - tmp7qjxv2fh  09/04/2026 12:25:37 ERROR The spacecraft orbit perigee                                
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh is less than Earth radius
+2026-04-09 12:25:37,108 - ERROR - ares_live_log - tmp7qjxv2fh  09/04/2026 12:25:37 ERROR Ares input validation failed
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh Ares finished with code 114
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  ARES wrong input                                            
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  The spacecraft orbit perigee                                
+2026-04-09 12:25:37,108 - INFO - ares_live_log - tmp7qjxv2fh  is less than Earth radius                                   
+2026-04-09 12:25:37,143 - ERROR - dmf.processes.AresProcess - Finished ares 8aa93701-c8d4-4ddb-b15e-4f517fc3a373 with errors
+"2026-04-09 12:25:37,153 - ERROR - dmf.processes.AresProcess - {config: {ACPLValues: 1e-06,\n                            1e-05,\n                            5e-05,\n                            8e-05,\n                            0.0001,\n                            0.0004,\n                            0.0005,\n                            0.001,\n                            0.0015,\n                            0.01,\n             allowedMinimumMissDistance: 1.5,\n             analysisReferenceDate: datetime.datetime(2030
+1
+1
+12
+0
+tzinfo=tzutc()),\n             argumentOfPerigee: 35.39,\n             avoidanceManoeuvreCriteria: 0,\n             beginDate: 2030-01-01T12:00:00.00Z,\n             catalogUncertaintyType: 1,\n             collisionProbabilityAlgorithm: 0,\n             comment1: Satellite: Cheeta,\n             comment2: Mission Phase: Parking,\n             covarianceOperationalModeSwitch: 2,\n             crossSectionEphemeridesSwitch: 0,\n             dragAugmentationFlag: 0,\n             dragAugmentationManoeuvreMaxDuration: 1,\n             dragCoefficient: 2.3,\n             dryMassSwitch: 0,\n             eccentricity: 0.000742,\n             electricThrusterError: 2,\n             energyToMassRatioSwitch: 1,\n             engineName: Bipropellant 1,\n             engineSpecificImpulse: 307,\n             functionality: 4,\n             globalUncertaintyScalingFactor: 1,\n             inclination: 98.6,\n             maximumBallisticCoefficient: 0.1375,\n             maximumParticleSize: 100,\n             meanAnomaly: 325.04,\n             minimumBallisticCoefficient: 0.00275,\n             minimumEnergyToMassRatio: 40,\n             minimumParticleSize: 0.01,\n             nominalBallisticCoefficient: 0.1375,\n             numberOfACPLValues: 10,\n             numberOfRevolutions: 10,\n             populationCloudIds: none
+none
+none
+none
+none,\n             populationCloudSwitches: 0
+0
+0
+0
+0,\n             populationMode: 0,\n             predictionToEventTime: 7,\n             radarEquationParameters: 0.36
+0.7
+2000
+36000
+2
+-0.5,\n             radarWavelength: 0.1,\n             reflectivityCoefficient: 1.3,\n             revolutionVectors: 1
+2
+3
+4
+5
+6
+7
+8
+9
+10,\n             rightAscensionOfTheAscendingNode: 183.3,\n             runId: PyAres,\n             scenarioSwitch: 0,\n             semiMajorAxis: 860,\n             spacecraftAlongTrackUncertainty: 0.02,\n             spacecraftCrossTrackUncertainty: 0.005,\n             spacecraftMass: 2000,\n             spacecraftRadialUncertainty: 0.005,\n             spacecraftRadius: 4.406461512053774,\n             spacecraftUncertaintyType: 2,\n             targetCollisionProbabilityLevel: 0.1,\n             transferType: 2,\n             uncertaintyScalingFactors: 1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n                                           1
+2
+3
+4
+5
+6,\n             userEnteredCovariances: 1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                        1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2,\n                                         1,\n                                         0.4,\n                                         0.2},\n  errfile: ---\\n\n             message no:     1\\n\n             type: error\\n\n             title: ARES wrong input\\n\n             location: m_AresInput validateInput\\n\n             message: \\n\n             The spacecraft orbit perigee                                \\n\n             is less than Earth radius                                   \\n,\n  logfile:  \\n\n                              __/__/    __/_/__/    __/__/__/  _/__/_/\\n\n                            __/   __/  __/    __/  __/        __/\\n\n                           __/__/__/  __/_/__/    __/__/      __/__/\\n\n                          __/   __/  __/    __/  __/             __/\\n\n                         __/   __/  __/     __/ __/__/__/  _/__/_/\\n\n              \\n\n                     Debris Risk Assessment and Mitigation Analysis Tool \n             Suite\\n\n                    MASTER(-based) Assessment of Risk Event Statistics \n             Software\\n\n                                        (DRAMA-ARES v4.1.1)\\n\n              \\n\n              \n             -----------------------------------------------------------------------\\n\n              ARES version  : 4.1.1\\n\n              Build date    : 02-Jul-25\\n\n              Platform      : x86_64-linux-gnu\\n\n              Compiler      : GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04) \n             13.3.0\\n\n              \n             -----------------------------------------------------------------------\\n\n              09/04/2026 12:25:37 INFO Starting ARES version 4.1.1\\n\n              09/04/2026 12:25:37 INFO Starting progress report\\n\n              09/04/2026 12:25:37 INFO Loading input file\\n\n              09/04/2026 12:25:37 INFO Validating input file\\n\n             \\n\n             ERROR The spacecraft orbit \n             perigee                                \\n\n             is less than Earth radius\\n\n             \\n\n             \\n\n             ERROR Ares input validation failed\\n\n             \\n,\n  output: b\\n                 __/__/    __/_/__/    __/__/__/  _/__/_/\\n \n            b              __/   __/  __/    __/  __/        __/\\n            \n            b  __/__/__/  __/_/__/    __/__/      __/__/\\n             __/   _\n            b_/  __/    __/  __/             __/\\n            __/   __/  __/  \n            b   __/ __/__/__/  _/__/_/\\n        Debris Risk Assessment and Mit\n            bigation Analysis Tool Suite\\n       MASTER(-based) Assessment of \n            bRisk Event Statistics Software\\n                           (DRAMA\n            b-ARES v4.1.1)\\n -------------------------------------------------\n            b----------------------\\n ARES version  : 4.1.1\\n Build date   \n            b : 02-Jul-25\\n Platform      : x86_64-linux-gnu\\n Compiler    \n            b  : GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0\\n ---------\n            b--------------------------------------------------------------\\n \n            b09/04/2026 12:25:37 INFO Starting ARES version 4.1.1\\n 09/04/2\n            b026 12:25:37 INFO Starting progress report\\n 09/04/2026 12:25:3\n            b7 INFO Loading input file\\n 09/04/2026 12:25:37 INFO Validatin\n            bg input file\\n 09/04/2026 12:25:37 ERROR The spacecraft orbit p\n            berigee                                \\nis less than Earth radius\n            b\\n 09/04/2026 12:25:37 ERROR Ares input validation failed\\nA\n            bres finished with code 114\\n ARES wrong input                    \n            b                        \\n The spacecraft orbit perigee          \n            b                      \\n is less than Earth radius               \n            b                    ,\n  status: error in ARES}"
+2026-04-09 12:25:40,154 - INFO - dmf.workflows.DmfWorkflow - Cancelling process in queue with id: c4f41edf-2114-4f48-8a7f-f8196a903818 due to error in other processes
+2026-04-09 12:25:40,174 - INFO - dmf.workflows.DmfWorkflow - Cancelling process in queue with id: a1d4cb3f-dcd5-43b4-bb8f-7b9baaf5c48e due to error in other processes
+2026-04-09 12:25:40,194 - INFO - dmf.workflows.DmfWorkflow - Cancelling process in queue with id: 4f9e4979-c19d-461b-84e1-537879427564 due to error in other processes
+2026-04-09 12:25:40,215 - INFO - dmf.workflows.DmfWorkflow - Cancelling process in queue with id: 0b66a3f8-8a9d-45b4-8358-be3278f13f75 due to error in other processes
+2026-04-09 12:25:40,215 - INFO - dmf.workflows.DmfWorkflow - Cancelling workflow c5c27c52-d2ec-4f05-85a8-731937f2fd2e due to error in processes

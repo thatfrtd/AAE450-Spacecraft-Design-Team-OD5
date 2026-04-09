@@ -527,106 +527,11 @@
         "id": "979a2b11-8121-4a88-926f-59c693fbc997",
         "missionPhases": [
             {
-                "name": "Parking",
-                "type": "Free drift",
-                "begin": "2030-01-01T12:00:00.00Z",
-                "end": "2031-03-01T12:00:00.00Z",
-                "populationOverrideSwitch": true,
-                "probability": 100,
-                "enableSwitch": true,
-                "includedSatellites": [
-                    {
-                        "mroReleaseStatus": "No release",
-                        "numberOfObjects": 1,
-                        "satelliteId": "738fc52d-e0fe-43fa-b95a-4357090c6133"
-                    }
-                ],
-                "includeSensorNetwork": [
-                    "US-SSN"
-                ],
-                "orbitDefinition": {
-                    "state": {
-                        "orbitType": "single averaged",
-                        "semiMajorAxis": 7238,
-                        "eccentricity": 0.000742,
-                        "inclination": 98.6,
-                        "rightAscensionOfTheAscendingNode": 183.3,
-                        "argumentOfPerigee": 35.39,
-                        "meanAnomaly": 325.04
-                    },
-                    "positionUncertainties": {
-                        "spacecraftUncertaintyType": "From catalogue uncertainties",
-                        "spacecraftAlongTrackUncertainty": 0.02,
-                        "spacecraftCrossTrackUncertainty": 0.005,
-                        "spacecraftRadialUncertainty": 0.005
-                    }
-                },
-                "spacecraftAttitude": {
-                    "nominalAttitude": {
-                        "attitude": "Earth-oriented",
-                        "azimuth": 0,
-                        "elevation": 0
-                    },
-                    "reentryAttitude": {
-                        "attitude": "tumbling",
-                        "attack": 0,
-                        "sideSlip": 0,
-                        "bank": 0
-                    },
-                    "fragmentsAttitudeAfterBreakup": "inherited"
-                },
-                "scenarioSettings": {
-                    "collisionAvoidanceStrategy": {
-                        "ACPLValues": [
-                            0.000001,
-                            0.00001,
-                            0.00005,
-                            0.00008,
-                            0.0001,
-                            0.0004,
-                            0.0005,
-                            0.001,
-                            0.0015,
-                            0.01
-                        ],
-                        "collisionProbabilityAlgorithm": "AlfriendAkella",
-                        "avoidanceManoeuvreCriteria": "TargetCollisionProbabilityLevel",
-                        "targetCollisionProbabilityLevel": 0.1,
-                        "allowedMinimumMissDistance": 1.5,
-                        "revolutionValues": [
-                            1,
-                            2,
-                            3,
-                            4,
-                            5,
-                            6,
-                            7,
-                            8,
-                            9,
-                            10
-                        ],
-                        "predictionToEventTime": 1
-                    },
-                    "disposalOptions": {
-                        "disposalOption": "Direct De-Orbit",
-                        "directDeOrbitPerigeeAltitude": 2000,
-                        "lifetimeLimit": 5,
-                        "lifetimeMargin": 5,
-                        "hohmannTransferManoeuvres": 1
-                    },
-                    "onGroundRiskOptions": {
-                        "reentryType": "uncontrolled",
-                        "uncontrolledMethod": "circular",
-                        "inclinationAngle": 0
-                    }
-                },
-                "id": "f3f188c1-3523-48e4-ad89-508969d83112"
-            },
-            {
-                "name": "Transfer",
+                "name": "Operational",
+                "id": "979a2b11-8171-4e88-926f-49c693fbc997",
                 "type": "Mission",
-                "begin": "2031-03-01T12:00:00.00Z",
-                "end": "2031-09-01T12:00:00.00Z",
+                "begin": "2023-01-01T12:00:00.00Z",
+                "end": "2023-12-31T12:00:00.00Z",
                 "populationOverrideSwitch": true,
                 "probability": 100,
                 "enableSwitch": true,
@@ -643,11 +548,11 @@
                 "orbitDefinition": {
                     "state": {
                         "orbitType": "single averaged",
-                        "semiMajorAxis": 7478,
+                        "semiMajorAxis": 7178,
                         "eccentricity": 0.000742,
                         "inclination": 98.6,
                         "rightAscensionOfTheAscendingNode": 183.3,
-                        "argumentOfPerigee": 35.39,
+                        "argumentOfPerigee": 20,
                         "meanAnomaly": 325.04
                     },
                     "positionUncertainties": {
@@ -659,17 +564,19 @@
                 },
                 "spacecraftAttitude": {
                     "nominalAttitude": {
-                        "attitude": "Earth-oriented",
+                        "attitude": "Sun-fixed",
+                        "rightAscension": 90,
+                        "declination": 0,
                         "azimuth": 0,
                         "elevation": 0
                     },
                     "reentryAttitude": {
-                        "attitude": "tumbling",
+                        "attitude": "analyticalTumbling",
                         "attack": 0,
                         "sideSlip": 0,
                         "bank": 0
                     },
-                    "fragmentsAttitudeAfterBreakup": "inherited"
+                    "fragmentsAttitudeAfterBreakup": "tumbling"
                 },
                 "scenarioSettings": {
                     "collisionAvoidanceStrategy": {
@@ -685,10 +592,7 @@
                             0.0015,
                             0.01
                         ],
-                        "collisionProbabilityAlgorithm": "AlfriendAkella",
                         "avoidanceManoeuvreCriteria": "TargetCollisionProbabilityLevel",
-                        "targetCollisionProbabilityLevel": 0.1,
-                        "allowedMinimumMissDistance": 1.5,
                         "revolutionValues": [
                             1,
                             2,
@@ -701,107 +605,14 @@
                             9,
                             10
                         ],
-                        "predictionToEventTime": 1
-                    },
-                    "disposalOptions": {
-                        "disposalOption": "Direct De-Orbit",
-                        "directDeOrbitPerigeeAltitude": 2000,
-                        "lifetimeLimit": 5,
-                        "lifetimeMargin": 5,
-                        "hohmannTransferManoeuvres": 1
-                    },
-                    "onGroundRiskOptions": {
-                        "reentryType": "uncontrolled",
-                        "uncontrolledMethod": "circular",
-                        "inclinationAngle": 0
-                    }
-                },
-                "id": "ad540da2-1786-4379-9fa3-111fb82915ce"
-            },
-            {
-                "name": "Debris",
-                "type": "Mission",
-                "begin": "2031-09-01T12:00:00.00Z",
-                "end": "2031-09-02T12:00:00.00Z",
-                "populationOverrideSwitch": true,
-                "probability": 100,
-                "enableSwitch": true,
-                "includedSatellites": [
-                    {
-                        "mroReleaseStatus": "No release",
-                        "numberOfObjects": 1,
-                        "satelliteId": "738fc52d-e0fe-43fa-b95a-4357090c6133"
-                    }
-                ],
-                "includeSensorNetwork": [
-                    "US-SSN"
-                ],
-                "orbitDefinition": {
-                    "state": {
-                        "orbitType": "single averaged",
-                        "semiMajorAxis": 7238,
-                        "eccentricity": 0.000742,
-                        "inclination": 98.6,
-                        "rightAscensionOfTheAscendingNode": 183.3,
-                        "argumentOfPerigee": 35.39,
-                        "meanAnomaly": 325.04
-                    },
-                    "positionUncertainties": {
-                        "spacecraftUncertaintyType": "From catalogue uncertainties",
-                        "spacecraftAlongTrackUncertainty": 0.02,
-                        "spacecraftCrossTrackUncertainty": 0.005,
-                        "spacecraftRadialUncertainty": 0.005
-                    }
-                },
-                "spacecraftAttitude": {
-                    "nominalAttitude": {
-                        "attitude": "Earth-oriented",
-                        "azimuth": 0,
-                        "elevation": 0
-                    },
-                    "reentryAttitude": {
-                        "attitude": "tumbling",
-                        "attack": 0,
-                        "sideSlip": 0,
-                        "bank": 0
-                    },
-                    "fragmentsAttitudeAfterBreakup": "inherited"
-                },
-                "scenarioSettings": {
-                    "collisionAvoidanceStrategy": {
-                        "ACPLValues": [
-                            0.000001,
-                            0.00001,
-                            0.00005,
-                            0.00008,
-                            0.0001,
-                            0.0004,
-                            0.0005,
-                            0.001,
-                            0.0015,
-                            0.01
-                        ],
+                        "predictionToEventTime": 1,
                         "collisionProbabilityAlgorithm": "AlfriendAkella",
-                        "avoidanceManoeuvreCriteria": "TargetCollisionProbabilityLevel",
                         "targetCollisionProbabilityLevel": 0.1,
-                        "allowedMinimumMissDistance": 1.5,
-                        "revolutionValues": [
-                            1,
-                            2,
-                            3,
-                            4,
-                            5,
-                            6,
-                            7,
-                            8,
-                            9,
-                            10
-                        ],
-                        "predictionToEventTime": 1
+                        "allowedMinimumMissDistance": 1.5
                     },
                     "disposalOptions": {
-                        "disposalOption": "Direct De-Orbit",
-                        "directDeOrbitPerigeeAltitude": 2000,
+                        "disposalOption": "None",
+                        "directDeOrbitPerigeeAltitude": 60,
                         "lifetimeLimit": 5,
                         "lifetimeMargin": 5,
                         "hohmannTransferManoeuvres": 1
@@ -811,200 +622,7 @@
                         "uncontrolledMethod": "circular",
                         "inclinationAngle": 0
                     }
-                },
-                "id": "e196d900-3089-4140-830e-ce5e5e313753"
-            },
-            {
-                "name": "Deorbit",
-                "type": "Disposal",
-                "begin": "2031-09-02T12:00:00.00Z",
-                "end": "2032-04-20T12:00:00.00Z",
-                "populationOverrideSwitch": true,
-                "probability": 100,
-                "enableSwitch": true,
-                "includedSatellites": [
-                    {
-                        "mroReleaseStatus": "No release",
-                        "numberOfObjects": 1,
-                        "satelliteId": "738fc52d-e0fe-43fa-b95a-4357090c6133"
-                    }
-                ],
-                "includeSensorNetwork": [
-                    "US-SSN"
-                ],
-                "orbitDefinition": {
-                    "state": {
-                        "orbitType": "single averaged",
-                        "semiMajorAxis": 7038,
-                        "eccentricity": 0.000742,
-                        "inclination": 98.6,
-                        "rightAscensionOfTheAscendingNode": 183.3,
-                        "argumentOfPerigee": 35.39,
-                        "meanAnomaly": 325.04
-                    },
-                    "positionUncertainties": {
-                        "spacecraftUncertaintyType": "From catalogue uncertainties",
-                        "spacecraftAlongTrackUncertainty": 0.02,
-                        "spacecraftCrossTrackUncertainty": 0.005,
-                        "spacecraftRadialUncertainty": 0.005
-                    }
-                },
-                "spacecraftAttitude": {
-                    "nominalAttitude": {
-                        "attitude": "Earth-oriented",
-                        "azimuth": 0,
-                        "elevation": 0
-                    },
-                    "reentryAttitude": {
-                        "attitude": "tumbling",
-                        "attack": 0,
-                        "sideSlip": 0,
-                        "bank": 0
-                    },
-                    "fragmentsAttitudeAfterBreakup": "inherited"
-                },
-                "scenarioSettings": {
-                    "collisionAvoidanceStrategy": {
-                        "ACPLValues": [
-                            0.000001,
-                            0.00001,
-                            0.00005,
-                            0.00008,
-                            0.0001,
-                            0.0004,
-                            0.0005,
-                            0.001,
-                            0.0015,
-                            0.01
-                        ],
-                        "collisionProbabilityAlgorithm": "AlfriendAkella",
-                        "avoidanceManoeuvreCriteria": "TargetCollisionProbabilityLevel",
-                        "targetCollisionProbabilityLevel": 0.1,
-                        "allowedMinimumMissDistance": 1.5,
-                        "revolutionValues": [
-                            1,
-                            2,
-                            3,
-                            4,
-                            5,
-                            6,
-                            7,
-                            8,
-                            9,
-                            10
-                        ],
-                        "predictionToEventTime": 1
-                    },
-                    "disposalOptions": {
-                        "disposalOption": "Direct De-Orbit",
-                        "directDeOrbitPerigeeAltitude": 2000,
-                        "lifetimeLimit": 5,
-                        "lifetimeMargin": 5,
-                        "hohmannTransferManoeuvres": 1
-                    },
-                    "onGroundRiskOptions": {
-                        "reentryType": "uncontrolled",
-                        "uncontrolledMethod": "circular",
-                        "inclinationAngle": 0
-                    }
-                },
-                "id": "0d64b2e0-b2a4-4046-931d-d85af28462c2"
-            },
-            {
-                "name": "Reorbit",
-                "type": "Mission",
-                "begin": "2032-04-20T12:00:00.00Z",
-                "end": "2034-09-20T12:00:00.00Z",
-                "populationOverrideSwitch": true,
-                "probability": 100,
-                "enableSwitch": true,
-                "includedSatellites": [
-                    {
-                        "mroReleaseStatus": "No release",
-                        "numberOfObjects": 1,
-                        "satelliteId": "738fc52d-e0fe-43fa-b95a-4357090c6133"
-                    }
-                ],
-                "includeSensorNetwork": [
-                    "US-SSN"
-                ],
-                "orbitDefinition": {
-                    "state": {
-                        "orbitType": "single averaged",
-                        "semiMajorAxis": 6828,
-                        "eccentricity": 0.000742,
-                        "inclination": 98.6,
-                        "rightAscensionOfTheAscendingNode": 183.3,
-                        "argumentOfPerigee": 35.39,
-                        "meanAnomaly": 325.04
-                    },
-                    "positionUncertainties": {
-                        "spacecraftUncertaintyType": "From catalogue uncertainties",
-                        "spacecraftAlongTrackUncertainty": 0.02,
-                        "spacecraftCrossTrackUncertainty": 0.005,
-                        "spacecraftRadialUncertainty": 0.005
-                    }
-                },
-                "spacecraftAttitude": {
-                    "nominalAttitude": {
-                        "attitude": "Earth-oriented",
-                        "azimuth": 0,
-                        "elevation": 0
-                    },
-                    "reentryAttitude": {
-                        "attitude": "tumbling",
-                        "attack": 0,
-                        "sideSlip": 0,
-                        "bank": 0
-                    },
-                    "fragmentsAttitudeAfterBreakup": "inherited"
-                },
-                "scenarioSettings": {
-                    "collisionAvoidanceStrategy": {
-                        "ACPLValues": [
-                            0.000001,
-                            0.00001,
-                            0.00005,
-                            0.00008,
-                            0.0001,
-                            0.0004,
-                            0.0005,
-                            0.001,
-                            0.0015,
-                            0.01
-                        ],
-                        "collisionProbabilityAlgorithm": "AlfriendAkella",
-                        "avoidanceManoeuvreCriteria": "TargetCollisionProbabilityLevel",
-                        "targetCollisionProbabilityLevel": 0.1,
-                        "allowedMinimumMissDistance": 1.5,
-                        "revolutionValues": [
-                            1,
-                            2,
-                            3,
-                            4,
-                            5,
-                            6,
-                            7,
-                            8,
-                            9,
-                            10
-                        ],
-                        "predictionToEventTime": 1
-                    },
-                    "disposalOptions": {
-                        "disposalOption": "Direct De-Orbit",
-                        "directDeOrbitPerigeeAltitude": 2000,
-                        "lifetimeLimit": 5,
-                        "lifetimeMargin": 5,
-                        "hohmannTransferManoeuvres": 1
-                    },
-                    "onGroundRiskOptions": {
-                        "reentryType": "uncontrolled",
-                        "uncontrolledMethod": "circular",
-                        "inclinationAngle": 0
-                    }
-                },
-                "id": "5dad0723-403b-451a-9eed-0530a20efa11"
+                }
             }
         ],
         "satelliteDefinitions": [
@@ -37735,7 +37353,7 @@
         "version": "4.1.2",
         "descriptionLine0": "Impact mitigation",
         "descriptionLine1": "Default project",
-        "projectSaveTime": "2026-04-09T16:28:26.09Z",
+        "projectSaveTime": "2026-04-09T15:30:43.18Z",
         "projectFolder": "C:\\Users\\zipzi\\Downloads\\DRAMA\\Return_To Sender",
         "materialsUpdate": "ask_about_update",
         "solMagUpdate": "ask_about_update",
@@ -37749,5 +37367,5 @@
     },
     "name": "Return To Sender",
     "id": "c50e93a0-afbb-4ef1-8153-59115d404be4",
-    "editedItem": "5dad0723-403b-451a-9eed-0530a20efa11"
+    "editedItem": "979a2b11-8171-4e88-926f-49c693fbc997"
 }

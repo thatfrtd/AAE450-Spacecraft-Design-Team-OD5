@@ -2,7 +2,7 @@
     "ares.inp": {
         "runId": "PyAres",
         "comment1": "Satellite: Cheeta",
-        "comment2": "Mission Phase: Operational",
+        "comment2": "Mission Phase: Reorbit",
         "energyToMassRatioSwitch": 1,
         "minimumEnergyToMassRatio": 40,
         "radarEquationParameters": [
@@ -1051,15 +1051,15 @@
             "none"
         ],
         "functionality": 4,
-        "beginDate": "2023-01-01T12:00:00.00Z",
-        "analysisReferenceDate": "2023-01-01T12:00:00.00Z",
+        "beginDate": "2032-04-20T12:00:00.00Z",
+        "analysisReferenceDate": "2032-04-20T12:00:00.00Z",
         "populationMode": 0,
         "targetCollisionProbabilityLevel": 0.1,
-        "semiMajorAxis": 7178,
+        "semiMajorAxis": 6828,
         "eccentricity": 0.000742,
         "inclination": 98.6,
         "rightAscensionOfTheAscendingNode": 183.3,
-        "argumentOfPerigee": 20,
+        "argumentOfPerigee": 35.39,
         "meanAnomaly": 325.04,
         "ACPLValues": [
             1e-06,
