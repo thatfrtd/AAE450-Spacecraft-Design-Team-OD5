@@ -38,18 +38,18 @@
 
 %% Initialize Problem
 % Load deorbit transfer info
-deorbit_info = load("deorbit_transfers_info.mat");
+deorbit_info = load("deorbit_transfers_info_fixedreorbit.mat");
 dV_deorbit = deorbit_info.dVs_deorbit;
 
 % Load Pareto creation info
-transfer_dataset_inputs = load("Multi Debris Mission Optimization\transfer_dataset_inputs.mat").transfer_dataset_inputs;
+transfer_dataset_inputs = load("Multi Debris Mission Optimization\transfer_dataset_inputs_fixedreorbit.mat").transfer_dataset_inputs;
 debris_IDs = transfer_dataset_inputs.debris_ID;
 debris_weights = ones(size(debris_IDs)); % Use McKnight top 50 list score? - all the same??
 
 % Load debris paretos
 % Pareto has .ToF and .dV like [N_pareto, N_debris, N_debris] where 3rd dim 
 % is starting debris ID and 4rth dim is ending debris ID.
-paretos = load("Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Low Thrust Old\low_thrust_paretos.mat").paretos;
+paretos = load("Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Low Thrust\low_thrust_paretos.mat").paretos;
 
 %%
 % Problem parameters
@@ -58,8 +58,8 @@ N_debris = numel(debris_IDs);
 N_debris_max = 3;
 N_IDs = N_debris + 1;
 N_vars = N_ships * (2 * N_debris_max - 1);
-max_dV = 10; % [km / s]
-max_t = 5.25; % [yr]
+max_dV = 5; % [km / s]
+max_t = 5; % [yr]
 J_weights = [1, ... % Debris weight left
              0.1]; % Avg dV
 
@@ -96,7 +96,6 @@ rng(0, 'twister');
 %%
 [IDs_best, ToFs_best, dVs_best] = extract_routing_info(xbest, var_layout_table, paretos, N_ships);
 [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(xbest, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, transfer_dataset_inputs.spacecraft_params.m_0, transfer_dataset_inputs.debris_mass');
-
 %%
 debris_IDs_best = debris_IDs(IDs_best);
 
@@ -121,8 +120,10 @@ for s = 1 : N_ships
 end
 num_debris_per_sc = sum(IDs_best ~= 0, 2);
 
+% [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(xbest, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, transfer_dataset_inputs.spacecraft_params.m_0, transfer_dataset_inputs.debris_mass');
+
 %% Helper Functions
-function [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(x, var_layout_table, paretos, max_t, max_dV, N_debris, dV_deorbit, spacecraft_mass, debris_mass)
+function [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(x, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, spacecraft_mass, debris_mass)
     % Constraints:
     %   * One ship per debris (ineq) - not equality because sum debris
     %     might not be visited so number is 0 or 1
@@ -317,6 +318,9 @@ function [dVs] = interp_paretos_time_varying(IDs, ToFs, paretos)
                 ToF_bounded = max(min(ToFs(s, t), interpolated_paretos_ToF(end)), interpolated_paretos_ToF(1));
                 
                 % Interpolate Pareto
+                if numel(unique(interpolated_paretos_ToF)) ~= numel(interpolated_paretos_ToF)
+                    fprintf("AHHHH")
+                end
                 dVs(s, t) = interp1(interpolated_paretos_ToF, interpolated_paretos_dV, ToF_bounded, "linear");
             else
                 break;

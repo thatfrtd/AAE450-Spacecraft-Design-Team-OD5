@@ -108,7 +108,7 @@ for transfer_number = 1 : N_transfers
     pareto.fval = fval;
     pareto.exitflag = exitflag;
     pareto.output = output;
-    save("Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Low Thrust\" + run_name, "pareto");
+    %save("Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Low Thrust\" + run_name, "pareto");
 
     %% Analyze Results
     % figure
@@ -161,7 +161,17 @@ ylabel("Delta V [km / s]")
 grid on
 
 %%
-QLaw_J2_drift_transfer(x0_d_keplerian, [x(40, 3) * char_star.l; [1e-5; x(40, 4)]; x0_d_keplerian(4:6)], x0_c_keplerian, x(40, 1:2), mu_E, R_E, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, 1.5, 365.25 * 2, true)
+[dV_ToF, Qtransfer_to_int, Qtransfer_to_targ] = QLaw_J2_drift_transfer(x0_d_keplerian, [x(end, 3) * char_star.l; [1e-5; x(end, 4)]; x0_d_keplerian(4:6)], x0_c_keplerian, x(end, 1:2), mu_E, R_E, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, 1.5, 365.25 * 2, true, 10);
+
+
+
+%%
+figure
+plot_orbit_transfer_histories(Qtransfer_to_int.t / 60 / 60, x0_c_keplerian' ./ [R_E, ones([1, 5])], Qtransfer_to_int.x_keplerian_mass(1:6, :)' ./ [R_E, ones([1, 5])], Qtransfer_to_int.u_cont');
+figure
+plot_orbit_transfer_histories(Qtransfer_to_targ.t / 60 / 60, x0_c_keplerian' ./ [R_E, ones([1, 5])], Qtransfer_to_targ.x_keplerian_mass(1:6, :)' ./ [R_E, ones([1, 5])], Qtransfer_to_targ.u_cont');
+
+save("terminator_to_new_debris_Qtransfer.mat", "Qtransfer_to_targ", "Qtransfer_to_int")
 
 %% Helper Functions
 function [c, ceq] = min_periapsis_constraint(a, e, min_r_p, R_E)
@@ -170,7 +180,7 @@ function [c, ceq] = min_periapsis_constraint(a, e, min_r_p, R_E)
     c = min_r_p - r_p;
 end
 
-function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_keplerian_targ, eta, mu, R, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, max_dV, max_ToF, plot_results)
+function [dV_ToF, Qtransfer_to_int, Qtransfer_to_targ] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_keplerian_targ, eta, mu, R, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, max_dV, max_ToF, plot_results, angular_step_deg)
     arguments
         x_keplerian_0
         x_keplerian_int
@@ -186,13 +196,14 @@ function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_kep
         max_dV
         max_ToF
         plot_results = false
+        angular_step_deg = 20
     end
 
     % Transfer to intermediate orbit
     Q_params.eta_a_min = eta(1); % Minimum absolute efficiency for thrusting instead of coasting
     Q_params.eta_r_min = eta(1); % Minimum relative efficiency for thrusting instead of coasting
 
-    [Qtransfer_to_int] = QLaw_transfer_fast(x_keplerian_0, x_keplerian_int, mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20), max_dV = max_dV, max_t = max_ToF * 60 * 60 * 24);
+    [Qtransfer_to_int] = QLaw_transfer_fast(x_keplerian_0, x_keplerian_int, mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(angular_step_deg), max_dV = max_dV, max_t = max_ToF * 60 * 60 * 24);
     transfer_drift_1 = sum(J2_RAAN_drift(Qtransfer_to_int.x_keplerian_mass(1, :), Qtransfer_to_int.x_keplerian_mass(2, :), Qtransfer_to_int.x_keplerian_mass(3, :), mu, R, J_2_val) .* [diff(Qtransfer_to_int.t)', 0]);
 
     % Transfer to target orbit
@@ -201,7 +212,7 @@ function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_kep
     
     spacecraft_params.m_0 = spacecraft_params.m_0 - Qtransfer_to_int.delta_m;
         
-    [Qtransfer_to_targ] = QLaw_transfer_fast(x_keplerian_int, [x_keplerian_targ(1:3); x_keplerian_0(4); x_keplerian_targ(5:6)], mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20), max_dV = max_dV, max_t = max_ToF * 60 * 60 * 24);
+    [Qtransfer_to_targ] = QLaw_transfer_fast(x_keplerian_int, [x_keplerian_targ(1:3); x_keplerian_0(4); x_keplerian_targ(5:6)], mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(angular_step_deg), max_dV = max_dV, max_t = max_ToF * 60 * 60 * 24);
     transfer_drift_2 = sum(J2_RAAN_drift(Qtransfer_to_targ.x_keplerian_mass(1, :), Qtransfer_to_targ.x_keplerian_mass(2, :), Qtransfer_to_targ.x_keplerian_mass(3, :), mu, R, J_2_val) .* [diff(Qtransfer_to_targ.t)', 0]);
 
     % Calculate wait time for RAAN phasing accounting for drift during transfers
@@ -259,4 +270,26 @@ function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_kep
         ylabel("Y [km]")
         zlabel("Z [km]")
     end
+end
+
+
+function [] = plot_orbit_transfer_histories(t_hr, x_c, x_d, u)
+    delta_x = x_c(:, 1:5) - x_d(:, 1:5);
+        
+    nexttile
+    plot(t_hr, delta_x(:, 1), t_hr, delta_x(:, 2), t_hr, delta_x(:, 3), t_hr, delta_x(:, 4), t_hr, delta_x(:, 5)); hold off 
+    title("Nondimensionalized Orbital Element Error")
+    xlabel("Time [hr]")
+    ylabel("\delta x")
+    legend("a", "e", "i", "\omega", "\Omega", Location="northeast")
+    grid on
+    
+    nexttile
+    plot(t_hr, u(:, 1), t_hr, u(:, 2), t_hr, u(:, 3)); hold on 
+    plot(t_hr, vecnorm(u, 2, 2), LineStyle= "--"); hold off
+    title("Control")
+    xlabel("Time [hr]")
+    ylabel("u [km / s2]")
+    legend("u_1", "u_2", "u_3", "||u||", Location="northeast")
+    grid on
 end

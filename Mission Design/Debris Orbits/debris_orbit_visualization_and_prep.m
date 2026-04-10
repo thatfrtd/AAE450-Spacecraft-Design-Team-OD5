@@ -90,7 +90,7 @@ spacecraft_params.m_0 = 2000; % [kg] Of spacecraft
 spacecraft_params.m_dry = 600; % [kg]
 spacecraft_params.F_max = 0.235; % [N]
 
-% Integration error tolerance
+% Integration error tolerance   
 default_tolerance = 1e-10;
 
 a_d_0 = @(t, x) zeros([3, 1]); % Disturbance function
@@ -123,7 +123,7 @@ for i = 1 : N_debris
     Q_params.r = 2;
     Q_params.Theta_rot = 0;
 
-    r_a_deorbit = R_E + 500;%x_keplerian_array(1, 1, i) * (1 + x_keplerian_array(2, 1, i)); % [km] apoapsis
+    r_a_deorbit = x_keplerian_array(1, 1, i) * (1 + x_keplerian_array(2, 1, i)); % [km] apoapsis
     r_p_deorbit = R_E + 135; % [km] periapsis
     e_deorbit = (1 - r_p_deorbit / r_a_deorbit) / (1 + r_p_deorbit / r_a_deorbit); % [] eccentricity
     a_deorbit = r_p_deorbit / (1 - e_deorbit); % [km] semi-major axis
@@ -132,7 +132,7 @@ for i = 1 : N_debris
     x_deorbit_keplerian(1:2) = [a_deorbit; e_deorbit];
     spacecraft_params_i = spacecraft_params;
     spacecraft_params_i.m_0 = spacecraft_params.m_0 + debris_mass(i);
-    [Qtransfer_deorbit(i)] = QLaw_transfer_fast(x_keplerian_array(:, 1, i), x_deorbit_keplerian, mu_E, spacecraft_params_i, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 1500000, angular_step=deg2rad(2), thrust_during_eclipse = true, integration_tolerance=default_tolerance);
+    [Qtransfer_deorbit(i)] = QLaw_transfer_fast(x_keplerian_array(:, 1, i), x_deorbit_keplerian, mu_E, spacecraft_params_i, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 1500000, angular_step=deg2rad(10), thrust_during_eclipse = true, integration_tolerance=default_tolerance);
 
     deorbit_initial_drifts(i) = sum(J2_RAAN_drift(Qtransfer_deorbit(i).x_keplerian_mass(1, 1), Qtransfer_deorbit(i).x_keplerian_mass(2, 1), Qtransfer_deorbit(i).x_keplerian_mass(3, 1), mu_E, R_E) .* [diff(Qtransfer_deorbit(i).t)', 0]);
     deorbit_transfer_drifts(i) = sum(J2_RAAN_drift(Qtransfer_deorbit(i).x_keplerian_mass(1, :), Qtransfer_deorbit(i).x_keplerian_mass(2, :), Qtransfer_deorbit(i).x_keplerian_mass(3, :), mu_E, R_E) .* [diff(Qtransfer_deorbit(i).t)', 0]);
@@ -147,6 +147,16 @@ for i = 1 : N_debris
 end
 
 %save("Multi Debris Mission Optimization\deorbit_transfers_info_fixedreorbit.mat", "ToFs_deorbit", "dVs_deorbit", "deorbit_transfer_drifts")
+
+%%
+figure
+plot(Qtransfer_deorbit(1).t'/60/60/24, Qtransfer_deorbit(1).u_cont(1,:), Qtransfer_deorbit(1).t'/60/60/24, Qtransfer_deorbit(1).u_cont(2,:), Qtransfer_deorbit(1).t'/60/60/24, Qtransfer_deorbit(1).u_cont(3,:)); hold on 
+plot(Qtransfer_deorbit(1).t'/60/60/24, vecnorm(Qtransfer_deorbit(1).u_cont, 2, 1), LineStyle= "--"); hold off
+title("Control")
+xlabel("Time [days]")
+ylabel("u [m / s2]")
+legend("u_1", "u_2", "u_3", "||u||", Location="northeast")
+grid on
 
 %% Construct Dataset Inputs
 % For each delta RAAN point for two debris % save the starting terminator

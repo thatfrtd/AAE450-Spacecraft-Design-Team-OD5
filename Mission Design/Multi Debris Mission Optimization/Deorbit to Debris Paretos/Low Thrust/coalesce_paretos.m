@@ -27,29 +27,38 @@ for i = indices
     
     [ToF_sorted, ToF_sorted_i] = sort(pareto_i.fval(:, 2));
     for k = 1 : (numel(ToF_sorted) - 1) % Fix duplicate ToFs...
-        if ToF_sorted(k) == ToF_sorted(k + 1)
-            ToF_sorted(k + 1) = ToF_sorted(k + 1) + 1e-10;
+        if any(ToF_sorted(k) == ToF_sorted(k + 1:end))
+            ToF_sorted(k + find(ToF_sorted(k) == ToF_sorted(k + 1:end))) = ToF_sorted(k + find(ToF_sorted(k) == ToF_sorted(k + 1:end))) + 1e-10;
         end
     end
+    dV_sorted = pareto_i.fval(ToF_sorted_i, 1);
 
+    if numel(ToF_sorted) ~= 60
+        % Resample to be 60 points, this should only happen for very small
+        % transfers anyways
+        ToF_sorted_new = linspace(min(ToF_sorted), max(ToF_sorted), 60);
+        dV_sorted = interp1(ToF_sorted, dV_sorted, ToF_sorted_new);
+        ToF_sorted = ToF_sorted_new;
+    end
+  
     paretos.ToF{IDs_i(1), IDs_i(2)}(:, end + 1) = ToF_sorted / 365.25;
-    paretos.dV{IDs_i(1), IDs_i(2)}(:, end + 1) = pareto_i.fval(ToF_sorted_i, 1);
+    paretos.dV{IDs_i(1), IDs_i(2)}(:, end + 1) = dV_sorted;
     paretos.t{IDs_i(1), IDs_i(2)}(end + 1) = transfer_dataset_inputs.t0(i);
 end
 %%
 save("Mission Design\Multi Debris Mission Optimization\Deorbit to Debris Paretos\Low Thrust\low_thrust_paretos.mat", "paretos")
 
 %%
-ind = [1, 5];
+ind = [3, 8];
 
 figure
 for i = 1 : size(paretos.ToF{ind(1), ind(2)}, 2)
     plot3(paretos.ToF{ind(1), ind(2)}(:, i), paretos.dV{ind(1), ind(2)}(:, i), paretos.t{ind(1), ind(2)}(i) * ones(size(paretos.ToF{ind(1), ind(2)}, 1), 1)); hold on
 end
 
-t0_sample = linspace(0.6, 5, 20);
+t0_sample = linspace(0.6, 7, 20);
 for i = 1 : numel(t0_sample)
-    ToF_sample = linspace(70, 600, 100) / 365.25;
+    ToF_sample = linspace(0, 2, 100);
     
     dV_sample = interp_paretos_time_varying(paretos.ToF{ind(1), ind(2)}, paretos.t{ind(1), ind(2)}, paretos.dV{ind(1), ind(2)}, ToF_sample, t0_sample(i));
     scatter3(ToF_sample, dV_sample, t0_sample(i) * ones([1, numel(ToF_sample)]))

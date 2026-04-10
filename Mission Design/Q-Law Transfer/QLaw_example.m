@@ -50,7 +50,7 @@ spacecraft_params = struct();
 spacecraft_params.Isp = 4100; % [s]
 spacecraft_params.m_0 = 2000; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = 0.235; % [N]
+spacecraft_params.F_max = 0.000235; % [N]
 
 % Integration error tolerance
 default_tolerance = 1e-12;
@@ -85,7 +85,7 @@ parfor i = 1 : N_i
     Q_params.Theta_rot = 0;
 
     tic;
-    [Qtransfer(i)] = QLaw_transfer_fast(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 1500000, angular_step=deg2rad(10), thrust_during_eclipse = thrust_during_eclipse, integration_tolerance=1e-10, max_t=356.25*1.5*60*60*24);
+    [Qtransfer(i)] = QLaw_transfer_fast(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 1500000, angular_step=deg2rad(2), thrust_during_eclipse = thrust_during_eclipse, integration_tolerance=1e-10, max_t=356.25*1.5*60*60*24);
     opt_time = toc
 end
 
