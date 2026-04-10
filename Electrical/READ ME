@@ -1,0 +1,4 @@
+To run the simulation, download all the files from this folder and place it into the same folder. 
+Open SunTrackingSimulation.mlx in MATLAB and run like normal.
+The Simulink will automatically run when you run the MATLAB file.
+Make sure you have you have MATLAB version 2025b or higher and the Aerospace Toolset addon
