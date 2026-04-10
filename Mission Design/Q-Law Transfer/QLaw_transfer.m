@@ -1,4 +1,4 @@
-function [transfer] = QLaw_transfer(x_keplerian_d, x_keplerian_c, mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, options)
+function [transfer] = QLaw_transfer(x_keplerian_d, x_keplerian_c, mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, EPS_params, options)
 %QLAW_TRANSFER Orbit transfer using Q-Law
 %   Modified Equinoctial based Q-Law transfer. Uses Keplerian elements to
 %   define spacecraft and target orbits. Q-Law uses a heuristic to
@@ -12,6 +12,7 @@ arguments
     Q_params % W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot (reference direction)
     penalty_params % Periapsis penalty function parmaeters: r_p_min, k, W_p
     Qdot_opt_params % Parameters for the optimization needed to determine efficiencies
+    EPS_params % Electrical power system parameters: .battery_capacity, .panel_area, .panel_efficiency, .min_state_of_charge, .thruster_power
     options.integration_tolerance = 1e-6 % Tolerance for integration of orbit
     options.angular_step = deg2rad(20) % Advised to be in range [5, 20] deg
     options.R_c = 1 % Quantity controlling penalization of remaining distance from target
@@ -60,6 +61,7 @@ alpha = [];
 beta = [];
 t_nd = 0;
 u_cont_nd = zeros([3, 1]);
+battery_SoC = 1; % Assuming starting fully charged - when not good?
 
 % Simulate
 iter = 1;
@@ -68,6 +70,8 @@ P = [];
 eclipsed = [];
 not_coast = [];
 while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass_nd(7, end) > m_dry_nd
+    dt_step = options.angular_step * sqrt(r ^ 3 / 1) * sqrt(w) / (1 + e);
+
     % Create slow QLaw orbital elements (a, f, g, h, k)
     e = sqrt(x_me_mass_nd(2, end) ^ 2 + x_me_mass_nd(3, end) ^ 2);
     a = x_me_mass_nd(1, end) / (1 - e ^ 2); % a = p / (1 - e ^ 2)
@@ -83,34 +87,47 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
     % Determine if thrusting should happen based on heuristic
     [Qdot_min, Qdot_max] = Qdot_extremize(oe, partial_Q_partial_oe, Qdot_opt_params, L, Qdot);
     [eta_a, eta_r] = QLaw_efficiencies(Qdot, Qdot_min, Qdot_max);
-    if ~options.thrust_during_eclipse % Should also add state of charge based thrusting
-        % Eclipse
-        R_E = 6378.1; % [km] Earth radius
-        AU = 149597898; % [km] astronautical unit, Earth-Sun difference
-        mu_sun = 132712440017.99; % [km3 / s2] Sun gravitational parameter
-        n_E = sqrt(mu_sun / AU ^ 3); % [rad / s] Earth mean motion
 
-        x_cartesian = x_me_nd_to_cartesian(x_me_mass_nd(1:6, end), nd_scalar, Q_params.Theta_rot, mu);
-        rvec = x_cartesian(1:3);
+    % Eclipse
+    R_E = 6378.1; % [km] Earth radius
+    AU = 149597898; % [km] astronautical unit, Earth-Sun difference
+    mu_sun = 132712440017.99; % [km3 / s2] Sun gravitational parameter
+    n_E = sqrt(mu_sun / AU ^ 3); % [rad / s] Earth mean motion
 
-        [~, eclipsed(end + 1)] = check_eclipse(t_nd(end) * char_star.t, rvec, R_E, AU, n_E); % Need to properly get sun position and Earth tilt
+    x_cartesian = x_me_nd_to_cartesian(x_me_mass_nd(1:6, end), nd_scalar, Q_params.Theta_rot, mu);
+    rvec = x_cartesian(1:3);
 
+    [~, eclipsed(end + 1)] = check_eclipse(t_nd(end) * char_star.t, rvec, R_E, AU, n_E); % Need to properly get sun position and Earth tilt
+
+    % Battery charging check
+    solar_irradiance = 1361; % [W / m2]
+    power_generation = eclipsed(end + 1) * solar_irradiance * EPS_params.panel_efficiency * EPS_params.panel_area;
+    battery_SoC(end + 1) = battery_SoC(end) + power_generation * dt_step * char_star.t / EPS_params.battery_capacity;
+
+    % Battery state of charge check
+    proposed_charge_use = EPS_params.thruster_power * dt_step * char_star.t / EPS_params.battery_capacity;
+    thrust_ready_EPS = battery_SoC(end) - proposed_charge_use > EPS_params.min_state_of_charge;
+
+    % Eclipse thrust check
+    if ~options.thrust_during_eclipse
         eclipse_no_thrust = eclipsed(iter);
     else % Thrust during eclispe
         eclipse_no_thrust = false;
     end
+
     not_coast(end + 1) = (eta_a >= Q_params.eta_a_min ...
               && eta_r >= Q_params.eta_r_min) ...
-              && ~eclipse_no_thrust;
+              && ~eclipse_no_thrust ...
+              && thrust_ready_EPS;
     u_nd(:, iter) = u_nd(:, iter) * not_coast(iter);
     %a_control = @(x) u_nd(:, iter) / x_me_mass_nd(7, end); % a = F / m
     a_control = @(x) u_nd(:, iter) / x(end);
     mdot = -F_max_nd / (spacecraft_params.Isp * g_0 / char_star.v) * not_coast(iter);
+    battery_SoC(end) = battery_SoC(end) - proposed_charge_use;
 
     % fprintf("Coast? %.g\n", ~not_coast(iter))
 
     % Propagate orbit
-    dt_step = options.angular_step * sqrt(r ^ 3 / 1) * sqrt(w) / (1 + e);
     tolerances.InitialStep = dt_step;
     tolerances.MaxStep = dt_step;
 
