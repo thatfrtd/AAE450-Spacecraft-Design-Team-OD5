@@ -12,7 +12,7 @@ arguments
     Q_params % W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot (reference direction)
     penalty_params % Periapsis penalty function parmaeters: r_p_min, k, W_p
     Qdot_opt_params % Parameters for the optimization needed to determine efficiencies
-    EPS_params % Electrical power system parameters: .battery_capacity, .panel_area, .panel_efficiency, .min_state_of_charge, .thruster_power
+    EPS_params % Electrical power system parameters: .battery_capacity, .panel_area, .panel_efficiency, .min_state_of_charge, .thruster_power, .nominal_power
     options.integration_tolerance = 1e-6 % Tolerance for integration of orbit
     options.angular_step = deg2rad(20) % Advised to be in range [5, 20] deg
     options.R_c = 1 % Quantity controlling penalization of remaining distance from target
@@ -20,6 +20,8 @@ arguments
     options.a_disturbance = @(t,x) [0;0;0] % @(t, x) [3, 1] Disturbing accelerations
     options.return_dt_dm_only = false % Only return info to evaluate Q_params for global optimization of Qlaw parameters
     options.thrust_during_eclipse = true % if an eclipse is detected at the start of the step, should thrust occur?
+    options.max_t = 365.25 * 60 * 60 * 24 * 2
+    options.max_dV = 2
 end
 
 % Constants
@@ -60,8 +62,10 @@ u_nd = zeros([3, 1]); % [F_T, F_R, F_N]
 alpha = [];
 beta = [];
 t_nd = 0;
+t_disc_nd = 0;
 u_cont_nd = zeros([3, 1]);
 battery_SoC = 1; % Assuming starting fully charged - when not good?
+dV = 0;
 
 % Simulate
 iter = 1;
@@ -69,9 +73,7 @@ Q = [];
 P = [];
 eclipsed = [];
 not_coast = [];
-while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass_nd(7, end) > m_dry_nd
-    dt_step = options.angular_step * sqrt(r ^ 3 / 1) * sqrt(w) / (1 + e);
-
+while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass_nd(7, end) > m_dry_nd && t_nd(end) * char_star.t < options.max_t && dV < options.max_dV
     % Create slow QLaw orbital elements (a, f, g, h, k)
     e = sqrt(x_me_mass_nd(2, end) ^ 2 + x_me_mass_nd(3, end) ^ 2);
     a = x_me_mass_nd(1, end) / (1 - e ^ 2); % a = p / (1 - e ^ 2)
@@ -79,6 +81,9 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
     r = x_me_mass_nd(1, end) / w; % r = p / (1 + f .* cos(L) + g .* sin(L))
     oe = [a; x_me_mass_nd(2:5, end)];
     L = x_me_mass_nd(6, end);
+
+    % Calculate how big the timestep will be
+    dt_step = options.angular_step * sqrt(r ^ 3 / 1) * sqrt(w) / (1 + e);
 
     % Calculate control
     [D, Q(end + 1), Qdot, P(end + 1), partial_Q_partial_oe] = D_Q_Qdot_P_partial_Q_partial_oe_func(oe, L, oe_t, Q_params.W_oe, Q_params.m, Q_params.n, Q_params.r, F_max_nd, penalty_params.W_p, r_p_min_nd, penalty_params.k);
@@ -101,11 +106,11 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
 
     % Battery charging check
     solar_irradiance = 1361; % [W / m2]
-    power_generation = eclipsed(end + 1) * solar_irradiance * EPS_params.panel_efficiency * EPS_params.panel_area;
-    battery_SoC(end + 1) = battery_SoC(end) + power_generation * dt_step * char_star.t / EPS_params.battery_capacity;
+    power_generation = ~eclipsed(end) * solar_irradiance * EPS_params.panel_efficiency * EPS_params.panel_area;
+    battery_SoC(end + 1) = battery_SoC(end) + (power_generation - EPS_params.nominal_power) * dt_step * char_star.t / (EPS_params.battery_capacity * 3600);
 
     % Battery state of charge check
-    proposed_charge_use = EPS_params.thruster_power * dt_step * char_star.t / EPS_params.battery_capacity;
+    proposed_charge_use = EPS_params.thruster_power * dt_step * char_star.t / (EPS_params.battery_capacity * 3600);
     thrust_ready_EPS = battery_SoC(end) - proposed_charge_use > EPS_params.min_state_of_charge;
 
     % Eclipse thrust check
@@ -123,7 +128,7 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
     %a_control = @(x) u_nd(:, iter) / x_me_mass_nd(7, end); % a = F / m
     a_control = @(x) u_nd(:, iter) / x(end);
     mdot = -F_max_nd / (spacecraft_params.Isp * g_0 / char_star.v) * not_coast(iter);
-    battery_SoC(end) = battery_SoC(end) - proposed_charge_use;
+    battery_SoC(end) = min(battery_SoC(end) - proposed_charge_use * not_coast(end), 1);
 
     % fprintf("Coast? %.g\n", ~not_coast(iter))
 
@@ -137,10 +142,15 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
     t_nd = [t_nd; t_step(2:end)];
     x_me_mass_nd = [x_me_mass_nd, x_step(2:end, :)'];
     u_cont_nd = [u_cont_nd, repmat(u_nd(:, iter), 1, numel(t_step(2:end)))];
+    t_disc_nd(end + 1) = t_nd(end);
+
+    dV = spacecraft_params.Isp * g_0 * log(spacecraft_params.m_0 / (x_me_mass_nd(7, end) * char_star.m));
 
     % fprintf("Iter %g\n", iter)
     % Wrap up iteration
     iter = iter + 1;
+
+    %fprintf("Battery SoC is %.3f at %.3f days\n", battery_SoC(end), t_nd(end) * char_star.t / 60 / 60 / 24)
 end
 
 % Package results
@@ -172,7 +182,9 @@ if options.return_dt_dm_only == false
     transfer.u = u_nd * char_star.F;
     transfer.u_cont = u_cont_nd * char_star.F;
     transfer.t = t_nd * char_star.t;
+    transfer.t_disc = t_disc_nd * char_star.t;
     
+    transfer.battery_SoC = battery_SoC;
     transfer.not_coast = not_coast;
     transfer.alpha = alpha;
     transfer.beta = beta;
@@ -180,9 +192,7 @@ if options.return_dt_dm_only == false
     transfer.Q = Q;
     transfer.P = P;
 
-    if ~options.thrust_during_eclipse
-        transfer.eclipsed = eclipsed;
-    end
+    transfer.eclipsed = eclipsed;
 end
 end
 

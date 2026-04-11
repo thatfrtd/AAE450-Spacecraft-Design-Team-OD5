@@ -17,23 +17,30 @@ thrust_during_eclipse = true;
 
 % Electrical Power System parameters: .battery_capacity, .panel_area, .panel_efficiency, .min_state_of_charge, .thruster_power
 EPS_params = struct();
-EPS_params.battery_capacity = ; % [Wh]
-EPS_params.panel_area = ; % [W]
-EPS_params.panel_efficiency = 0.3; % [] max 40% - worth going on lower end
-EPS_params.min_state_of_charge = 0.3; % min state of charge [fraction of capacity]
-EPS_params.thruster_power = 7330; % [W] thruster power use
+EPS_params.battery_capacity = 7200; % [Wh]
+EPS_params.panel_area = 40; % [m2]
+I_d = 0.7; % Degredation factor
+EPS_params.panel_efficiency = 0.259 * I_d; % [] max 40% - worth going on lower end (starts at 0.295)
+EPS_params.min_state_of_charge = 0.25; % min state of charge [fraction of capacity]
+EPS_params.thruster_power = 8000; % [W] thruster power use
+EPS_params.nominal_power = 700; % [W] draw of spacecraft during operation
+% Check panel 
+solar_irradiance = 1361; % [W / m2]
+power_gen = solar_irradiance * EPS_params.panel_efficiency * EPS_params.panel_area;
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = R_E + 900; % [km] semi-major axis
-e_c = 1e-3; % [] eccentricity
+r_a_c = R_E + 900; % [km] apoapsis
+r_p_c = R_E + 140; % [km] periapsis
+e_c = (1 - r_p_c / r_a_c) / (1 + r_p_c / r_a_c); % [] eccentricity
+a_c = r_p_c / (1 - e_c); % [km] semi-major axis
 i_c = deg2rad(98); % [rad] inclination
 Omega_c = deg2rad(10); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu_c = deg2rad(0); % [rad] true anomaly at epoch
 
 % Initial conditions for spacecraft
-r_a_d = R_E + 600; % [km] apoapsis
-r_p_d = R_E + 140; % [km] periapsis
+r_a_d = R_E + 901; % [km] apoapsis
+r_p_d = R_E + 900; % [km] periapsis
 e_d = (1 - r_p_d / r_a_d) / (1 + r_p_d / r_a_d); % [] eccentricity
 a_d = r_p_d / (1 - e_d); % [km] semi-major axis
 i_d = deg2rad(98); % [rad] inclination
@@ -56,9 +63,9 @@ char_star = load_charecteristic_values_Earth();
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
 spacecraft_params.Isp = 4100; % [s]
-spacecraft_params.m_0 = 2000; % [kg]
+spacecraft_params.m_0 = 6000; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = 0.000235; % [N]
+spacecraft_params.F_max = 0.235; % [N]
 
 % Integration error tolerance
 default_tolerance = 1e-12;
@@ -78,10 +85,10 @@ Qdot_opt_params.num_start_points = 10;
 Qdot_opt_params.strategy = "Best Start Points";
 Qdot_opt_params.plot_minQdot_vs_L = false;
 
-N_i = 10;
-eta = linspace(0.1, 0.8, N_i);
+N_i = 1;
+eta = linspace(0.3, 0.3, N_i);
 clear Qtransfer
-parfor i = 1 : N_i
+for i = 1 : N_i
     % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
     Q_params = struct();
     Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
@@ -93,7 +100,7 @@ parfor i = 1 : N_i
     Q_params.Theta_rot = 0;
 
     tic;
-    [Qtransfer(i)] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 1500000, angular_step=deg2rad(2), thrust_during_eclipse = thrust_during_eclipse, integration_tolerance=1e-10, max_t=356.25*1.5*60*60*24);
+    [Qtransfer(i)] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, EPS_params, return_dt_dm_only = false, iter_max = 1500000, angular_step=deg2rad(5), thrust_during_eclipse = thrust_during_eclipse, integration_tolerance=1e-10, max_t=356.25*1.5*60*60*24);
     opt_time = toc
 end
 
@@ -154,6 +161,16 @@ zlabel("Z [km]")
 %%
 figure
 plot(Qtransfer.t / 60 / 60 / 24, vecnorm(x_keplerian_cartesian_d(1:3, :)) - R_E)
+grid on
+
+%%
+figure
+plot(Qtransfer.t_disc / 60 / 60 / 24, Qtransfer.battery_SoC); hold on
+stairs(Qtransfer.t_disc(1:end-1) / 60 / 60 / 24, Qtransfer.eclipsed, "--")
+stairs(Qtransfer.t_disc(1:end-1) / 60 / 60 / 24, Qtransfer.not_coast, "--")
+xlabel("Time [days]")
+ylabel("Value")
+legend("SoC", "Eclipsed", "Thrusting")
 grid on
 
 %% Plot Orbit Error and Control Histories

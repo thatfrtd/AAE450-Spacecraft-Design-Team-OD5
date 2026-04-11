@@ -1,4 +1,4 @@
-function [transfer] = QLaw_transfer_fast(x_keplerian_d, x_keplerian_c, mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, options)
+function [transfer] = QLaw_transfer_fast(x_keplerian_d, x_keplerian_c, mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, EPS_params, options)
 %QLAW_TRANSFER Orbit transfer using Q-Law
 %   Modified Equinoctial based Q-Law transfer. Uses Keplerian elements to
 %   define spacecraft and target orbits. Q-Law uses a heuristic to
@@ -12,6 +12,7 @@ arguments
     Q_params % W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot (reference direction)
     penalty_params % Periapsis penalty function parmaeters: r_p_min, k, W_p
     Qdot_opt_params % Parameters for the optimization needed to determine efficiencies
+    EPS_params
     options.integration_tolerance = 1e-6 % Tolerance for integration of orbit
     options.angular_step = deg2rad(20) % Advised to be in range [5, 20] deg
     options.R_c = 1 % Quantity controlling penalization of remaining distance from target
