@@ -122,6 +122,17 @@ num_debris_per_sc = sum(IDs_best ~= 0, 2);
 
 % [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(xbest, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, transfer_dataset_inputs.spacecraft_params.m_0, transfer_dataset_inputs.debris_mass');
 
+%%
+routing_solution = struct();
+routing_solution.debris_IDs = debris_IDs_best;
+routing_solution.debris_i = IDs_best;
+routing_solution.ToFs = ToFs_best;
+routing_solution.dVs = dVs_best;
+routing_solution.t_per_sc = t_per_sc;
+routing_solution.dV_per_sc = dV_per_sc;
+
+save("Multi Debris Mission Optimization\routing_solution_3x3_t0of1yr.mat", "routing_solution")
+
 %% Helper Functions
 function [c, ceq, dV_per_sc, t_per_sc] = spacecraft_routing_nonlconstraints(x, var_layout_table, paretos, max_t, max_dV, N_debris, N_ships, N_debris_max, dV_deorbit, spacecraft_mass, debris_mass)
     % Constraints:
