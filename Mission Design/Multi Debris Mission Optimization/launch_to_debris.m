@@ -91,15 +91,31 @@ end
 
 %% Optimization parameters
 fminconOptions = optimoptions(@fmincon,'Display','iter','PlotFcn',{'optimplotfval','optimplotx'});
-options = optimoptions('particleswarm','SwarmSize',50,'Display','iter','MaxStallIterations',6,'MaxIterations',30,'MaxTime',600,'UseParallel',true,'HybridFcn',{@fmincon, fminconOptions});
+options = optimoptions('particleswarm','SwarmSize',50,'Display','iter','MaxStallIterations',6,'MaxIterations',50,'MaxTime',6000,'UseParallel',true,'HybridFcn',{@fmincon, fminconOptions});
 
 %% Solve
 rng(0, 'twister');
 [xbest, fbest, exitflag, output] = particleswarm(@(x) Qlaw_insertion_objective(x, dV_per_sc, x_keplerian_targ, mu_E, R_E, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, max_dV, max_ToF), ...
     size(var_bounds, 1), var_bounds(:, 1), var_bounds(:, 2), options);
 
+%% Save Results
+[x_keplerian_insertion, x_keplerian_int, eta] = extract_insertion_and_transfer_info(xbest);
+[J, Qtransfers_to_int, Qtransfers_to_targ, dVs_ToFs] = Qlaw_insertion_objective(xbest, dV_per_sc, x_keplerian_targ, mu_E, R_E, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, max_dV, max_ToF);
+
+launch_insertion_orbit_transfers = struct();
+launch_insertion_orbit_transfers.output = output;
+launch_insertion_orbit_transfers.x_keplerian_insertion = x_keplerian_insertion;
+launch_insertion_orbit_transfers.x_keplerian_int = x_keplerian_int;
+launch_insertion_orbit_transfers.eta = eta;
+launch_insertion_orbit_transfers.J = J;
+launch_insertion_orbit_transfers.Qtransfers_to_int = Qtransfers_to_int;
+launch_insertion_orbit_transfers.Qtransfers_to_targ = Qtransfers_to_targ;
+launch_insertion_orbit_transfers.dVs_ToFs = dVs_ToFs;
+
+save("Multi Debris Mission Optimization\launch_insertion_orbit_transfers.mat", "launch_insertion_orbit_transfers");
+
 %% Helper Functions
-function [J, Qtransfers_to_int, Qtransfers_to_targ] = Qlaw_insertion_objective(x, dV_per_sc, x_keplerian_targ, mu, R, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, max_dV, max_ToF)
+function [J, Qtransfers_to_int, Qtransfers_to_targ, dVs_ToFs] = Qlaw_insertion_objective(x, dV_per_sc, x_keplerian_targ, mu, R, J_2_val, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, max_dV, max_ToF)
     % Objective: max total dV
     
     % Extract variables from x
