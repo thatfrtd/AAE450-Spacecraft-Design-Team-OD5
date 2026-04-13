@@ -1,16 +1,16 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 % Gravity gradient and reaction wheel saturation
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clear; clc; close all;
 
 %% Init Variables
 m_r = 4000; % kg
-m_s = 1500;  % kg
-R = 1.85;   % m
-L = 30;     % m
-s = 1.0;    % m
+m_s = 1500; % kg
+R = 1.85; % m
+L = 30; % m
+s = 1.0; % m
 
 % Inertia of Rocket about its own CM
 J_r = diag([1/12*m_r*(3*R^2 + L^2), 1/12*m_r*(3*R^2 + L^2), 1/2*m_r*R^2]);
@@ -28,15 +28,15 @@ J_total = (J_r + m_r*diag([d_r^2, d_r^2, 0])) + ...
           (J_s + m_s*diag([d_s^2, d_s^2, 0]));
 
 %% Orbital Parameters (Assuming Circular LEO)
-mu = 3.986e14;       % Earth's gravitational parameter (m^3/s^2)
-R_earth = 6378e3;    % Earth radius (m)
-altitude = 200e3;    % 200 km orbit
+mu = 3.986e14; % Earth's gravitational parameter (m^3/s^2)
+R_earth = 6378e3; % Earth radius (m)
+altitude = 200e3; % 200 km orbit
 R_c = R_earth + altitude; 
 n = sqrt(mu / R_c^3); % Mean motion (rad/s)
 
 %% Reaction Wheel Parameters
-H_max = 20;         % Max momentum storage capacity (Nms) - adjust as needed
-tau_max = 0.4;      % Max torque output per axis (Nm)
+H_max = 20; % Max momentum storage capacity (Nms) - adjust as needed
+tau_max = 0.4; % Max torque output per axis (Nm)
 
 %% Initial Conditions
 w0 = [0; 0; 0]; 
