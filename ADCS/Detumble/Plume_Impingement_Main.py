@@ -307,7 +307,7 @@ def compute_guidance_and_control(w_B, q_B2RTN, r_nozzle_RTN, I_target, centroids
     h_B = np.dot(I_target, w_B)
     h_norm = np.linalg.norm(h_B)
     
-    if h_norm < 10: # Has to be this value bc this is roughly 0.005 deg / s
+    if h_norm < 1e-6: # Has to be this value bc this is roughly 0.005 deg / s
         return np.zeros(3), 0.0 # Target is already detumbled, Thruster OFF
 
     # Convert quaternion to Rotation object (Body to RTN mapping)
@@ -350,20 +350,36 @@ def compute_guidance_and_control(w_B, q_B2RTN, r_nozzle_RTN, I_target, centroids
     )
 
     T_imp_L = attitude.apply(T_imp_B)
-
-    # Firing Logic Thresholds
     T_imp_L_norm = np.linalg.norm(T_imp_L)
     
-    # Check if the generated torque is strong enough
+    # 6. PWM Firing Logic Thresholds
     if T_imp_L_norm >= ctrl['eps_m']:
-        # Calculate angle between actual torque and desired guidance torque
+        # Calculate angle between actual plume torque and desired guidance torque
         cos_theta = np.dot(T_imp_L, T_g_L) / (T_imp_L_norm * np.linalg.norm(T_g_L))
         cos_theta = np.clip(cos_theta, -1.0, 1.0)
         angle = np.arccos(cos_theta)
 
-        # Fire thruster if within angular tolerance
+        # Only proceed if the torque is pointing in the correct stabilizing direction
         if angle <= ctrl['eps_theta']:
-            return T_imp_B, 1.0 # Return the applied torque AND Thruster ON flag
+            
+            # --- PWM / DUTY CYCLE APPROXIMATION ---
+            # Calculate how much torque is actually needed to null the momentum in 1 second
+            # T = dH/dt. To kill h_norm in 1 second, we need a torque magnitude of h_norm.
+            required_torque = h_norm 
+            
+            # If the plume provides MORE torque than we need, we fractionally pulse it
+            if T_imp_L_norm > required_torque:
+                duty_cycle = required_torque / T_imp_L_norm
+            else:
+                duty_cycle = 1.0 # Fire continuously at 100%
+
+            # Apply the hardware's Minimum Impulse Bit (MIB) limit
+            # e.g., if the duty cycle is less than 1% (10ms pulse), the physical valve can't open that fast
+            if duty_cycle < 0.01:
+                return np.zeros(3), 0.0 
+
+            # Return the scaled torque and the duty cycle for fuel tracking
+            return (T_imp_B * duty_cycle), duty_cycle
 
     # If thresholds are not met, the thruster remains OFF
     return np.zeros(3), 0.0
@@ -501,7 +517,7 @@ def extract_aiming_history(sol, I_target, r_nozzle_RTN, ctrl):
         h_norm = np.linalg.norm(h_B)
 
         # Check deadband 
-        if h_norm < 10.0:
+        if h_norm < 1e-6:
             aiming_coords_RTN[:, i] = np.zeros(3)
             thrust_vectors_RTN[:, i] = np.zeros(3)
             continue
@@ -565,12 +581,13 @@ centroids, normals, areas = create_cylinder_geometry()
 # Setup initial conditions
 initial_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
 # MUST BE NON-ZERO to trigger detumbling logic
-initial_w = np.radians([0.087, 0.087, 0.087])       
+initial_w = np.radians([0.0, 0.087, 0.037])       
 # Append 0.0 for initial fuel consumed
+#initial_CW_x = np.array([10, 0, 10, 1, 1, 1])
 initial_state = np.concatenate((initial_quat, initial_w, [0.0])) 
 
 # Servicer position (Hovering 14m out, aligned with target CoM for detumbling)
-r_nozzle_RTN = np.array([14.0, 0.0, 0.0]) 
+r_nozzle_RTN = np.array([10.0, 0.0, 10]) 
 
 control_params = {
     'D_imp': 10.0,                   # INCREASED: Aim 10m down the cylinder to get a massive lever arm
@@ -579,8 +596,8 @@ control_params = {
     'K_imp': 1e-3                    # Gain of guidance torque 
 }
 
-# Setup Time Span for 3600 seconds (1 hour) to allow full momentum decay
-t_span = (0.0, 3600.0)
+# Setup Time Span for 7200 seconds (2 hours) to allow full momentum decay
+t_span = (0.0, 14400.0)
 t_eval = np.linspace(t_span[0], t_span[1], 5000)
 
 print("Starting 1-hour numerical integration with ACTIVE Impingement Guidance...")
