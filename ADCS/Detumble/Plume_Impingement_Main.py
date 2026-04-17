@@ -3,6 +3,7 @@ from scipy.optimize import fsolve
 from scipy.integrate import quad, solve_ivp
 from scipy.spatial.transform import Rotation as R
 import matplotlib.pyplot as plt
+from numba import njit
 
 def create_panels():
     # Creates panels by defining the centroids
@@ -34,6 +35,23 @@ def create_panels():
         [ 1.0, -1.0, -1.5], [ 1.0,  0.0, -1.5], [ 1.0,  1.0, -1.5]
     ])
     return centroids
+
+@njit(cache=True)
+def fast_get_visible_panels(centroids, normals, areas, r_nozzle):
+    """JIT-compiled hidden-surface removal."""
+    n = len(centroids)
+    mask = np.zeros(n, dtype=np.bool_)
+    for i in range(n):
+        # View vector from panel to nozzle
+        vx = r_nozzle[0] - centroids[i, 0]
+        vy = r_nozzle[1] - centroids[i, 1]
+        vz = r_nozzle[2] - centroids[i, 2]
+        
+        # Dot product with outward normal
+        dot = vx*normals[i, 0] + vy*normals[i, 1] + vz*normals[i, 2]
+        mask[i] = dot > 0
+        
+    return centroids[mask], normals[mask], areas[mask]
 
 def get_visible_panels(centroids, normals, areas, r_nozzle):
     """
@@ -142,6 +160,74 @@ def calculate_impingement_torque(vis_centroids, vis_normals, vis_areas, r_nozzle
     
     return total_torque
 
+@njit(cache=True)
+def calculate_impingement_torque_fast(vis_centroids, vis_normals, vis_areas, r_nozzle, thrust_dir, plume_tuple):
+    """
+    JIT-compiled torque calculation. 
+    Memory allocation is dropped to zero inside the loop for maximum speed.
+    """
+    # Unpack the tuple
+# Unpack all 12 elements (added m_dot to the end)
+    (rho_star, r_star, phi_0, theta_0, theta_1, gamma, beta, V_lim, V_w, c_n, c_t, m_dot) = plume_tuple    
+    num_panels = len(vis_centroids)
+    total_torque = np.zeros(3)
+    
+    if num_panels == 0:
+        return total_torque
+        
+    # Pre-compute static constants for the Simons model
+    power = 2.0 / (gamma - 1.0)
+    f_theta_0 = (np.cos(np.pi * theta_0 / (2.0 * theta_1))) ** power
+    
+    for i in range(num_panels):
+        # 1. Flow Vector (L) and Distance (r)
+        dx = vis_centroids[i, 0] - r_nozzle[0]
+        dy = vis_centroids[i, 1] - r_nozzle[1]
+        dz = vis_centroids[i, 2] - r_nozzle[2]
+        r_dist = np.sqrt(dx**2 + dy**2 + dz**2)
+        
+        # Unit Flow Vector (L_hat)
+        L_x = dx / r_dist
+        L_y = dy / r_dist
+        L_z = dz / r_dist
+        
+        # 2. Plume Angle (theta)
+        cos_theta = L_x * thrust_dir[0] + L_y * thrust_dir[1] + L_z * thrust_dir[2]
+        # Clip to prevent domain errors
+        if cos_theta > 1.0: cos_theta = 1.0
+        if cos_theta < -1.0: cos_theta = -1.0
+        theta = np.arccos(cos_theta)
+        
+        # 3. Inline Plume Density (rho)
+        if theta <= theta_0:
+            f_theta = (np.cos(np.pi * theta / (2.0 * theta_1))) ** power
+        else:
+            f_theta = f_theta_0 * np.exp(-beta * (theta - theta_0))
+            
+        rho = phi_0 * rho_star * ( (r_star / r_dist)**2 ) * f_theta
+        
+        # 4. Angle of Incidence (lambda)
+        cos_lambda = -(vis_normals[i, 0] * L_x + vis_normals[i, 1] * L_y + vis_normals[i, 2] * L_z)
+        
+        # 5. Hyper-Thermal Force Calculation
+        scalar_mult = rho * (V_lim**2) * vis_areas[i] * cos_lambda
+        norm_bracket = (2.0 - c_n - c_t) * cos_lambda + c_n * (V_w / V_lim)
+        
+        fx = scalar_mult * (norm_bracket * vis_normals[i, 0] + c_t * L_x)
+        fy = scalar_mult * (norm_bracket * vis_normals[i, 1] + c_t * L_y)
+        fz = scalar_mult * (norm_bracket * vis_normals[i, 2] + c_t * L_z)
+        
+        # 6. Torque = Cross Product (vis_centroids x forces)
+        tx = vis_centroids[i, 1] * fz - vis_centroids[i, 2] * fy
+        ty = vis_centroids[i, 2] * fx - vis_centroids[i, 0] * fz
+        tz = vis_centroids[i, 0] * fy - vis_centroids[i, 1] * fx
+        
+        # Accumulate totals
+        total_torque[0] += tx
+        total_torque[1] += ty
+        total_torque[2] += tz
+        
+    return total_torque
 
 def init_hypergolic_plume():
     """
@@ -274,7 +360,7 @@ def dynamic_diff_equation(t, state, I, I_inv, r_nozzle_RTN, thrust_dir_RTN, cent
     thrust_dir_B = attitude.inv().apply(thrust_dir_RTN)
     
     # Calculate impingement torque in the Body Frame
-    vis_centroids, vis_normals, vis_areas = get_visible_panels(
+    vis_centroids, vis_normals, vis_areas = fast_get_visible_panels(
         centroids, normals, areas, r_nozzle_B
     )
     
@@ -298,112 +384,94 @@ def dynamic_diff_equation(t, state, I, I_inv, r_nozzle_RTN, thrust_dir_RTN, cent
     
     return np.concatenate((dq_dt, dw_dt))
 
-def compute_guidance_and_control(w_B, q_B2RTN, r_nozzle_RTN, I_target, centroids, normals, areas, plume_params, ctrl):
-    """
-    Implements the target detumbling guidance and impingement firing logic.
-    Returns the applied torque in the target's Body frame AND a firing flag (1 or 0).
-    """
-    # Target angular momentum in Body and RTN frames
+def compute_guidance_and_control(w_B, q_B2RTN, r_nozzle_RTN, I_target, centroids, normals, areas, plume_tuple, ctrl):
+    # 1. Check Deadband
     h_B = np.dot(I_target, w_B)
     h_norm = np.linalg.norm(h_B)
     
-    if h_norm < 1e-6: # Has to be this value bc this is roughly 0.005 deg / s
-        return np.zeros(3), 0.0 # Target is already detumbled, Thruster OFF
+    if h_norm < 0.01: # Realistic 0.01 Nms deadband
+        return np.zeros(3), 0.0
 
-    # Convert quaternion to Rotation object (Body to RTN mapping)
-    attitude = R.from_quat(q_B2RTN) 
-    h_L = attitude.apply(h_B)
+    # 2. Fast Coordinate Transforms
+    R_B2RTN = quat_to_dcm(q_B2RTN)
+    R_RTN2B = R_B2RTN.T 
+    
+    h_L = np.dot(R_B2RTN, h_B)
 
-    # Impingement Torque Guidance 
-    T_g_L = -ctrl['K_imp'] * (h_L / np.linalg.norm(h_L))
+    # 3. Guidance Law (T_g_L)
+    T_g_L = -ctrl['K_imp'] * (h_L / h_norm)
 
-    # Chaser Pointing Guidance
     r_norm = np.linalg.norm(r_nozzle_RTN)
     r_hat = r_nozzle_RTN / r_norm
 
-    # Project the desired guidance torque onto plane P (orthogonal to r_hat)
     T_g_L_P = T_g_L - np.dot(T_g_L, r_hat) * r_hat
     T_g_L_P_norm = np.linalg.norm(T_g_L_P)
 
     if T_g_L_P_norm < 1e-6:
         P_h_L = np.zeros(3)
     else:
-        T_g_L_P_hat = T_g_L_P / T_g_L_P_norm
-        P_h_L = np.cross(T_g_L_P_hat, r_hat)         
+        P_h_L = np.cross((T_g_L_P / T_g_L_P_norm), r_hat)        
         P_h_L = P_h_L / np.linalg.norm(P_h_L)
 
-    # Calculate final thruster Line of Sight (LOS)
+    # Calculate final LOS pointing
     pointing_vector = r_nozzle_RTN - (ctrl['D_imp'] * P_h_L)
     thrust_dir_RTN = -pointing_vector / np.linalg.norm(pointing_vector)
 
-    # Transform vectors back to Body Frame for plume surface physics
-    r_nozzle_B = attitude.inv().apply(r_nozzle_RTN)
-    thrust_dir_B = attitude.inv().apply(thrust_dir_RTN)
+    # 4. Transform to Body Frame
+    r_nozzle_B = np.dot(R_RTN2B, r_nozzle_RTN)
+    thrust_dir_B = np.dot(R_RTN2B, thrust_dir_RTN)
 
-    # Evaluate Impingement Torque
-    vis_centroids, vis_normals, vis_areas = get_visible_panels(
+    # 5. Fast Plume Physics
+    vis_centroids, vis_normals, vis_areas = fast_get_visible_panels(
         centroids, normals, areas, r_nozzle_B
     )
 
-    T_imp_B = calculate_impingement_torque(
-        vis_centroids, vis_normals, vis_areas, r_nozzle_B, thrust_dir_B, plume_params
+    T_imp_B = calculate_impingement_torque_fast(
+        vis_centroids, vis_normals, vis_areas, r_nozzle_B, thrust_dir_B, plume_tuple
     )
 
-    T_imp_L = attitude.apply(T_imp_B)
+    # 6. PWM Firing Logic
+    T_imp_L = np.dot(R_B2RTN, T_imp_B)
     T_imp_L_norm = np.linalg.norm(T_imp_L)
     
-    # 6. PWM Firing Logic Thresholds
     if T_imp_L_norm >= ctrl['eps_m']:
-        # Calculate angle between actual plume torque and desired guidance torque
         cos_theta = np.dot(T_imp_L, T_g_L) / (T_imp_L_norm * np.linalg.norm(T_g_L))
         cos_theta = np.clip(cos_theta, -1.0, 1.0)
         angle = np.arccos(cos_theta)
 
-        # Only proceed if the torque is pointing in the correct stabilizing direction
         if angle <= ctrl['eps_theta']:
-            
-            # --- PWM / DUTY CYCLE APPROXIMATION ---
-            # Calculate how much torque is actually needed to null the momentum in 1 second
-            # T = dH/dt. To kill h_norm in 1 second, we need a torque magnitude of h_norm.
             required_torque = h_norm 
-            
-            # If the plume provides MORE torque than we need, we fractionally pulse it
-            if T_imp_L_norm > required_torque:
-                duty_cycle = required_torque / T_imp_L_norm
-            else:
-                duty_cycle = 1.0 # Fire continuously at 100%
+            duty_cycle = required_torque / T_imp_L_norm if T_imp_L_norm > required_torque else 1.0
 
-            # Apply the hardware's Minimum Impulse Bit (MIB) limit
-            # e.g., if the duty cycle is less than 1% (10ms pulse), the physical valve can't open that fast
             if duty_cycle < 0.01:
                 return np.zeros(3), 0.0 
 
-            # Return the scaled torque and the duty cycle for fuel tracking
             return (T_imp_B * duty_cycle), duty_cycle
 
-    # If thresholds are not met, the thruster remains OFF
     return np.zeros(3), 0.0
 
 
-def optimal_dynamic_diff_equation(t, state, I, I_inv, r_nozzle_RTN, centroids, normals, areas, plume_params, ctrl):
-    """
-    Computes the state derivative [dq/dt, dw/dt, dm/dt] for the ODE solver.
-    State vector: [q_x, q_y, q_z, q_w, w_x, w_y, w_z, m_fuel]
-    """
+def optimal_dynamic_diff_equation(t, state, I, I_inv, centroids, normals, areas, plume_tuple, ctrl, omega):
+    """14-Element State: [q_x, q_y, q_z, q_w, w_x, w_y, w_z, m_fuel, x, y, z, vx, vy, vz]"""
+    
+    # Extract Target Attitude & Spin
     q = state[0:4]
     w = state[4:7]
-    q = q / np.linalg.norm(q)
     
-    # Run the Guidance Law to get dynamic torque AND the firing state
-    torque_B, is_firing = compute_guidance_and_control(
-        w, q, r_nozzle_RTN, I, centroids, normals, areas, plume_params, ctrl
+    # Extract Chaser Relative State
+    r_nozzle_RTN = state[8:11] 
+    v_chaser_RTN = state[11:14]
+    
+    # Run Guidance Law
+    torque_B, duty_cycle = compute_guidance_and_control(
+        w, q, r_nozzle_RTN, I, centroids, normals, areas, plume_tuple, ctrl
     )
     
-    # Euler's rigid body equations
+    # Target Rigid Body Dynamics (Euler)
     w_cross_Iw = np.cross(w, np.dot(I, w))
     dw_dt = np.dot(I_inv, (torque_B - w_cross_Iw))
     
-    # Quaternion kinematics
+    # Target Kinematics (Quaternions - NO internal normalization!)
     wx, wy, wz = w
     qx, qy, qz, qw = q
     dq_dt = 0.5 * np.array([
@@ -413,10 +481,20 @@ def optimal_dynamic_diff_equation(t, state, I, I_inv, r_nozzle_RTN, centroids, n
         -qx*wx - qy*wy - qz*wz
     ])
     
-    # Integrate mass flow rate ONLY when the thruster is firing
-    dm_dt = np.array([is_firing * plume_params['m_dot']])
+    # Fuel Consumption (Index 11 in tuple is m_dot)
+    dm_dt = np.array([duty_cycle * plume_tuple[11]])
     
-    return np.concatenate((dq_dt, dw_dt, dm_dt))
+    # Chaser Orbital Dynamics (CW Equations)
+    n = omega
+    ax = 3 * n**2 * r_nozzle_RTN[0] + 2 * n * v_chaser_RTN[1]
+    ay = -2 * n * v_chaser_RTN[0]
+    az = -n**2 * r_nozzle_RTN[2]
+    
+    dr_dt = v_chaser_RTN
+    dv_dt = np.array([ax, ay, az])
+    
+    return np.concatenate((dq_dt, dw_dt, dm_dt, dr_dt, dv_dt))
+
 def create_cylinder_geometry():
     """
     Generates the centroids, normals, and areas for a 12-sided 
@@ -496,59 +574,58 @@ def create_cylinder_geometry():
         
     return np.array(centroids), np.array(normals), np.array(areas)
 
-def extract_aiming_history(sol, I_target, r_nozzle_RTN, ctrl):
+def extract_aiming_history(sol, I_target, ctrl):
     """
-    Recalculates the chaser's exact aiming coordinates and Line of Sight  
-    over the entire simulated time history.
+    Extracts the 3D aiming coordinates and thrust vectors in the RTN frame 
+    over the entire simulation using the dynamic chaser position.
     """
     num_steps = len(sol.t)
     
-    # Init arrays to hold the 3D coordinates over time
-    aiming_coords_RTN = np.zeros((3, num_steps))
-    thrust_vectors_RTN = np.zeros((3, num_steps))
-
+    # Pre-allocate arrays for speed
+    aiming_coords = np.zeros((3, num_steps))
+    thrust_vectors = np.zeros((3, num_steps))
+    
     for i in range(num_steps):
-        q = sol.y[0:4, i]
-        w = sol.y[4:7, i]
-        q = q / np.linalg.norm(q)
-
-        # Recalculate Guidance Law Parameters
-        h_B = np.dot(I_target, w)
+        q_B2RTN = sol.y[0:4, i]
+        w_B = sol.y[4:7, i]
+        r_nozzle_RTN = sol.y[8:11, i] # <--- THE FIX: Dynamic position extraction
+        
+        h_B = np.dot(I_target, w_B)
         h_norm = np.linalg.norm(h_B)
-
-        # Check deadband 
-        if h_norm < 1e-6:
-            aiming_coords_RTN[:, i] = np.zeros(3)
-            thrust_vectors_RTN[:, i] = np.zeros(3)
-            continue
-
-        attitude = R.from_quat(q)
-        h_L = attitude.apply(h_B)
+        
+        # If the debris is practically stopped, we aren't aiming
+        if h_norm < 0.01:
+            continue 
+            
+        R_B2RTN = quat_to_dcm(q_B2RTN)
+        h_L = np.dot(R_B2RTN, h_B)
+        
         T_g_L = -ctrl['K_imp'] * (h_L / h_norm)
-
+        
         r_norm = np.linalg.norm(r_nozzle_RTN)
         r_hat = r_nozzle_RTN / r_norm
-
+        
         T_g_L_P = T_g_L - np.dot(T_g_L, r_hat) * r_hat
         T_g_L_P_norm = np.linalg.norm(T_g_L_P)
-
+        
         if T_g_L_P_norm < 1e-6:
             P_h_L = np.zeros(3)
         else:
-            T_g_L_P_hat = T_g_L_P / T_g_L_P_norm
-            P_h_L = np.cross(T_g_L_P_hat, r_hat)
+            P_h_L = np.cross((T_g_L_P / T_g_L_P_norm), r_hat)        
             P_h_L = P_h_L / np.linalg.norm(P_h_L)
-
-        # extract the Specific Aiming Coordinate
+            
+        aim_point = ctrl['D_imp'] * P_h_L
+        pointing_vector = r_nozzle_RTN - aim_point
         
-        aim_coord = ctrl['D_imp'] * P_h_L
-        aiming_coords_RTN[:, i] = aim_coord
-
-        # Extract the Unit Thrust Vector
-        pointing_vector = r_nozzle_RTN - aim_coord
-        thrust_vectors_RTN[:, i] = -pointing_vector / np.linalg.norm(pointing_vector)
-
-    return aiming_coords_RTN, thrust_vectors_RTN
+        if np.linalg.norm(pointing_vector) > 0:
+            thrust_dir_RTN = -pointing_vector / np.linalg.norm(pointing_vector)
+        else:
+            thrust_dir_RTN = np.zeros(3)
+            
+        aiming_coords[:, i] = aim_point
+        thrust_vectors[:, i] = thrust_dir_RTN
+        
+    return aiming_coords, thrust_vectors
 
 def cart2relative(x, v, a, n):
     '''
@@ -561,7 +638,36 @@ def cart2relative(x, v, a, n):
     '''
     inv_T = np.array([4, 0, 0, 0, 2/n, 0], [0, 1, 0, -2/n, 0, 0], [3*np.cos(n*t), 0, 0, np.sin(n*t)/n, 2*cos(n*t)/n, 0])
 
+def quat_to_dcm(q):
+    """Fast, raw numpy quaternion to DCM conversion. q = [x, y, z, w]"""
+    qx, qy, qz, qw = q
+    x2, y2, z2 = qx**2, qy**2, qz**2
+    w2 = qw**2
+    xy, xz, xw = qx*qy, qx*qz, qx*qw
+    yz, yw = qy*qz, qy*qw
+    zw = qz*qw
+    
+    return np.array([
+        [w2 + x2 - y2 - z2, 2.0 * (xy - zw), 2.0 * (xz + yw)],
+        [2.0 * (xy + zw), w2 - x2 + y2 - z2, 2.0 * (yz - xw)],
+        [2.0 * (xz - yw), 2.0 * (yz + xw), w2 - x2 - y2 + z2]
+    ])
 
+def calculate_mean_motion(altitude_km):
+    """
+    Calculates the orbital mean motion (omega) for a circular Earth orbit.
+    """
+    # Earth physical constants
+    mu_earth = 3.986004418e14  # Earth's gravitational parameter [m^3/s^2]
+    r_earth = 6378137.0        # Earth's equatorial radius [m]
+    
+    # Calculate the semi-major axis (orbital radius) in meters
+    a = r_earth + (altitude_km * 1000.0)
+    
+    # Compute mean motion using Kepler's Third Law
+    omega = np.sqrt(mu_earth / (a**3))
+    
+    return omega
 ############################
 #
 # Main 
@@ -571,6 +677,16 @@ def cart2relative(x, v, a, n):
 ## Initialize parameters and geometry
 hypergolic_config = init_hypergolic_plume()
 
+# Convert dictionary to a static tuple for the Numba compiler
+hypergolic_tuple = (
+    hypergolic_config['rho_star'], hypergolic_config['r_star'],
+    hypergolic_config['phi_0'],    hypergolic_config['theta_0'],
+    hypergolic_config['theta_1'],  hypergolic_config['gamma'],
+    hypergolic_config['beta'],     hypergolic_config['V_lim'],
+    hypergolic_config['V_w'],      hypergolic_config['c_n'],
+    hypergolic_config['c_t'],      hypergolic_config['m_dot']  
+)
+
 # Target inertia matrix 
 I_target = np.diag([106400.0, 106400.0, 4500.0])
 I_inv = np.linalg.inv(I_target)
@@ -578,26 +694,47 @@ I_inv = np.linalg.inv(I_target)
 # Create 25m Cylinder Geometry
 centroids, normals, areas = create_cylinder_geometry()
 
-# Setup initial conditions
-initial_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
-# MUST BE NON-ZERO to trigger detumbling logic
-initial_w = np.radians([0.0, 0.087, 0.037])       
-# Append 0.0 for initial fuel consumed
-#initial_CW_x = np.array([10, 0, 10, 1, 1, 1])
-initial_state = np.concatenate((initial_quat, initial_w, [0.0])) 
+target_altitude_km = 800  # Adjust this to simulate different debris orbits
+omega = calculate_mean_motion(target_altitude_km)
 
-# Servicer position (Hovering 14m out, aligned with target CoM for detumbling)
-r_nozzle_RTN = np.array([10.0, 0.0, 10]) 
+# Target Initial Conditions 
+initial_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
+initial_w = np.radians([3, 3, 1])       
+fuel_initial = [0.0]
+
+# Chaser CW Initial Conditions 
+# Designing a safe ellipse: 12m along-track, 45-deg out-of-plane
+b = 6.0              
+theta1 = np.radians(45.0)  
+theta2 = np.radians(45.0)  
+nu = np.radians(0.0)       
+
+tan_val = 2 * np.cos(theta1) / np.tan(theta2)
+psi = nu - np.arctan(tan_val)
+c = (b / np.sin(theta1)) * np.sqrt(np.tan(theta2)**2 + 4 * np.cos(theta1)**2)
+
+# Chaser Initial State [x, y, z, vx, vy, vz]
+cw_initial = np.array([
+    b * np.sin(nu),
+    2 * b * np.cos(nu),
+    c * np.sin(nu - psi),
+    b * omega * np.cos(nu),
+    -2 * b * omega * np.sin(nu),
+    c * omega * np.cos(nu - psi)
+])
+print(f"Starting Maneuver at: x = {cw_initial[0]}, y = {cw_initial[1]}, z = {cw_initial[2]}")
+# Concatenate all of it
+initial_state = np.concatenate((initial_quat, initial_w, fuel_initial, cw_initial))
 
 control_params = {
-    'D_imp': 10.0,                   # INCREASED: Aim 10m down the cylinder to get a massive lever arm
-    'eps_theta': np.radians(90.0),   # RELAXED: Allow firing even if curved surfaces scatter the torque direction up to 90 deg
-    'eps_m': 1e-6,                   # RELAXED: Lower minimum threshold to catch smaller torques
-    'K_imp': 1e-3                    # Gain of guidance torque 
+    'D_imp': 10.0, # Aim 10m down the cylinder to get a massive lever arm
+    'eps_theta': np.radians(20.0), # Allow firing even if curved surfaces scatter the torque direction up to 90 deg
+    'eps_m': 1e-6, # Lower minimum threshold to catch smaller torques
+    'K_imp': 1e-3 # Gain of guidance torque 
 }
 
 # Setup Time Span for 7200 seconds (2 hours) to allow full momentum decay
-t_span = (0.0, 14400.0)
+t_span = (0.0, 3600.0)
 t_eval = np.linspace(t_span[0], t_span[1], 5000)
 
 print("Starting 1-hour numerical integration with ACTIVE Impingement Guidance...")
@@ -608,15 +745,18 @@ sol = solve_ivp(
     t_span, 
     initial_state, 
     t_eval=t_eval, 
-    args=(I_target, I_inv, r_nozzle_RTN, centroids, normals, areas, hypergolic_config, control_params),
-    rtol=1e-6, 
-    atol=1e-8
+    args=(I_target, I_inv, centroids, normals, areas, hypergolic_tuple, control_params, omega),
+    rtol=1e-5, 
+    atol=1e-7
 )
 
-# Extract final state
-final_quat = sol.y[0:4, -1]
+# Remember to normalize the quaternions post-simulation
+quats = sol.y[0:4, :]
+sol.y[0:4, :] = quats / np.linalg.norm(quats, axis=0)
+# --- 5. Extraction ---
 final_w = sol.y[4:7, -1]
-total_fuel_used = sol.y[7, -1] # The 8th state is our fuel tracker
+total_fuel_used = sol.y[7, -1]
+chaser_trajectory_RTN = sol.y[8:11, :]
 
 print(f"Integration complete. Success: {sol.success}")
 print(f"Final Angular Velocity (deg/s): {np.degrees(final_w)}")
@@ -626,18 +766,56 @@ print(f"Total Impingement Fuel Used: {total_fuel_used:.4f} kg")
 time = sol.t
 w_history_deg = np.degrees(sol.y[4:7, :])
 
-plt.figure(figsize=(10, 6))
-# Plotting normally (no reverse trick) since this is a real detumble
-plt.plot(time, w_history_deg[0, :], label=r'$\omega_x$ (Roll)', linewidth=2, color='#1f77b4')
-plt.plot(time, w_history_deg[1, :], label=r'$\omega_y$ (Pitch)', linewidth=2, color='#ff7f0e')
-plt.plot(time, w_history_deg[2, :], label=r'$\omega_z$ (Yaw)', linewidth=2, color='#2ca02c')
+fuel_history = sol.y[7, :]
+m_dot = hypergolic_tuple[11] # Assuming you used the tuple approach from earlier
 
-plt.title('Target Debris Active Detumble (Closed-Loop Guidance)', fontsize=14, pad=15)
-plt.xlabel('Time [seconds]', fontsize=12)
-plt.ylabel('Angular Velocity [deg/s]', fontsize=12)
-plt.axhline(0, color='black', linewidth=1, linestyle='--')
-plt.grid(True, linestyle=':', alpha=0.7)
-plt.legend(loc='upper right', fontsize=11)
+# Reconstruct the firing history (Duty Cycle 0.0 to 1.0) using the derivative of fuel consumed
+firing_history = np.gradient(fuel_history, time) / m_dot
+
+# Create a figure with 2 subplots sharing the X-axis
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True, gridspec_kw={'height_ratios': [2, 1]})
+
+# --- Top Subplot: Angular Velocity ---
+ax1.plot(time, w_history_deg[0, :], label=r'$\omega_x$ (Pitch)', linewidth=2, color='#1f77b4')
+ax1.plot(time, w_history_deg[1, :], label=r'$\omega_y$ (Yaw)', linewidth=2, color='#ff7f0e')
+ax1.plot(time, w_history_deg[2, :], label=r'$\omega_z$ (Roll)', linewidth=2, color='#2ca02c')
+
+ax1.set_title('Target Debris Active Detumble (Closed-Loop Guidance)', fontsize=14, pad=15)
+ax1.set_ylabel('Angular Velocity [deg/s]', fontsize=12)
+ax1.axhline(0, color='black', linewidth=1, linestyle='--')
+ax1.grid(True, linestyle=':', alpha=0.7)
+ax1.legend(loc='upper right', fontsize=11)
+
+# --- Bottom Subplot: Firing & Fuel History ---
+# Plot the Firing Command (Duty Cycle) on the primary Y-axis
+color1 = 'purple'
+ax2.fill_between(time, 0, firing_history, color=color1, alpha=0.3)
+ax2.plot(time, firing_history, color=color1, linewidth=1.5, label='Thruster Firing (Duty Cycle)')
+ax2.set_ylabel('Duty Cycle [0 to 1]', color=color1, fontsize=12)
+ax2.tick_params(axis='y', labelcolor=color1)
+
+# LOCK LEFT AXIS TO 0
+ax2.set_ylim(0.0, 1.1) 
+ax2.grid(True, linestyle=':', alpha=0.7)
+
+# Create a twin Y-axis to overlay the total fuel consumed
+ax3 = ax2.twinx()
+color2 = 'red'
+ax3.plot(time, fuel_history, color=color2, linewidth=2, linestyle='-.', label='Cumulative Fuel Used')
+ax3.set_ylabel('Fuel Consumed [kg]', color=color2, fontsize=12)
+ax3.tick_params(axis='y', labelcolor=color2)
+
+# LOCK RIGHT AXIS TO 0 (with a 10% top margin so the line doesn't hit the ceiling)
+max_fuel = np.max(fuel_history)
+ax3.set_ylim(0.0, max_fuel * 1.1)
+
+# Combine legends for the bottom subplot
+lines_1, labels_1 = ax2.get_legend_handles_labels()
+lines_2, labels_2 = ax3.get_legend_handles_labels()
+ax2.legend(lines_1 + lines_2, labels_1 + labels_2, loc='center right', fontsize=11)
+
+ax2.set_xlabel('Time [seconds]', fontsize=12)
+
 plt.tight_layout()
 plt.show()
 
@@ -683,47 +861,68 @@ plt.show()
 
 
 # --- Extract Aiming History ---
-aiming_coords, thrust_vectors = extract_aiming_history(sol, I_target, r_nozzle_RTN, control_params)
-
+aiming_coords, thrust_vectors = extract_aiming_history(sol, I_target, control_params)
 # --- 3D Visualization of the Servicer's Aiming Strategy ---
-fig = plt.figure(figsize=(10, 8))
+chaser_x = sol.y[8, :]
+chaser_y = sol.y[9, :]
+chaser_z = sol.y[10, :]
+
+# Find indices where duty cycle is greater than a small noise threshold (e.g., 0.01)
+active_idx = np.where(firing_history > 0.01)[0]
+
+# Downsample the active indices so the 3D arrows don't overlap into a solid block
+step = 50  # Plot 1 arrow for every 50 firing steps (Adjust this to make it look best!)
+plot_idx = active_idx[::step]
+
+# Extract the specific locations and vectors at those downsampled firing times
+X_fire = chaser_x[plot_idx]
+Y_fire = chaser_y[plot_idx]
+Z_fire = chaser_z[plot_idx]
+
+# Assuming thrust_vectors is a (3, N) array from your extract_aiming_history function
+U_thrust = thrust_vectors[0, plot_idx]
+V_thrust = thrust_vectors[1, plot_idx]
+W_thrust = thrust_vectors[2, plot_idx]
+
+
+# --- 2. 3D Visualization ---
+fig = plt.figure(figsize=(12, 10))
 ax = fig.add_subplot(111, projection='3d')
 
 # Plot the Target Center of Mass (Origin)
-ax.scatter(0, 0, 0, color='black', s=100, label='Target CoM (0,0,0)', marker='x')
+ax.scatter(0, 0, 0, color='black', s=150, label='Target CoM (0,0,0)', marker='X')
 
-# Plot the static Servicer position
-ax.scatter(r_nozzle_RTN[0], r_nozzle_RTN[1], r_nozzle_RTN[2], color='red', s=150, label='Servicer Nozzle', marker='^')
+# Plot the continuous Chaser Orbit Path
+ax.plot(chaser_x, chaser_y, chaser_z, color='gray', linestyle='--', alpha=0.5, label='Chaser Orbit Path (CW NMT)')
 
-# Plot the dynamic aiming coordinates (filtering out the [0,0,0] deadband points)
-active_aiming_x = aiming_coords[0, aiming_coords[0,:] != 0]
-active_aiming_y = aiming_coords[1, aiming_coords[1,:] != 0]
-active_aiming_z = aiming_coords[2, aiming_coords[2,:] != 0]
+# Plot the Firing Locations (Dots)
+ax.scatter(X_fire, Y_fire, Z_fire, color='red', s=20, label='Active Firing Locations')
 
-ax.scatter(active_aiming_x, active_aiming_y, active_aiming_z, color='blue', s=10, alpha=0.3, label='Dynamic Aiming Points')
-
-# Draw a sample Line of Sight from the servicer to the FIRST active aiming point
-ax.plot([r_nozzle_RTN[0], active_aiming_x[0]], 
-        [r_nozzle_RTN[1], active_aiming_y[0]], 
-        [r_nozzle_RTN[2], active_aiming_z[0]], 
-        color='red', linestyle='--', alpha=0.7, label='Initial Line of Sight')
+# Plot the Thrust Vectors (3D Arrows)
+# 'length' scales the arrows, 'normalize=True' ensures they all look uniform regardless of magnitude
+ax.quiver(X_fire, Y_fire, Z_fire, U_thrust, V_thrust, W_thrust, 
+          color='red', length=2.5, normalize=True, alpha=0.8, 
+          arrow_length_ratio=0.3, label='Plume Thrust Direction')
 
 # Formatting
-ax.set_title('Servicer Plume Impingement Aiming Profile', fontsize=14, pad=15)
-ax.set_xlabel('R (Radial) [m]')
-ax.set_ylabel('T (Along-Track) [m]')
-ax.set_zlabel('N (Cross-Track) [m]')
+ax.set_title('Chaser Relative Orbit & Plume Impingement Trajectory', fontsize=14, pad=15)
+ax.set_xlabel('R (Radial) [m]', labelpad=10)
+ax.set_ylabel('T (Along-Track) [m]', labelpad=10)
+ax.set_zlabel('N (Cross-Track) [m]', labelpad=10)
 
-# Ensure axes are equally scaled so the geometry isn't distorted
-max_range = np.array([active_aiming_x.max()-active_aiming_x.min(), 
-                      active_aiming_y.max()-active_aiming_y.min(), 
-                      active_aiming_z.max()-active_aiming_z.min()]).max() / 2.0
-mid_x = (active_aiming_x.max()+active_aiming_x.min()) * 0.5
-mid_y = (active_aiming_y.max()+active_aiming_y.min()) * 0.5
-mid_z = (active_aiming_z.max()+active_aiming_z.min()) * 0.5
+# Ensure axes are equally scaled so the elliptical orbit isn't distorted
+max_range = np.array([chaser_x.max()-chaser_x.min(), 
+                      chaser_y.max()-chaser_y.min(), 
+                      chaser_z.max()-chaser_z.min()]).max() / 2.0
+mid_x = (chaser_x.max()+chaser_x.min()) * 0.5
+mid_y = (chaser_y.max()+chaser_y.min()) * 0.5
+mid_z = (chaser_z.max()+chaser_z.min()) * 0.5
+
 ax.set_xlim(mid_x - max_range, mid_x + max_range)
 ax.set_ylim(mid_y - max_range, mid_y + max_range)
 ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
-ax.legend()
-plt.show()  
+# Adjust legend to be outside the plot so it doesn't cover the orbit
+ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=11)
+plt.tight_layout()
+plt.show()
