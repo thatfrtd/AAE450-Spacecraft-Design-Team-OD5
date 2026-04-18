@@ -6,8 +6,8 @@
 clear; clc; close all;
 
 %% Init Variables
-m_r = 4000; % kg
-m_s = 1500;  % kg
+m_r = 3000; % kg
+m_s = 2000;  % kg
 R = 1.85;   % m
 L = 30;     % m
 s = 1.0;    % m

@@ -1,0 +1,43 @@
+2026-04-09 11:33:48,535 - INFO - dmf.workflows.DmfWorkflow - Creating workflow 2de1a88b-f14a-461b-ac31-e31cad278154
+2026-04-09 11:33:49,858 - INFO - dmf.workflows.analysis_modules.AresOnlyWorkflow - Validating PRB data files before starting workflow
+2026-04-09 11:33:49,858 - INFO - dmf.workflows.analysis_modules.AresOnlyWorkflow - Creating configurations
+2026-04-09 11:33:49,868 - INFO - dmf.processes.DmfProcess - Creating ares process 520298c9-3e31-4afa-93d5-a98ef49135d3
+2026-04-09 11:33:52,308 - INFO - dmf.processes.AresProcess - Starting to execute ARES 520298c9-3e31-4afa-93d5-a98ef49135d3
+2026-04-09 11:33:52,313 - INFO - dmf.processes.AresProcess - Stored pyARES inputs in C:\\Users\\zipzi\\Downloads\\DRAMA\\Return_To Sender\\input\\last_ares.json
+2026-04-09 11:33:56,322 - INFO - ares_live_log - tmpdcxspf2m                  __/__/    __/_/__/    __/__/__/  _/__/_/
+2026-04-09 11:33:56,351 - INFO - ares_live_log - tmpdcxspf2m                __/   __/  __/    __/  __/        __/
+2026-04-09 11:33:56,362 - INFO - ares_live_log - tmpdcxspf2m               __/__/__/  __/_/__/    __/__/      __/__/
+2026-04-09 11:33:56,372 - INFO - ares_live_log - tmpdcxspf2m              __/   __/  __/    __/  __/             __/
+2026-04-09 11:33:56,392 - INFO - ares_live_log - tmpdcxspf2m             __/   __/  __/     __/ __/__/__/  _/__/_/
+2026-04-09 11:33:56,418 - INFO - ares_live_log - tmpdcxspf2m         Debris Risk Assessment and Mitigation Analysis Tool Suite
+2026-04-09 11:33:56,432 - INFO - ares_live_log - tmpdcxspf2m        MASTER(-based) Assessment of Risk Event Statistics Software
+2026-04-09 11:33:56,442 - INFO - ares_live_log - tmpdcxspf2m                            (DRAMA-ARES v4.1.1)
+2026-04-09 11:33:56,472 - INFO - ares_live_log - tmpdcxspf2m  -----------------------------------------------------------------------
+2026-04-09 11:33:56,482 - INFO - ares_live_log - tmpdcxspf2m  ARES version  : 4.1.1
+2026-04-09 11:33:56,492 - INFO - ares_live_log - tmpdcxspf2m  Build date    : 02-Jul-25
+2026-04-09 11:33:56,502 - INFO - ares_live_log - tmpdcxspf2m  Platform      : x86_64-linux-gnu
+2026-04-09 11:33:56,513 - INFO - ares_live_log - tmpdcxspf2m  Compiler      : GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0
+2026-04-09 11:33:56,523 - INFO - ares_live_log - tmpdcxspf2m  -----------------------------------------------------------------------
+2026-04-09 11:33:56,543 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:33:56 INFO Starting ARES version 4.1.1
+2026-04-09 11:33:56,559 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:33:56 INFO Starting progress report
+2026-04-09 11:33:56,574 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:33:56 INFO Loading input file
+2026-04-09 11:33:56,584 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:33:56 INFO Validating input file
+2026-04-09 11:33:56,594 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:33:56 INFO Allocating resources
+2026-04-09 11:33:56,756 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:33:56 INFO Loading covariance tables
+2026-04-09 11:33:56,766 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:33:56 INFO Computing population flux
+2026-04-09 11:34:05,972 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:34:05 INFO MASTER issued remarks
+2026-04-09 11:34:05,982 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:34:05 INFO Computing detectable and catastrophic fluxes
+2026-04-09 11:34:07,917 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:34:07 INFO Minimum detectable size for target orbit / m: 0.576E-01
+2026-04-09 11:34:07,968 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:34:07 INFO Trying to merge low and high eccentricity bins
+2026-04-09 11:34:07,978 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:34:07 INFO Unable to merge covs for low and high ecc. objects
+2026-04-09 11:34:07,989 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:34:07 INFO Computing global fluxes
+2026-04-09 11:34:07,999 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:34:07 INFO Computing collision rates
+2026-04-09 11:34:08,010 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:34:08 INFO Computing manoeuvre rates and avoidance
+2026-04-09 11:35:08,207 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:35:08 INFO Computing reduced
+remaining and fractional risks
+2026-04-09 11:35:08,223 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:35:08 INFO Computing propellant mass fraction
+2026-04-09 11:35:08,234 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:35:08 INFO Building output files
+2026-04-09 11:35:08,244 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:35:08 INFO Building gnuplot driver files
+2026-04-09 11:35:08,254 - INFO - ares_live_log - tmpdcxspf2m  09/04/2026 11:35:08 INFO Program finished properly
+2026-04-09 11:35:08,313 - INFO - dmf.processes.AresProcess - Finished ares process 520298c9-3e31-4afa-93d5-a98ef49135d3
+2026-04-09 11:35:19,208 - INFO - dmf.workflows.DmfWorkflow - Workflow 2de1a88b-f14a-461b-ac31-e31cad278154 finished
