@@ -4,6 +4,7 @@ from scipy.integrate import quad, solve_ivp
 from scipy.spatial.transform import Rotation as R
 import matplotlib.pyplot as plt
 from numba import njit
+import pandas as pd
 
 def create_panels():
     # Creates panels by defining the centroids
@@ -683,7 +684,7 @@ def extract_aiming_history(sol, I_target, ctrl):
     for i in range(num_steps):
         q_B2RTN = sol.y[0:4, i]
         w_B = sol.y[4:7, i]
-        r_nozzle_RTN = sol.y[8:11, i] # <--- THE FIX: Dynamic position extraction
+        r_nozzle_RTN = sol.y[8:11, i] 
         
         h_B = np.dot(I_target, w_B)
         h_norm = np.linalg.norm(h_B)
@@ -763,6 +764,15 @@ def calculate_mean_motion(altitude_km):
     omega = np.sqrt(mu_earth / (a**3))
     
     return omega
+
+def cart2rel(n, t):
+    Gamma = np.array([[1, 0, -np.cos(n*t), -np.sin(n*t), 0, 0],
+                      [0, 1, 2*np.sin(n*t), -2*np.cos(n*t), 0, 0],
+                      [0, 0, 0, 0, np.sin(n*t), np.cos(n*t)],
+                      [0, 0, n*np.sin(n*t), -n*np.cos(n*t), 0, 0],
+                      [-3*n/2, 0, 2*n*np.cos(n*t), 2*n*np.sin(n*t), 0, 0],
+                      [0, 0, 0, 0, n*np.cos(n*t), n*np.sin(n*t)]]) # negative sign at the end
+    return Gamma
 ############################
 #
 # Main 
@@ -793,7 +803,8 @@ target_altitude_km = 800  # Adjust this to simulate different debris orbits
 omega = calculate_mean_motion(target_altitude_km)
 
 # Target Initial Conditions 
-initial_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
+#initial_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
+initial_quat = np.array([0.57735026919, 0.57735026919, 0.57735026919, 0]) 
 initial_w = np.radians([3, 3, 1])       
 fuel_initial = [0.0]
 
@@ -828,6 +839,7 @@ vy_0 = -2.0 * omega * ade * np.sin(phi_g)
 vz_0 = omega * adi * np.cos(phi_g)
 
 cw_initial = np.array([x_0, y_0, z_0, vx_0, vy_0, vz_0])
+da = np.linalg.inv(cart2rel(omega, 0)) @ cw_initial / target_altitude_km
 
 # --- 6. Build Unified 14-Element State Vector ---
 initial_state = np.concatenate((initial_quat, initial_w, fuel_initial, cw_initial))
@@ -990,9 +1002,9 @@ Y_fire = chaser_y[plot_idx]
 Z_fire = chaser_z[plot_idx]
 
 # Assuming thrust_vectors is a (3, N) array from your extract_aiming_history function
-U_thrust = thrust_vectors[0, plot_idx]
-V_thrust = thrust_vectors[1, plot_idx]
-W_thrust = thrust_vectors[2, plot_idx]
+U_plot = thrust_vectors[0, plot_idx]
+V_plot = thrust_vectors[1, plot_idx]
+W_plot = thrust_vectors[2, plot_idx]
 
 
 # --- 2. 3D Visualization ---
@@ -1010,7 +1022,7 @@ ax.scatter(X_fire, Y_fire, Z_fire, color='red', s=20, label='Active Firing Locat
 
 # Plot the Thrust Vectors (3D Arrows)
 # 'length' scales the arrows, 'normalize=True' ensures they all look uniform regardless of magnitude
-ax.quiver(X_fire, Y_fire, Z_fire, U_thrust, V_thrust, W_thrust, 
+ax.quiver(X_fire, Y_fire, Z_fire, U_plot, V_plot, W_plot, 
           color='red', length=2.5, normalize=True, alpha=0.8, 
           arrow_length_ratio=0.3, label='Plume Thrust Direction')
 
@@ -1036,3 +1048,46 @@ ax.set_zlim(mid_z - max_range, mid_z + max_range)
 ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=11)
 plt.tight_layout()
 plt.show()
+thrust_output_array = np.column_stack((U_plot, V_plot, W_plot))
+
+U_thrust = thrust_vectors[0, :]
+V_thrust = thrust_vectors[1, :]
+W_thrust = thrust_vectors[2, :]
+#thrust_output_array.tofile('thrust_output.csv') # Idk why this isn't working
+thrust_output = pd.DataFrame(thrust_output_array)
+thrust_path = r'C:\Users\Athar\Documents\College\AAE450-Spacecraft-Design-Team-OD5\ADCS\Detumble\Thrust_Output.csv'
+thrust_output.to_csv(thrust_path, 'a') # Idk why this isn't working
+print("Finished Sim")
+
+# Generating output for Animation CSV
+time_array = sol.t
+q_x, q_y, q_z, q_w = sol.y[0:4, :]
+
+chaser_x, chaser_y, chaser_z = sol.y[8:11, :]
+
+# Convert into a clean 1 (Firing) or 0 (Off) integer array based on your 1% deadband
+is_thrusting = (firing_history > 0.01).astype(int)
+
+# --- 5. Assemble the Master Array ---
+master_output_array = np.column_stack((
+    time_array, 
+    q_x, q_y, q_z, q_w, 
+    chaser_x, chaser_y, chaser_z, 
+    U_thrust, V_thrust, W_thrust, 
+    is_thrusting
+))
+
+# --- 6. Save to CSV ---
+master_path = r'C:\Users\Athar\Documents\College\AAE450-Spacecraft-Design-Team-OD5\ADCS\Detumble\Detumble_History.csv'
+
+# Create a clean, comma-separated header
+header_str = "Time,q_x,q_y,q_z,q_w,chaser_x,chaser_y,chaser_z,U_thrust,V_thrust,W_thrust,is_thrusting"
+
+np.savetxt(
+    master_path, 
+    master_output_array, 
+    delimiter=",", 
+    header=header_str, 
+    comments="", 
+    fmt="%.6f" # Formats all floats to 6 decimal places to keep the file size tight
+)
