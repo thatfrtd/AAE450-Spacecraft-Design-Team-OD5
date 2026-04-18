@@ -23,9 +23,9 @@ F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star
 alpha = 1 / (spacecraft_params.Isp * 9.81e-3);
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = 6728; % [km] semi-major axis
-e_c = 0.004; % [] eccentricity
-i_c = deg2rad(80); % [rad] inclination
+a_c = R_E + 800; % [km] semi-major axis
+e_c = 0.005; % [] eccentricity
+i_c = deg2rad(98); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu0_c = deg2rad(0); % [rad] true anomaly at epoch
@@ -35,13 +35,35 @@ x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 n = sqrt(char_star.mu / a_c ^ 3); % [rad / s]
 
 % Rendezvous time
-tf = 3600; % / char_star.t; % [s] (nondimensionalized)
+tf = 7200; % / char_star.t; % [s] (nondimensionalized)
 tspan = linspace(0, tf, 1000);
+
+b = sqrt(40^2/2);
+c = sqrt(10^2/2);
+aROE = [0; % [km] delta semimajor axis
+        0; % [km] delta lambda
+       -b*1e-3; % [km] delta e_x
+        b*1e-3; % [km] delta e_y
+       -c*1e-3; % [km] delta i_x 
+        c*1e-3]; % [km] delta i_y
+
+% cart_ROE = [6.36396103; % r_x
+%          -12.72792207; % r_y
+%           6.36396103; % r_z
+%           -0.0066066117; % v_x
+%           -0.0132132235; % v_y
+%           -0.0066066117] * 1e-3; % v_z
+% 
+% aROE_ck = cart_to_ROE_matrix(n, 0) * cart_ROE;
+cart_ROE = ROE_to_cart_matrix(n, 0) * aROE;
+%%
+ROE_to_cart_matrix(n, 0) * cart_to_ROE_matrix(n, 0)
+%%
 
 % Initial conditions for spacecraft - specify orbit instead?
 r_0 = [0; -1; 0]; % [km]
 v_0 = [0e-3; 4e-3; -0.024]; % [km / s]
-x_0 = [r_0; v_0; spacecraft_params.m_0];
+x_0 = [cart_ROE; spacecraft_params.m_0];
 
 % Algorithm parameters
 default_tolerance = 1e-13;
@@ -59,8 +81,8 @@ f_CWH = @(t, x, u, p) CWH_relative_orbit_EoM(t, x, u, p, [a_c; spacecraft_params
 
 %% Propagate
 p = [];
-u = [0; 1; 0];
-u = u / norm(u) * spacecraft_params.F_max / 1000;
+u = [0; 0; 0];
+%u = u / norm(u) * spacecraft_params.F_max / 1000;
 a_d_0 = @(t, x) [0; 0; 0];
 a_d = @(t, x) RTN_to_ECI_array(x(1:3), x(4:6)) * u / x(7);
 
@@ -104,6 +126,9 @@ plot3(x_cartesian_hill(1, :), x_cartesian_hill(2, :), x_cartesian_hill(3, :)); h
 grid on
 legend("CWH", "Linearized", "Nonlinear", "Cart")
 axis equal
+xlabel("R")
+ylabel("T")
+zlabel("N")
 title("Position Comparison")
 
 figure
@@ -114,6 +139,9 @@ plot3(x_cartesian_hill(4, :), x_cartesian_hill(5, :), x_cartesian_hill(6, :)); h
 grid on
 legend("CWH", "Linearized", "Nonlinear", "Cart")
 axis equal
+xlabel("R")
+ylabel("T")
+zlabel("N")
 title("Velocity Comparison")
 
 %% Helper Functions
