@@ -128,7 +128,7 @@ objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(1:3, :))) * del
 %% Create Guess
 % Straight Line Initial Guess
 guess.x = linspace(0, 1, N) .* ([x_f; x_0(7)] - x_0) + x_0;
-guess.u = ones([6, Nu]) * 1e-6;
+guess.u = ones([nu, Nu]) * 1e-6;
 guess.p = [];
 
 %% Construct Problem Object

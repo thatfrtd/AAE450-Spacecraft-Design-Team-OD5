@@ -383,6 +383,101 @@ def dynamic_diff_equation(t, state, I, I_inv, r_nozzle_RTN, thrust_dir_RTN, cent
     ])
     
     return np.concatenate((dq_dt, dw_dt))
+def guided_dynamic_diff_equation(t, state, I, I_inv, r_nozzle_RTN, centroids, normals, areas, plume_params, ctrl):
+    """
+    Computes the state derivative [dq/dt, dw/dt] for the ODE solver.
+    State vector: [q_x, q_y, q_z, q_w, w_x, w_y, w_z]
+    """
+    q = state[0:4]
+    w = state[4:7]
+    q = q / np.linalg.norm(q)
+    
+    # Run the Guidance Law to get dynamic torque
+    torque_B = compute_guidance_and_control(
+        w, q, r_nozzle_RTN, I, centroids, normals, areas, plume_params, ctrl
+    )
+    
+    # Euler's rigid body equations
+    w_cross_Iw = np.cross(w, np.dot(I, w))
+    dw_dt = np.dot(I_inv, (torque_B - w_cross_Iw))
+    
+    # Quaternion kinematics
+    wx, wy, wz = w
+    qx, qy, qz, qw = q
+    dq_dt = 0.5 * np.array([
+         qw*wx + qy*wz - qz*wy,
+         qw*wy - qx*wz + qz*wx,
+         qw*wz + qx*wy - qy*wx,
+        -qx*wx - qy*wy - qz*wz
+    ])
+    
+    return np.concatenate((dq_dt, dw_dt))
+def compute_guidance_and_control(w_B, q_B2RTN, r_nozzle_RTN, I_target, centroids, normals, areas, plume_params, ctrl):
+    """
+    Implements the target detumbling guidance and impingement firing logic.
+    Returns the applied torque in the target's Body frame.
+    """
+    # Target angular momentum in Body and RTN frames
+    h_B = np.dot(I_target, w_B)
+    h_norm = np.linalg.norm(h_B)
+    
+    if h_norm < 1e-6:
+        return np.zeros(3) # Target is already detumbled
+
+    attitude = R.from_quat(q_B2RTN) 
+    h_L = attitude.apply(h_B)
+
+    T_g_L = -ctrl['K_imp'] * (h_L / np.linalg.norm(h_L))
+
+    r_norm = np.linalg.norm(r_nozzle_RTN)
+    r_hat = r_nozzle_RTN / r_norm
+
+    # Project the desired guidance torque onto plane P (orthogonal to r_hat)
+    T_g_L_P = T_g_L - np.dot(T_g_L, r_hat) * r_hat
+    T_g_L_P_norm = np.linalg.norm(T_g_L_P)
+
+    if T_g_L_P_norm < 1e-6:
+        # Desired torque is parallel to position vector; cannot project.
+        P_h_L = np.zeros(3)
+    else:
+        T_g_L_P_hat = T_g_L_P / T_g_L_P_norm
+        # Firing line orthogonal to projection and position vector
+        P_h_L = np.cross(r_hat, T_g_L_P_hat)
+        P_h_L = P_h_L / np.linalg.norm(P_h_L)
+
+    # Calculate final thruster Line of Sight (LOS) pointing at the offset
+    # Vector points from offset target point TO chaser, so thrust is the negative
+    pointing_vector = r_nozzle_RTN - (ctrl['D_imp'] * P_h_L)
+    thrust_dir_RTN = -pointing_vector / np.linalg.norm(pointing_vector)
+
+    # 4. Transform vectors back to Body Frame for plume surface physics
+    r_nozzle_B = attitude.inv().apply(r_nozzle_RTN)
+    thrust_dir_B = attitude.inv().apply(thrust_dir_RTN)
+
+    # impingement Torque
+    vis_centroids, vis_normals, vis_areas = get_visible_panels(
+        centroids, normals, areas, r_nozzle_B
+    )
+
+    T_imp_B = calculate_impingement_torque(
+        vis_centroids, vis_normals, vis_areas, r_nozzle_B, thrust_dir_B, plume_params
+    )
+
+    T_imp_L = attitude.apply(T_imp_B)
+
+    # Firing Logic Thresholds
+    T_imp_L_norm = np.linalg.norm(T_imp_L)
+    
+    # Is it strong enough?
+    if T_imp_L_norm >= ctrl['eps_m']:
+        # Calculate angle between actual torque and desired guidance torque
+        cos_theta = np.dot(T_imp_L, T_g_L) / (T_imp_L_norm * np.linalg.norm(T_g_L))
+        cos_theta = np.clip(cos_theta, -1.0, 1.0)
+        angle = np.arccos(cos_theta)
+
+        # Fire thruster if within angular tolerance
+        if angle <= ctrl['eps_theta']:
+            return T_imp_B 
 
 def compute_guidance_and_control(w_B, q_B2RTN, r_nozzle_RTN, I_target, centroids, normals, areas, plume_tuple, ctrl):
     # 1. Check Deadband

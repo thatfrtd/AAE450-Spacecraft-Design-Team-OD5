@@ -1,0 +1,13 @@
+LIBRARY QLaw_transfer_inner.mexw64
+EXPORTS
+mexFunction
+mexfilerequiredapiversion
+emlrtMexFcnProperties
+QLaw_transfer_inner
+QLaw_transfer_inner_initialize
+QLaw_transfer_inner_terminate
+QLaw_transfer_inner_atexit
+emlrt_marshallOut
+emxEnsureCapacity_real_T
+emxFree_real_T
+emxInit_real_T

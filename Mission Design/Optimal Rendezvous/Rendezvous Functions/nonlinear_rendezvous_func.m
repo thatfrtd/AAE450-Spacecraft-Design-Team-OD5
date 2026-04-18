@@ -1,4 +1,4 @@
-function [rendezvous_solution, ptr_sol] = nonlinear_rendezvous_func(x_0_hill, x_f_hill, ToF, x_keplerian_c, spacecraft_params, options)
+function [rendezvous_solution, ptr_sol, nocont] = nonlinear_rendezvous_func(x_0_hill, x_f_hill, ToF, x_keplerian_c, spacecraft_params, options)
 arguments
     x_0_hill
     x_f_hill
@@ -114,7 +114,7 @@ objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u)) * delta_t * c
 %% Create Guess
 % Straight Line Initial Guess - Lambert better?
 guess.x = linspace(0, 1, N) .* (x_0_nd - [x_f_nd; x_0_nd(7)]) + x_0_nd;
-guess.u = ones([3, Nu]) * 1e-6;
+guess.u = ones([3, Nu]) * 1e-10;
 guess.p = [];
 
 %% Construct Problem Object
@@ -196,4 +196,10 @@ if options.plot_results
     legend("\hat{r}", "\hat{\theta}", "\hat{h}", "||u||", Interpreter="latex")
     grid on
 end
+
+% Propagate without control to see if matches expectation
+[t_nocont, x_nocont, u_nocont] = problem.cont_prop(guess.u * 0, guess.p);
+nocont.t = t_nocont * char_star.t;
+nocont.x = x_nocont .* nd_scalar;
+nocont.u = u_nocont * char_star.F * 1000;
 end

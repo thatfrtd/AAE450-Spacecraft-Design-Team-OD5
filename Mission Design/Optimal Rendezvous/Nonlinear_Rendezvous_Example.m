@@ -22,7 +22,7 @@ F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = 6728; % [km] semi-major axis
-e_c = 0.01; % [] eccentricity
+e_c = 0.003; % [] eccentricity
 i_c = deg2rad(10); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis

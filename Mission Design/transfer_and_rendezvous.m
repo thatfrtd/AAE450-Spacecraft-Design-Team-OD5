@@ -8,9 +8,11 @@
 % Most Recent Change: 25 February, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+m_debris = 3000; % [kg]
+
 R_E = 6378.137; % [km] Earth radius
 mu_E = 398600.4418; % [km3 / s2] Earth gravitational parameter
-J_2_val = 1.08262668e-3; % [] Earth J2
+J_2_val = 1.08262668e-3*0; % [] Earth J2
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = 7044.7634; % [km] semi-major axis
@@ -28,8 +30,8 @@ x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 a_d = 6978.1370; % [km] semi-major axis
 e_d = 0.003390; % [] eccentricity
 i_d = deg2rad(98.1114); % [rad] inclination
-Omega_d = deg2rad(320.5520); % [rad] right ascension of ascending node
-omega_d = deg2rad(301.2069 ); % [rad] argument of periapsis
+Omega_d = deg2rad(320.5520 + 0.03); % [rad] right ascension of ascending node
+omega_d = deg2rad(301.2069); % [rad] argument of periapsis
 nu_d = deg2rad(58.6658 ); % [rad] true anomaly at epoch
 
 M_d = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_d, e_d), e_d);
@@ -43,7 +45,7 @@ spacecraft_params = struct();
 spacecraft_params.Isp = 4100; % [s]
 spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 1000; % [kg]
-spacecraft_params.F_max = 0.5; % [N]
+spacecraft_params.F_max = 0.25; % [N]
 
 % Integration error tolerance
 default_tolerance = 1e-10;
@@ -76,7 +78,7 @@ Q_params.n = 4;
 Q_params.r = 2;
 Q_params.Theta_rot = 0;
 
-[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000/2, angular_step=deg2rad(2), R_c = 0.01, a_disturbance = a_d_0);
+[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 500000, angular_step=deg2rad(2), R_c = 0.01, a_disturbance = a_d_0);
 
 dVs = Qtransfer.delta_V;
 ToFs = Qtransfer.dt / 60 / 60 / 24;
@@ -121,7 +123,7 @@ grid on
 %% Find Transition from Transfer to Rendezvous
 % Find where QLaw gets 1 km away and use those as initial conditions for
 % SCP rendezvous
-max_engagement_dist = 4.5; % [km] Distance to switch to rendezvous from transfer
+max_engagement_dist = 6; % [km] Distance to switch to rendezvous from transfer
 
 x_d_cartesian = x_keplerian_cartesian_ck';%keplerian_to_cartesian_array(Qtransfer.x_keplerian_mass(1:6, :), [], mu_E);
 
@@ -129,22 +131,24 @@ delta_M_transfer = Qtransfer.x_keplerian_mass(6, end) - M_d;
 delta_M_chief = sqrt(char_star.mu / a_c ^ 3) * Qtransfer.t(end);
 M0_c_refined = wrapToPi(delta_M_transfer - delta_M_chief); % Assuming M_c is 0 DOES NOT WORK - JUST USE OPTIMIZATION FUNCTION
 
-%x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M0_c_refined + deg2rad(58.48)];
-x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M0_c_refined + deg2rad(77.715)];
+x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M0_c_refined + deg2rad(57.9)];
+%x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M0_c_refined + deg2rad(77.845)];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, [], mu_E);
 x_c_cartesian = propagate_conic_array(x0_c_cartesian, Qtransfer.t, char_star.mu);
+%[~, x_c_cartesian] = ode45(@(t, x) gauss_planetary_eqn(f0_cartesian(x, char_star.mu), B_cartesian(x, char_star.mu), a_d_J2_ECI(t, x)), -flip(Qtransfer.t), x0_c_cartesian, tolerances); % Integrate back in time including J2...
+%x_c_cartesian = flip(x_c_cartesian, 2);
 
 relative_distances = vecnorm(x_c_cartesian(1:3, :) - x_d_cartesian(1:3, :));
 i_engage = find(relative_distances < max_engagement_dist, 1);
 
 if isempty(i_engage)
-    figure
-    plot(Qtransfer.t / 3600, relative_distances, HandleVisibility="off"); hold on
-    yscale("log")
-    xlabel("Time [hr]")
-    ylabel("Relative Distance [km]")
-    title("Distance from Target vs Time for Transfer")
-    grid on
+    % figure
+    % plot(Qtransfer.t / 3600, relative_distances, HandleVisibility="off"); hold on
+    % yscale("log")
+    % xlabel("Time [hr]")
+    % ylabel("Relative Distance [km]")
+    % title("Distance from Target vs Time for Transfer")
+    % grid on
 
     error("Spacecraft minimum distance to target, %.1f km, is not within engagement distance of %.1f km", min(relative_distances), max_engagement_dist)
 end
@@ -178,14 +182,20 @@ writetable(trans_table, "Wes_QLaw_TTC_test.csv")
 x_0_hill = x_d_engage_hill;
 x_f_hill = [0.2; 0; 0;  % [km]
             0; 0; 0]; % [km / s]
-ToF_rendezvous = 3600 * 15; % [s]
+ToF_rendezvous = 3600 * 5; % [s]
 spacecraft_params_mod = spacecraft_params;
-spacecraft_params_mod.F_max = 2;
-[optimal_rendezvous, rendezvous_SCP_info] = nonlinear_rendezvous_func(x_0_hill, x_f_hill, ToF_rendezvous, x0_c_keplerian, spacecraft_params_mod, N = 150, dynamics = "Nonlinear", u_hold = "ZOH", max_iters = 15, integration_tolerance = 5e-12);
+spacecraft_params_mod.Isp = [4100; 230];
+spacecraft_params_mod.F_max = [0.25; 100];
+% Actually use QLaw control for "nocont" part to check better
+%[optimal_rendezvous, rendezvous_SCP_info, nocont_rendezvous] = nonlinear_rendezvous_func(x_0_hill, x_f_hill, ToF_rendezvous, x0_c_keplerian, spacecraft_params_mod, N = 150, dynamics = "Nonlinear", u_hold = "ZOH", max_iters = 15, integration_tolerance = 5e-12);
+[optimal_rendezvous, rendezvous_SCP_info] = nonlinear_rendezvous_multithruster_func(x_0_hill, x_f_hill, ToF_rendezvous, x0_c_keplerian, spacecraft_params_mod, N = 150, u_hold = "ZOH", max_iters = 15, integration_tolerance = 5e-12);
 
 %% Package Output
+pickle = 800;
 x_Qtransfer_cart = [x_d_cartesian(:, 1:i_engage); Qtransfer.x_keplerian_mass(7, 1:i_engage)];
+x_Qtransfer_cart_plus = [x_d_cartesian(:, 1:i_engage + pickle); Qtransfer.x_keplerian_mass(7, 1:i_engage + pickle)];
 x_Qtransfer_hill = ECI_to_Hill(x_c_cartesian(:, 1:i_engage), x_Qtransfer_cart);
+x_Qtransfer_hill_plus = ECI_to_Hill(x_c_cartesian(:, 1:i_engage + pickle), x_Qtransfer_cart_plus);
 x_Qtransfer_hill_ck = Hill_to_ECI(x_c_cartesian(:, 1:i_engage), x_Qtransfer_hill); % DOES NOT MATCH
 t_cont_traj = [Qtransfer.t; optimal_rendezvous.t];
 x_cont_traj = [x_Qtransfer_hill, optimal_rendezvous.x];
@@ -194,20 +204,20 @@ trajectory_to_target.transfer = Qtransfer;
 trajectory_to_target.rendezvous = rendezvous_SCP_info;
 
 %% CHECK ECI<->HILL CONVERSION -- DOESN'T MATCH :(
-ckdiff = x_Qtransfer_hill_ck - x_Qtransfer_cart;
-figure
-plot(x_Qtransfer_hill_ck(6, :)'); hold on
-plot(x_Qtransfer_cart(6, :)');
+% ckdiff = x_Qtransfer_hill_ck - x_Qtransfer_cart;
+% figure
+% plot(x_Qtransfer_hill_ck(4, :)'); hold on
+% plot(x_Qtransfer_cart(4, :)');
 
 %%
 
 
 %%
 figure
-plt_start_i = 12500; 
-i_end = size(x_cont_traj, 2) - 4000;
+plt_start_i = 24000; 
+i_end = size(x_cont_traj, 2);
 plot3(x_cont_traj(1, i_engage:i_end), x_cont_traj(2, i_engage:i_end), x_cont_traj(3, i_engage:i_end)); hold on
-plot3(x_cont_traj(1, plt_start_i:i_engage), x_cont_traj(2, plt_start_i:i_engage), x_cont_traj(3, plt_start_i:i_engage))
+plot3(x_Qtransfer_hill_plus(1, plt_start_i:i_engage + pickle), x_Qtransfer_hill_plus(2, plt_start_i:i_engage + pickle), x_Qtransfer_hill_plus(3, plt_start_i:i_engage + pickle))
 xlabel("X [km]")
 ylabel("Y [km]")
 zlabel("Z [km]")
@@ -217,49 +227,63 @@ grid on
 axis equal
 
 %% Deorbit Trajectory
-% x_c_deorbit_ECI = propagate_conic(x_c_engage_ECI, ToF_rendezvous, mu_E);
-% x_d_deorbit = Hill_to_ECI(x_c_deorbit_ECI, optimal_rendezvous.x(1:7, end));
-% x0_d_keplerian_deorbit = [cartesian_to_keplerian(x_d_deorbit, [0; 0; 1], [1; 0; 0], mu_E); x_d_deorbit(7)];
-% 
-% % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-% r_a_c = R_E + 660; % [km] periapsis
-% r_p_c = R_E + 95; % [km] periapsis
-% e_c = (1 - r_p_c / r_a_c) / (1 + r_p_c / r_a_c); % [] eccentricity
-% a_c = r_p_c / (1 - e_c); % [km] semi-major axis
-% i_c = deg2rad(71); % [rad] inclination
-% Omega_c = deg2rad(0); % [rad] right ascension of ascending node
-% omega_c = deg2rad(0); % [rad] argument of periapsis
-% nu_c = deg2rad(0); % [rad] true anomaly at epoch
-% 
-% M_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_c, e_c), e_c);
-% x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
-% x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
-% 
-% %%
-% eta = 0.9;
-% clear Qtransfer
-% % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
-% Q_params = struct();
-% Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
-% Q_params.eta_a_min = eta; % Minimum absolute efficiency for thrusting instead of coasting
-% Q_params.eta_r_min = eta; % Minimum relative efficiency for thrusting instead of coasting
-% Q_params.m = 3;
-% Q_params.n = 4;
-% Q_params.r = 2;
-% Q_params.Theta_rot = 0;
-% 
-% spacecraft_params.m_0 = optimal_rendezvous.x(7, end);
-% [Qtransfer] = QLaw_transfer(x0_d_keplerian_deorbit(1:6), x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20), R_c = 1);
-% 
-% dVs = Qtransfer.delta_V;
-% ToFs = Qtransfer.dt / 60 / 60 / 24;
-% if Qtransfer.converged
-%     fprintf("Q-Law Transfer Converged! Took %.3f Days Using %.3f kg Propellant\n", Qtransfer.dt / 60 / 60 / 24, Qtransfer.delta_m)
-% else
-%     fprintf("Q-Law Transfer Failed with %s\n", Qtransfer.errors)
-% end
-% 
-% plot_Q_transfer(Qtransfer, x0_c_keplerian, x0_d_keplerian, char_star)
+x_c_deorbit_ECI = propagate_conic(x_c_engage_ECI, ToF_rendezvous, mu_E);
+x_d_deorbit = Hill_to_ECI(x_c_deorbit_ECI, optimal_rendezvous.x(1:7, end));
+x0_d_keplerian_deorbit = [cartesian_to_keplerian(x_d_deorbit, [0; 0; 1], [1; 0; 0], mu_E); x_d_deorbit(7)];
+
+% Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
+r_a_c = R_E + 660; % [km] periapsis
+r_p_c = R_E + 95; % [km] periapsis
+e_c = (1 - r_p_c / r_a_c) / (1 + r_p_c / r_a_c); % [] eccentricity
+a_c = r_p_c / (1 - e_c); % [km] semi-major axis
+i_c = deg2rad(71); % [rad] inclination
+Omega_c = deg2rad(0); % [rad] right ascension of ascending node
+omega_c = deg2rad(0); % [rad] argument of periapsis
+nu_c = deg2rad(0); % [rad] true anomaly at epoch
+
+M_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_c, e_c), e_c);
+x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
+x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
+
+%%
+eta = 0.6;
+clear Qtransfer
+% Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
+Q_params = struct();
+Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
+Q_params.eta_a_min = eta; % Minimum absolute efficiency for thrusting instead of coasting
+Q_params.eta_r_min = eta; % Minimum relative efficiency for thrusting instead of coasting
+Q_params.m = 3;
+Q_params.n = 4;
+Q_params.r = 2;
+Q_params.Theta_rot = 0;
+
+spacecraft_params.m_0 = optimal_rendezvous.x(7, end) + m_debris;
+[Qtransfer] = QLaw_transfer(x0_d_keplerian_deorbit(1:6), x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 150000, angular_step=deg2rad(20), R_c = 1);
+
+dVs = Qtransfer.delta_V;
+ToFs = Qtransfer.dt / 60 / 60 / 24;
+if Qtransfer.converged
+    fprintf("Q-Law Transfer Converged! Took %.3f Days Using %.3f kg Propellant\n", Qtransfer.dt / 60 / 60 / 24, Qtransfer.delta_m)
+else
+    fprintf("Q-Law Transfer Failed with %s\n", Qtransfer.errors)
+end
+
+plot_Q_transfer(Qtransfer, x0_c_keplerian, x0_d_keplerian, char_star)
+
+%% Plot Eclipsing Function
+eclipses = zeros(size(t_keplerian));
+for i = 1 : numel(t_keplerian)
+    eclipses(i) = check_eclipse(t_keplerian(i), x_keplerian_cartesian(1:3, i), R_E, AU, n_E);
+end
+
+figure
+plot(t_keplerian / 60 / 60 / 24, eclipses); hold on
+grid on
+xlabel("Time [days]")
+ylabel("Value")
+title("Eclipsing vs Time")
+subtitle("Positive means eclipsed")
 
 
 %% Helper Functions
@@ -377,11 +401,11 @@ function [] = plot_orbit_transfer_histories(t_hr, x_c, x_d, u)
     grid on
     
     nexttile
-    plot(t_hr, u(:, 1), t_hr, u(:, 2), t_hr, u(:, 3)); hold on 
-    plot(t_hr, vecnorm(u, 2, 2), LineStyle= "--"); hold off
+    plot(t_hr, u(:, 1) * 1e3, t_hr, u(:, 2) * 1e3, t_hr, u(:, 3) * 1e3); hold on 
+    plot(t_hr, vecnorm(u, 2, 2) * 1e3, LineStyle= "--"); hold off
     title("Control")
     xlabel("Time [hr]")
-    ylabel("u [km / s2]")
+    ylabel("u [N]")
     legend("u_1", "u_2", "u_3", "||u||", Location="northeast")
     grid on
 end
