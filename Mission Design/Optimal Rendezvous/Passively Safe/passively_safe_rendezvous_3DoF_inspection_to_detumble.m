@@ -25,9 +25,9 @@ spacecraft_params.F_max = [0.25; 100]; % [N]
 F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = 6728; % [km] semi-major axis
+a_c = R_E + 800; % [km] semi-major axis
 e_c = 0.003; % [] eccentricity
-i_c = deg2rad(10); % [rad] inclination
+i_c = deg2rad(98.6); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu0_c = deg2rad(0); % [rad] true anomaly at epoch
@@ -148,7 +148,7 @@ nonconvex_constraints = [state_nonconvex_constraints, control_nonconvex_constrai
 
 %% Boundary conditions
 initial_bc = @(x, p) [x - x_0];
-terminal_bc = @(x, p, x_ref, p_ref) [x(1:6) - x_f; 0]; %[4 * x(1) * nd_scalar(1) + 2 / n_c * x(5) * nd_scalar(5);
+terminal_bc = @(x, p, x_ref, p_ref) [x(1:6) - x_f; 0]*1e3; %[4 * x(1) * nd_scalar(1) + 2 / n_c * x(5) * nd_scalar(5);
                                      %x(2) * nd_scalar(2) - 2 / n_c * x(4) * nd_scalar(4); 
                                      %zeros([3, 1]); x(3); x(6)];
                                      %(x_ref(1) ^ 2 + 2 * x_ref(1) * (x(1) - x_ref(1)) + 1 / 4 * (x_ref(2) ^ 2 + 2 * x_ref(2) * (x(2) - x_ref(2)))) * char_star.l ^ 2 - b_final_orbit ^ 2]; % Don't constrain final mass
