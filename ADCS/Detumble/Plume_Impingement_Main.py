@@ -703,28 +703,43 @@ initial_w = np.radians([3, 3, 1])
 fuel_initial = [0.0]
 
 # Chaser CW Initial Conditions 
-# Designing a safe ellipse: 12m along-track, 45-deg out-of-plane
-b = 6.0              
-theta1 = np.radians(45.0)  
-theta2 = np.radians(45.0)  
-nu = np.radians(0.0)       
+h_B = np.dot(I_target, initial_w)
 
-tan_val = 2 * np.cos(theta1) / np.tan(theta2)
-psi = nu - np.arctan(tan_val)
-c = (b / np.sin(theta1)) * np.sqrt(np.tan(theta2)**2 + 4 * np.cos(theta1)**2)
+# Generate the rotation matrix from the initial quaternion
+R_B2RTN = quat_to_dcm(initial_quat)
 
-# Chaser Initial State [x, y, z, vx, vy, vz]
-cw_initial = np.array([
-    b * np.sin(nu),
-    2 * b * np.cos(nu),
-    c * np.sin(nu - psi),
-    b * omega * np.cos(nu),
-    -2 * b * omega * np.sin(nu),
-    c * omega * np.cos(nu - psi)
-])
-print(f"Starting Maneuver at: x = {cw_initial[0]}, y = {cw_initial[1]}, z = {cw_initial[2]}")
-# Concatenate all of it
+# Rotate the angular momentum vector into the RTN (orbit) frame
+h_RTN = np.dot(R_B2RTN, h_B)
+
+h_R = h_RTN[0] # Radial component
+h_T = h_RTN[1] # Transverse (Along-track) component
+
+# Find the phase angle of the target's tumble in the RTN frame
+gamma_0 = np.arctan2(h_T, h_R)
+
+# Design the Passively Safe Orbit 
+phi_g = gamma_0 + (np.pi / 2.0)
+
+ade = 9.0 # In-plane scale [m]
+adi = 9.0 # Out-of-plane scale [m]
+
+# Generate the Initial CW Cartesian State 
+x_0 = ade * np.sin(phi_g)
+y_0 = 2.0 * ade * np.cos(phi_g)
+z_0 = adi * np.sin(phi_g)
+
+vx_0 = omega * ade * np.cos(phi_g)
+vy_0 = -2.0 * omega * ade * np.sin(phi_g)
+vz_0 = omega * adi * np.cos(phi_g)
+
+cw_initial = np.array([x_0, y_0, z_0, vx_0, vy_0, vz_0])
+
+# --- 6. Build Unified 14-Element State Vector ---
 initial_state = np.concatenate((initial_quat, initial_w, fuel_initial, cw_initial))
+
+print(f"Target initial tumble phase (gamma_0): {np.degrees(gamma_0):.2f} deg")
+print(f"Chaser optimal starting phase (phi_g): {np.degrees(phi_g):.2f} deg")
+print(f"Chaser starting position [x,y,z]: [{x_0:.2f}, {y_0:.2f}, {z_0:.2f}] m")
 
 control_params = {
     'D_imp': 10.0, # Aim 10m down the cylinder to get a massive lever arm
@@ -817,7 +832,7 @@ ax2.legend(lines_1 + lines_2, labels_1 + labels_2, loc='center right', fontsize=
 ax2.set_xlabel('Time [seconds]', fontsize=12)
 
 plt.tight_layout()
-plt.show()
+#plt.show()
 
 
 ## Generate Density Plot
@@ -857,7 +872,7 @@ plt.ylabel(r'$y$ [m]', fontsize=14)
 plt.xlim(1, 20)
 plt.ylim(1, 20)
 plt.tight_layout()
-plt.show()
+#plt.show()
 
 
 # --- Extract Aiming History ---
