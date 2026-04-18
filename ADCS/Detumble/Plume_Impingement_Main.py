@@ -793,19 +793,20 @@ hypergolic_tuple = (
 )
 
 # Target inertia matrix 
-I_target = np.diag([106400.0, 106400.0, 4500.0])
+I_target = np.diag([4500.0, 106400.0, 106400.0])
 I_inv = np.linalg.inv(I_target)
 
 # Create 25m Cylinder Geometry
 centroids, normals, areas = create_cylinder_geometry()
 
 target_altitude_km = 800  # Adjust this to simulate different debris orbits
+a_target = target_altitude_km + 6378137.0 
 omega = calculate_mean_motion(target_altitude_km)
 
 # Target Initial Conditions 
-#initial_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
-initial_quat = np.array([0.57735026919, 0.57735026919, 0.57735026919, 0]) 
-initial_w = np.radians([3, 3, 1])       
+initial_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
+#initial_quat = np.array([0.57735026919, 0.57735026919, 0.57735026919, 0]) 
+initial_w = np.radians([1, 3, 3])       
 fuel_initial = [0.0]
 
 # Chaser CW Initial Conditions 
@@ -839,7 +840,7 @@ vy_0 = -2.0 * omega * ade * np.sin(phi_g)
 vz_0 = omega * adi * np.cos(phi_g)
 
 cw_initial = np.array([x_0, y_0, z_0, vx_0, vy_0, vz_0])
-da = np.linalg.inv(cart2rel(omega, 0)) @ cw_initial / target_altitude_km
+da = np.linalg.inv(cart2rel(omega, 0)) @ cw_initial / (a_target) 
 
 # --- 6. Build Unified 14-Element State Vector ---
 initial_state = np.concatenate((initial_quat, initial_w, fuel_initial, cw_initial))
@@ -856,8 +857,8 @@ control_params = {
 }
 
 # Setup Time Span for 7200 seconds (2 hours) to allow full momentum decay
-t_span = (0.0, 3600.0)
-t_eval = np.linspace(t_span[0], t_span[1], 5000)
+t_span = (0.0, 14400.0)
+t_eval = np.linspace(t_span[0], t_span[1], 15000)
 
 print("Starting 1-hour numerical integration with ACTIVE Impingement Guidance...")
 
@@ -1064,30 +1065,44 @@ time_array = sol.t
 q_x, q_y, q_z, q_w = sol.y[0:4, :]
 
 chaser_x, chaser_y, chaser_z = sol.y[8:11, :]
+chaser_vx, chaser_vy, chaser_vz = sol.y[11:14, :]
 
+roe_history = np.zeros((6, len(time_array)))
+for i in range(len(time_array)):
+    t = time_array[i]
+    
+    # Get the 6x6 Inverse Lyapunov matrix for this specific timestamp
+    Gamma_inv = cart2rel(omega, t) 
+    
+    # Extract the 6x1 Cartesian state column vector for this timestep
+    cartesian_state = sol.y[8:14, i]
+    
+    # Matrix multiply to map Cartesian to ROEs
+    roe_history[:, i] = np.dot(Gamma_inv, cartesian_state)
+
+da  = roe_history[0, :] / a_target # Relative Semi-major axis
+dl  = roe_history[1, :] / a_target # Relative Mean Longitude
+dex = roe_history[2, :] / a_target # Relative Eccentricity X
+dey = roe_history[3, :] / a_target # Relative Eccentricity Y
+dix = roe_history[4, :] / a_target # Relative Inclination X
+diy = roe_history[5, :] / a_target # Relative Inclination Y
 # Convert into a clean 1 (Firing) or 0 (Off) integer array based on your 1% deadband
 is_thrusting = (firing_history > 0.01).astype(int)
 
 # --- 5. Assemble the Master Array ---
-master_output_array = np.column_stack((
-    time_array, 
-    q_x, q_y, q_z, q_w, 
-    chaser_x, chaser_y, chaser_z, 
-    U_thrust, V_thrust, W_thrust, 
-    is_thrusting
-))
+telemetry_data = {
+    "Time": time_array,
+    "q_x": q_x, "q_y": q_y, "q_z": q_z, "q_w": q_w,
+    "chaser_x": chaser_x, "chaser_y": chaser_y, "chaser_z": chaser_z,
+    "chaser_vx": chaser_vx, "chaser_vy": chaser_vy, "chaser_vz": chaser_vz, # Added velocities for completeness
+    "da": da, "dl": dl, "dex": dex, "dey": dey, "dix": dix, "diy": diy,     # The new ROEs
+    "U_thrust": U_thrust, "V_thrust": V_thrust, "W_thrust": W_thrust,
+    "is_thrusting": is_thrusting
+}
+
+df = pd.DataFrame(telemetry_data)
 
 # --- 6. Save to CSV ---
-master_path = r'C:\Users\Athar\Documents\College\AAE450-Spacecraft-Design-Team-OD5\ADCS\Detumble\Detumble_History.csv'
+master_path = r'C:\Users\Athar\Documents\College\AAE450-Spacecraft-Design-Team-OD5\ADCS\Detumble\Full_Detumble_History.csv'
 
-# Create a clean, comma-separated header
-header_str = "Time,q_x,q_y,q_z,q_w,chaser_x,chaser_y,chaser_z,U_thrust,V_thrust,W_thrust,is_thrusting"
-
-np.savetxt(
-    master_path, 
-    master_output_array, 
-    delimiter=",", 
-    header=header_str, 
-    comments="", 
-    fmt="%.6f" # Formats all floats to 6 decimal places to keep the file size tight
-)
+df.to_csv(master_path, index=False)
