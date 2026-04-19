@@ -768,7 +768,7 @@ def calculate_mean_motion(altitude_km):
 def cart2rel(n, t):
     Gamma = np.array([[1, 0, -np.cos(n*t), -np.sin(n*t), 0, 0],
                       [0, 1, 2*np.sin(n*t), -2*np.cos(n*t), 0, 0],
-                      [0, 0, 0, 0, np.sin(n*t), np.cos(n*t)],
+                      [0, 0, 0, 0, np.sin(n*t), -np.cos(n*t)],
                       [0, 0, n*np.sin(n*t), -n*np.cos(n*t), 0, 0],
                       [-3*n/2, 0, 2*n*np.cos(n*t), 2*n*np.sin(n*t), 0, 0],
                       [0, 0, 0, 0, n*np.cos(n*t), n*np.sin(n*t)]]) # negative sign at the end
