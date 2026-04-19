@@ -4,6 +4,7 @@ from scipy.integrate import quad, solve_ivp
 from scipy.spatial.transform import Rotation as R
 import matplotlib.pyplot as plt
 from numba import njit
+import pandas as pd
 
 def create_panels():
     # Creates panels by defining the centroids
@@ -683,7 +684,7 @@ def extract_aiming_history(sol, I_target, ctrl):
     for i in range(num_steps):
         q_B2RTN = sol.y[0:4, i]
         w_B = sol.y[4:7, i]
-        r_nozzle_RTN = sol.y[8:11, i] # <--- THE FIX: Dynamic position extraction
+        r_nozzle_RTN = sol.y[8:11, i] 
         
         h_B = np.dot(I_target, w_B)
         h_norm = np.linalg.norm(h_B)
@@ -763,6 +764,24 @@ def calculate_mean_motion(altitude_km):
     omega = np.sqrt(mu_earth / (a**3))
     
     return omega
+
+def rel2cart(n, t):
+    Gamma = np.array([[1, 0, -np.cos(n*t), -np.sin(n*t), 0, 0],
+                      [0, 1, 2*np.sin(n*t), -2*np.cos(n*t), 0, 0],
+                      [0, 0, 0, 0, np.sin(n*t), -np.cos(n*t)],
+                      [0, 0, n*np.sin(n*t), -n*np.cos(n*t), 0, 0],
+                      [-3*n/2, 0, 2*n*np.cos(n*t), 2*n*np.sin(n*t), 0, 0],
+                      [0, 0, 0, 0, n*np.cos(n*t), n*np.sin(n*t)]]) # negative sign at the end
+    return Gamma
+
+def cart2rel(n, t):
+    Gamma = np.array([[4, 0, 0, 0, 2/n, 0],
+                      [0, 1, 0, -2/n, 0, 0],
+                      [3*np.cos(n*t), 0, 0, np.sin(n*t)/n, 2*np.cos(n*t)/n, 0],
+                      [3*np.sin(n*t), 0, 0, -np.cos(n*t)/n, 2*np.sin(n*t)/n, 0],
+                      [0, 0, np.sin(n*t), 0, 0, np.cos(n*t)/n],
+                      [0, 0, -np.cos(n*t), 0, 0, np.sin(n*t)/n]])
+    return Gamma
 ############################
 #
 # Main 
@@ -783,18 +802,20 @@ hypergolic_tuple = (
 )
 
 # Target inertia matrix 
-I_target = np.diag([106400.0, 106400.0, 4500.0])
+I_target = np.diag([4500.0, 106400.0, 106400.0])
 I_inv = np.linalg.inv(I_target)
 
 # Create 25m Cylinder Geometry
 centroids, normals, areas = create_cylinder_geometry()
 
 target_altitude_km = 800  # Adjust this to simulate different debris orbits
+a_target = target_altitude_km + 6378137.0 
 omega = calculate_mean_motion(target_altitude_km)
 
 # Target Initial Conditions 
-initial_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
-initial_w = np.radians([3, 3, 1])       
+#initial_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
+initial_quat = np.array([0.57735026919, 0.57735026919, 0.57735026919, 0]) 
+initial_w = np.radians([1, 1, 1])       
 fuel_initial = [0.0]
 
 # Chaser CW Initial Conditions 
@@ -818,17 +839,22 @@ phi_g = gamma_0 + (np.pi / 2.0)
 ade = 9.0 # In-plane scale [m]
 adi = 9.0 # Out-of-plane scale [m]
 
+# Making the Relative Orbital Elements by hand to ensure parallel
+delta_a = np.array([0, 0, ade*np.cos(phi_g), ade*np.sin(phi_g), adi*np.cos(phi_g), adi*np.sin(phi_g)])
 # Generate the Initial CW Cartesian State 
 x_0 = ade * np.sin(phi_g)
 y_0 = 2.0 * ade * np.cos(phi_g)
-z_0 = adi * np.sin(phi_g)
+z_0 = adi * np.cos(phi_g)
 
 vx_0 = omega * ade * np.cos(phi_g)
 vy_0 = -2.0 * omega * ade * np.sin(phi_g)
 vz_0 = omega * adi * np.cos(phi_g)
 
-cw_initial = np.array([x_0, y_0, z_0, vx_0, vy_0, vz_0])
+#cw_initial = np.array([x_0, y_0, z_0, vx_0, vy_0, vz_0])
+cw_initial = rel2cart(omega, 0) @ delta_a
+da = cart2rel(omega, 0) @ cw_initial / (a_target) 
 
+test_matrix = cart2rel(omega, 0) @ rel2cart(omega, 0)
 # --- 6. Build Unified 14-Element State Vector ---
 initial_state = np.concatenate((initial_quat, initial_w, fuel_initial, cw_initial))
 
@@ -844,8 +870,8 @@ control_params = {
 }
 
 # Setup Time Span for 7200 seconds (2 hours) to allow full momentum decay
-t_span = (0.0, 3600.0)
-t_eval = np.linspace(t_span[0], t_span[1], 5000)
+t_span = (0.0, 57600.0)
+t_eval = np.linspace(t_span[0], t_span[1], 60000)
 
 print("Starting 1-hour numerical integration with ACTIVE Impingement Guidance...")
 
@@ -990,9 +1016,9 @@ Y_fire = chaser_y[plot_idx]
 Z_fire = chaser_z[plot_idx]
 
 # Assuming thrust_vectors is a (3, N) array from your extract_aiming_history function
-U_thrust = thrust_vectors[0, plot_idx]
-V_thrust = thrust_vectors[1, plot_idx]
-W_thrust = thrust_vectors[2, plot_idx]
+U_plot = thrust_vectors[0, plot_idx]
+V_plot = thrust_vectors[1, plot_idx]
+W_plot = thrust_vectors[2, plot_idx]
 
 
 # --- 2. 3D Visualization ---
@@ -1010,7 +1036,7 @@ ax.scatter(X_fire, Y_fire, Z_fire, color='red', s=20, label='Active Firing Locat
 
 # Plot the Thrust Vectors (3D Arrows)
 # 'length' scales the arrows, 'normalize=True' ensures they all look uniform regardless of magnitude
-ax.quiver(X_fire, Y_fire, Z_fire, U_thrust, V_thrust, W_thrust, 
+ax.quiver(X_fire, Y_fire, Z_fire, U_plot, V_plot, W_plot, 
           color='red', length=2.5, normalize=True, alpha=0.8, 
           arrow_length_ratio=0.3, label='Plume Thrust Direction')
 
@@ -1036,3 +1062,60 @@ ax.set_zlim(mid_z - max_range, mid_z + max_range)
 ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=11)
 plt.tight_layout()
 plt.show()
+thrust_output_array = np.column_stack((U_plot, V_plot, W_plot))
+
+U_thrust = thrust_vectors[0, :]
+V_thrust = thrust_vectors[1, :]
+W_thrust = thrust_vectors[2, :]
+#thrust_output_array.tofile('thrust_output.csv') # Idk why this isn't working
+thrust_output = pd.DataFrame(thrust_output_array)
+thrust_path = r'C:\Users\Athar\Documents\College\AAE450-Spacecraft-Design-Team-OD5\ADCS\Detumble\Thrust_Output.csv'
+thrust_output.to_csv(thrust_path, 'a') # Idk why this isn't working
+print("Finished Sim")
+
+# Generating output for Animation CSV
+time_array = sol.t
+q_x, q_y, q_z, q_w = sol.y[0:4, :]
+
+chaser_x, chaser_y, chaser_z = sol.y[8:11, :]
+chaser_vx, chaser_vy, chaser_vz = sol.y[11:14, :]
+
+roe_history = np.zeros((6, len(time_array)))
+for i in range(len(time_array)):
+    t = time_array[i]
+    
+    # Get the 6x6 Inverse Lyapunov matrix for this specific timestamp
+    Gamma_inv = cart2rel(omega, t) 
+    
+    # Extract the 6x1 Cartesian state column vector for this timestep
+    cartesian_state = sol.y[8:14, i]
+    
+    # Matrix multiply to map Cartesian to ROEs
+    roe_history[:, i] = np.dot(Gamma_inv, cartesian_state)
+
+da  = roe_history[0, :] / a_target # Relative Semi-major axis
+dl  = roe_history[1, :] / a_target # Relative Mean Longitude
+dex = roe_history[2, :] / a_target # Relative Eccentricity X
+dey = roe_history[3, :] / a_target # Relative Eccentricity Y
+dix = roe_history[4, :] / a_target # Relative Inclination X
+diy = roe_history[5, :] / a_target # Relative Inclination Y
+# Convert into a clean 1 (Firing) or 0 (Off) integer array based on your 1% deadband
+is_thrusting = (firing_history > 0.01).astype(int)
+
+# --- 5. Assemble the Master Array ---
+telemetry_data = {
+    "Time": time_array,
+    "q_x": q_x, "q_y": q_y, "q_z": q_z, "q_w": q_w,
+    "chaser_x": chaser_x, "chaser_y": chaser_y, "chaser_z": chaser_z,
+    "chaser_vx": chaser_vx, "chaser_vy": chaser_vy, "chaser_vz": chaser_vz, # Added velocities for completeness
+    "da": da, "dl": dl, "dex": dex, "dey": dey, "dix": dix, "diy": diy,     # The new ROEs
+    "U_thrust": U_thrust, "V_thrust": V_thrust, "W_thrust": W_thrust,
+    "is_thrusting": is_thrusting
+}
+
+df = pd.DataFrame(telemetry_data)
+
+# --- 6. Save to CSV ---
+master_path = r'C:\Users\Athar\Documents\College\AAE450-Spacecraft-Design-Team-OD5\ADCS\Detumble\Full_Detumble_History.csv'
+
+df.to_csv(master_path, index=False)
