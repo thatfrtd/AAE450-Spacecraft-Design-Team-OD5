@@ -765,13 +765,22 @@ def calculate_mean_motion(altitude_km):
     
     return omega
 
-def cart2rel(n, t):
+def rel2cart(n, t):
     Gamma = np.array([[1, 0, -np.cos(n*t), -np.sin(n*t), 0, 0],
                       [0, 1, 2*np.sin(n*t), -2*np.cos(n*t), 0, 0],
                       [0, 0, 0, 0, np.sin(n*t), -np.cos(n*t)],
                       [0, 0, n*np.sin(n*t), -n*np.cos(n*t), 0, 0],
                       [-3*n/2, 0, 2*n*np.cos(n*t), 2*n*np.sin(n*t), 0, 0],
                       [0, 0, 0, 0, n*np.cos(n*t), n*np.sin(n*t)]]) # negative sign at the end
+    return Gamma
+
+def cart2rel(n, t):
+    Gamma = np.array([[4, 0, 0, 0, 2/n, 0],
+                      [0, 1, 0, -2/n, 0, 0],
+                      [3*np.cos(n*t), 0, 0, np.sin(n*t)/n, 2*np.cos(n*t)/n, 0],
+                      [3*np.sin(n*t), 0, 0, -np.cos(n*t)/n, 2*np.sin(n*t)/n, 0],
+                      [0, 0, np.sin(n*t), 0, 0, np.cos(n*t)/n],
+                      [0, 0, -np.cos(n*t), 0, 0, np.sin(n*t)/n]])
     return Gamma
 ############################
 #
@@ -804,9 +813,9 @@ a_target = target_altitude_km + 6378137.0
 omega = calculate_mean_motion(target_altitude_km)
 
 # Target Initial Conditions 
-initial_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
-#initial_quat = np.array([0.57735026919, 0.57735026919, 0.57735026919, 0]) 
-initial_w = np.radians([1, 3, 3])       
+#initial_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
+initial_quat = np.array([0.57735026919, 0.57735026919, 0.57735026919, 0]) 
+initial_w = np.radians([1, 1, 1])       
 fuel_initial = [0.0]
 
 # Chaser CW Initial Conditions 
@@ -830,18 +839,22 @@ phi_g = gamma_0 + (np.pi / 2.0)
 ade = 9.0 # In-plane scale [m]
 adi = 9.0 # Out-of-plane scale [m]
 
+# Making the Relative Orbital Elements by hand to ensure parallel
+delta_a = np.array([0, 0, ade*np.cos(phi_g), ade*np.sin(phi_g), adi*np.cos(phi_g), adi*np.sin(phi_g)])
 # Generate the Initial CW Cartesian State 
 x_0 = ade * np.sin(phi_g)
 y_0 = 2.0 * ade * np.cos(phi_g)
-z_0 = adi * np.sin(phi_g)
+z_0 = adi * np.cos(phi_g)
 
 vx_0 = omega * ade * np.cos(phi_g)
 vy_0 = -2.0 * omega * ade * np.sin(phi_g)
 vz_0 = omega * adi * np.cos(phi_g)
 
-cw_initial = np.array([x_0, y_0, z_0, vx_0, vy_0, vz_0])
-da = np.linalg.inv(cart2rel(omega, 0)) @ cw_initial / (a_target) 
+#cw_initial = np.array([x_0, y_0, z_0, vx_0, vy_0, vz_0])
+cw_initial = rel2cart(omega, 0) @ delta_a
+da = cart2rel(omega, 0) @ cw_initial / (a_target) 
 
+test_matrix = cart2rel(omega, 0) @ rel2cart(omega, 0)
 # --- 6. Build Unified 14-Element State Vector ---
 initial_state = np.concatenate((initial_quat, initial_w, fuel_initial, cw_initial))
 
@@ -857,8 +870,8 @@ control_params = {
 }
 
 # Setup Time Span for 7200 seconds (2 hours) to allow full momentum decay
-t_span = (0.0, 14400.0)
-t_eval = np.linspace(t_span[0], t_span[1], 15000)
+t_span = (0.0, 57600.0)
+t_eval = np.linspace(t_span[0], t_span[1], 60000)
 
 print("Starting 1-hour numerical integration with ACTIVE Impingement Guidance...")
 
