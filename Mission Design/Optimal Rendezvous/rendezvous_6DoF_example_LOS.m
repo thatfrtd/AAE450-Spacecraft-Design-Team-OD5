@@ -15,6 +15,9 @@ char_star = load_charecteristic_values_Earth();
 nd_scalar = [ones([13, 1]); char_star.m];
 g_0 = 9.81; % [km / s2]
 
+R_E = char_star.l;
+mu_E = char_star.mu;
+
 % Estimate spacecraft moment of inertia
 cylinder_MoI = @(m, r, h) [1 / 2 * m * r ^ 2; ...
                            1 / 12 * m * (3 * r ^ 2 + h ^ 2); ...
@@ -46,21 +49,34 @@ tau_max_RCS = 15; % [N m] Max allowable RCS torque (could make soft constraint l
 camera_LOS_trigger_distance = 0.08; % [km]
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = 6728; % [km] semi-major axis
-e_c = 0.01; % [] eccentricity
-i_c = deg2rad(10); % [rad] inclination
+a_c = R_E + 800; % [km] semi-major axis
+e_c = 0.003; % [] eccentricity
+i_c = deg2rad(98.6); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu0_c = deg2rad(0); % [rad] true anomaly at epoch
 M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
+n_c = sqrt(mu_E / a_c ^ 3);
 
 % Rendezvous time
 tf = 800; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
-r_0 = [-0; -0.1; 20e-3]; % [km]
-v_0 = [0.001; 1e-3; 0]; % [km / s]
+% r_0 = [-0; -0.1; 20e-3]; % [km]
+% v_0 = [0.001; 1e-3; 0]; % [km / s]
+
+b = 35 * 1e-3;
+phi = 0.95;
+psi = 1.31;
+c = 10*1e-3;
+nu = 5.4;
+r_0 = [b * sin(nu + phi); 2 * b * cos(nu + phi); c * sin(nu + psi)];
+R_E = 6378.137; % [km] Earth radius
+mu_E = 398600.4418; % [km3 / s2] Earth gravitational parameter
+v_0 = [b * n_c * cos(nu); -2 * b * n_c * sin(nu); c * n_c * cos(psi) * ones(size(nu))];
+%CWH_relative_orbit_EoM()
+
 theta_0 = [deg2rad(5); deg2rad(5); deg2rad(5)]; % [rad]
 R_0 = angle2dcm(theta_0(1), theta_0(2), theta_0(3));
 q_0 = qExp(RLog(R_0));
@@ -68,7 +84,7 @@ w_0 = deg2rad([0; 0; 0]); % [rad / s]
 x_0 = [r_0; v_0; q_0; w_0; spacecraft_params.m_0] ./ nd_scalar;
 
 % Terminal conditions
-r_f = [0.2; 0; 0e-6]/10; % [km]
+r_f = [0.20; 0; 0e-6]/10; % [km]
 v_f = [0e-4; 0; 0]; % [km / s]
 theta_f = deg2rad([0; 180; 0]); % [rad]
 R_f = angle2dcm(theta_f(1), theta_f(2), theta_f(3));
@@ -124,8 +140,8 @@ f = @(t, x, u, p) relative_orbit_6DoF_twothruster_EoM(t, x, u, p, [x_keplerian_c
 %% Specify Constraints
 mass_constraint = {1:N, @(t, x, u, p) spacecraft_params.m_dry / char_star.m - x(14)};
 %angular_velocity_constraint = {1:N, @(t, x, u, p) norm(x(11:13), Inf) - norm([w_0; deg2rad(20)], Inf)};
-% final_position_constraint = {N, @(t, x, u, p) norm(x(1:3)) - norm(r_f)};
-state_convex_constraints = {mass_constraint};
+final_position_constraint = {N, @(t, x, u, p) norm(x(1:3)) - norm(r_f)};
+state_convex_constraints = {mass_constraint, final_position_constraint};
 
 % Convex control constraints
 max_thrust_constraint_1 = {1:Nu, @(t, x, u, p) u(1) - F_max_nd(1)};
@@ -140,13 +156,13 @@ convex_constraints = [state_convex_constraints, control_convex_constraints];
 
 % Nonconvex state constraints
 % Keep-out sphere safety constraint - change to ellipsoid/cylinder
-keep_out_distance = 0.02; % [km]
+keep_out_distance = 0.015; % [km]
 keep_out_sphere_constraint = @(t, x, u, p) keep_out_distance ^ 2 - (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2);
 keep_out_sphere_constraint_linearized = {1:N, linearize_constraint(keep_out_sphere_constraint, nx, nu, np, "x", 1:3)};
 % Camera line-of-sight constraint
 d_B_camera = [1; 0; 0]*1e-3; % Location of camera in body frame
 p_B_camera = [1; 0; 0]; % Sensor boresight direction in body frame
-angle_LOS_camera = deg2rad(20); % [rad]
+angle_LOS_camera = deg2rad(10); % [rad]
 camera_LOS_constraint = @(t, x, u, p) (quat_rot(q_conj(x(7:10)), x(1:3)) + d_B_camera).' * p_B_camera + dnorm(quat_rot(q_conj(x(7:10)), x(1:3)) + d_B_camera) * cos(angle_LOS_camera);
 camera_LOS_constraint_linearized_func = linearize_constraint(camera_LOS_constraint, nx, nu, np, "x", 1:nx);
 camera_LOS_constraint_linearized = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) camera_LOS_constraint_linearized_func(t, x, u, p, x_ref, u_ref, p_ref, k) * max(camera_LOS_trigger_distance - norm(x_ref(1:3, k)), 0)};

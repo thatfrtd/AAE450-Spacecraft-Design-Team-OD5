@@ -21,6 +21,7 @@ i_c = deg2rad(98.1114 ); % [rad] inclination
 Omega_c = deg2rad(320.5520 ); % [rad] right ascension of ascending node
 omega_c = deg2rad(301.2069 ); % [rad] argument of periapsis
 nu_c = deg2rad(58.6658 ); % [rad] true anomaly at epoch
+n = sqrt(char_star.mu / a_c ^ 3); % [rad / s]
 
 M_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_c, e_c), e_c);
 x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
@@ -180,12 +181,21 @@ writetable(trans_table, "Wes_QLaw_TTC_test.csv")
 
 %% Relative Orbit Transfer using SCP 
 x_0_hill = x_d_engage_hill;
-x_f_hill = [0.2; 0; 0;  % [km]
-            0; 0; 0]; % [km / s]
+b = sqrt(40^2/2);
+c = sqrt(10^2/2);
+aROE = [0; % [km] delta semimajor axis
+        0; % [km] delta lambda
+        b*1e-3; % [km] delta e_x
+        b*1e-3; % [km] delta e_y
+        c*1e-3; % [km] delta i_x 
+        c*1e-3]; % [km] delta i_y
+
+cart_ROE = ROE_to_cart_matrix(n, 0) * aROE;
+x_f_hill = cart_ROE; % [km / s]
 ToF_rendezvous = 3600 * 5; % [s]
 spacecraft_params_mod = spacecraft_params;
-spacecraft_params_mod.Isp = [4100; 230];
-spacecraft_params_mod.F_max = [0.25; 100];
+spacecraft_params_mod.Isp = [4155; 300];
+spacecraft_params_mod.F_max = [0; 100];
 % Actually use QLaw control for "nocont" part to check better
 %[optimal_rendezvous, rendezvous_SCP_info, nocont_rendezvous] = nonlinear_rendezvous_func(x_0_hill, x_f_hill, ToF_rendezvous, x0_c_keplerian, spacecraft_params_mod, N = 150, dynamics = "Nonlinear", u_hold = "ZOH", max_iters = 15, integration_tolerance = 5e-12);
 [optimal_rendezvous, rendezvous_SCP_info] = nonlinear_rendezvous_multithruster_func(x_0_hill, x_f_hill, ToF_rendezvous, x0_c_keplerian, spacecraft_params_mod, N = 150, u_hold = "ZOH", max_iters = 15, integration_tolerance = 5e-12);
