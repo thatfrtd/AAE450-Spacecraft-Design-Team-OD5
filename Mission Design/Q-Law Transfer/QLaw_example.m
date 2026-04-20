@@ -16,26 +16,28 @@ mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 thrust_during_eclipse = true;
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = R_E + 660; % [km] semi-major axis
+a_c = R_E + 900; % [km] semi-major axis
 e_c = 1e-3; % [] eccentricity
-i_c = deg2rad(71); % [rad] inclination
+i_c = deg2rad(98); % [rad] inclination
 Omega_c = deg2rad(10); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu_c = deg2rad(0); % [rad] true anomaly at epoch
+
+% Initial conditions for spacecraft
+r_a_d = R_E + 600; % [km] apoapsis
+r_p_d = R_E + 140; % [km] periapsis
+e_d = (1 - r_p_d / r_a_d) / (1 + r_p_d / r_a_d); % [] eccentricity
+a_d = r_p_d / (1 - e_d); % [km] semi-major axis
+i_d = deg2rad(98); % [rad] inclination
+Omega_d = deg2rad(10); % [rad] right ascension of ascending node
+omega_d = deg2rad(0); % [rad] argument of periapsis
+nu_d = deg2rad(0); % [rad] true anomaly at epoch
+
 
 M_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_c, e_c), e_c);
 x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
-% Initial conditions for spacecraft
-r_a_d = R_E + 600; % [km] periapsis
-r_p_d = R_E + 120; % [km] periapsis
-e_d = (1 - r_p_d / r_a_d) / (1 + r_p_d / r_a_d); % [] eccentricity
-a_d = r_p_d / (1 - e_d); % [km] semi-major axis
-i_d = deg2rad(74); % [rad] inclination
-Omega_d = deg2rad(10); % [rad] right ascension of ascending node
-omega_d = deg2rad(0); % [rad] argument of periapsis
-nu_d = deg2rad(0); % [rad] true anomaly at epoch
 
 M_d = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_d, e_d), e_d);
 x0_d_keplerian = [a_d; e_d; i_d; Omega_d; omega_d; M_d];
@@ -46,9 +48,9 @@ char_star = load_charecteristic_values_Earth();
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
 spacecraft_params.Isp = 4100; % [s]
-spacecraft_params.m_0 = 4500; % [kg]
+spacecraft_params.m_0 = 2000; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = 0.25; % [N]
+spacecraft_params.F_max = 0.000235; % [N]
 
 % Integration error tolerance
 default_tolerance = 1e-12;
@@ -60,7 +62,7 @@ a_d_0 = @(t, x) zeros([3, 1]); % Disturbance function
 penalty_params = struct();
 penalty_params.k = 100; % Smoothing parameter
 penalty_params.W_p = 1; % Penalty weight
-penalty_params.r_p_min = R_E + 400; % [km] min periapsis
+penalty_params.r_p_min = R_E + 0; % [km] min periapsis
 
 % Parameters for the optimization needed to determine efficiencies
 Qdot_opt_params = struct();
@@ -68,10 +70,10 @@ Qdot_opt_params.num_start_points = 10;
 Qdot_opt_params.strategy = "Best Start Points";
 Qdot_opt_params.plot_minQdot_vs_L = false;
 
-N_i = 1;
-eta = linspace(0.5, 0.9, N_i);
+N_i = 10;
+eta = linspace(0.1, 0.8, N_i);
 clear Qtransfer
-for i = 1 : N_i
+parfor i = 1 : N_i
     % Define Q-Law feedback controller: W_oe, eta_a_min, eta_r_min, m, n, r, Theta_rot
     Q_params = struct();
     Q_params.W_oe = 1 * ones([5, 1]); % Element weights 
@@ -83,7 +85,7 @@ for i = 1 : N_i
     Q_params.Theta_rot = 0;
 
     tic;
-    [Qtransfer(i)] = QLaw_transfer_fast(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 150000, angular_step=deg2rad(20), thrust_during_eclipse = thrust_during_eclipse, integration_tolerance=1e-10);
+    [Qtransfer(i)] = QLaw_transfer_fast(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 1500000, angular_step=deg2rad(2), thrust_during_eclipse = thrust_during_eclipse, integration_tolerance=1e-10, max_t=356.25*1.5*60*60*24);
     opt_time = toc
 end
 
@@ -102,6 +104,7 @@ end
 Qtransfer = Qtransfer(round(N_i / 2));
 
 %%
+figure
 plot(ToFs, dVs)
 title("Delta V vs ToF Pareto")
 xlabel("Tof [days]")
@@ -140,9 +143,14 @@ xlabel("X [km]")
 ylabel("Y [km]")
 zlabel("Z [km]")
 
+%%
+figure
+plot(Qtransfer.t / 60 / 60 / 24, vecnorm(x_keplerian_cartesian_d(1:3, :)) - R_E)
+grid on
+
 %% Plot Orbit Error and Control Histories
 figure
-plot_orbit_transfer_histories(Qtransfer.t / 60, x_keplerian_c' ./ [R_E, ones([1, 5])], Qtransfer.x_keplerian_mass(1:6, :)' ./ [R_E, ones([1, 5])], Qtransfer.u_cont');
+plot_orbit_transfer_histories(Qtransfer.t / 60 / 60, x_keplerian_c' ./ [R_E, ones([1, 5])], Qtransfer.x_keplerian_mass(1:6, :)' ./ [R_E, ones([1, 5])], Qtransfer.u_cont');
 sgtitle("Q-Law Orbit Transfer with Periapsis Constraint Results")
 
 %% Plot Q Function
@@ -156,21 +164,20 @@ grid on
 
 
 %% Validate Solution
-% tight_tolerance = 1e-6;
+% tight_tolerance = 1e-9;
 % tight_tolerances = odeset(RelTol=tight_tolerance, AbsTol=tight_tolerance);
-% g_0 = 9.81; % [m / s2]
+% g_0 = 9.81e-3; % [km / s2]
 % a_disturbance = @(t,x) [0;0;0];
-% x0_me_mass_d = [keplerian_to_modified_equinoctial(x0_d_keplerian, []); spacecraft_params.m_0];
-% u = @(t) interp1(Qtransfer.t, Qtransfer.u_cont', t)' * 1000;
+% x0_kep_mass_d = [x0_d_keplerian; spacecraft_params.m_0];
+% u = @(t) interp1(Qtransfer.t, Qtransfer.u_cont', t)';
 % %u = @(t) Qtransfer.u_cont(:, min(floor(t ./ Qtransfer.t(end) * numel(Qtransfer.t)) + 1, numel(Qtransfer.t)));
 % a_control = @(t, x) u(t) / x(end);
 % mdot = @(t) -norm(u(t)) / (spacecraft_params.Isp * g_0);
-% [~, x_me_mass_d_ck] = ode45(@(t, x) [gauss_planetary_eqn(f0_modified_equinoctial(x, mu_E), B_modified_equinoctial(x, mu_E), a_control(t, x) + a_disturbance(t, x)); mdot(t)], Qtransfer.t, x0_me_mass_d, tight_tolerances);
-% x_me_mass_d_ck = x_me_mass_d_ck';
+% [~, x_kep_mass_d_ck] = ode45(@(t, x) [gauss_planetary_eqn(f0_keplerian(x, mu_E), B_keplerian(x, mu_E), a_control(t, x) + a_disturbance(t, x)); mdot(t)], Qtransfer.t, x0_kep_mass_d, tight_tolerances);
+% x_kep_mass_d_ck = x_kep_mass_d_ck';
 % 
 % %%
-% x_keplerian_mass_ck = [modified_equinoctial_to_keplerian_array(x_me_mass_d_ck(1:6, :)); x_me_mass_d_ck(7, :)];
-% x_keplerian_cartesian_ck = [modified_equinoctial_to_cartesian_array(x_me_mass_d_ck(1:6, :), mu_E); x_me_mass_d_ck(7, :)];
+% x_keplerian_cartesian_ck = [keplerian_to_cartesian_array(x_kep_mass_d_ck(1:6, :), [], mu_E); x_kep_mass_d_ck(7, :)];
 % 
 % %%
 % 
@@ -232,7 +239,7 @@ function [B] = B_keplerian(x, mu)
          b * p * cos(nu) / (a * e) - 2 * b * r / a, -b * (p + r) * sin(nu) / (a * e), 0];
     
     % Make B convert disturbance into RTN frame from cartesian frame
-    B = B * cartesian_to_RTN_DCM(i, Omega, omega, nu)';
+    % B = B * cartesian_to_RTN_DCM(i, Omega, omega, nu)';
 end
 
 function [x_dot] = gauss_planetary_eqn(f_0, B, a_d)

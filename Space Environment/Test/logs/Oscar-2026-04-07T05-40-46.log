@@ -1,0 +1,59 @@
+2026-04-07 01:40:01,801 - INFO - dmf.workflows.DmfWorkflow - Creating workflow 31a25bf7-b300-4d2e-af8f-6a5dce6637a7
+2026-04-07 01:40:04,118 - INFO - dmf.workflows.DmfWorkflow - Creating configurations
+2026-04-07 01:40:04,118 - INFO - dmf.workflows.analysis_modules.OscarOnlyWorkflow - Creating configurations
+2026-04-07 01:40:04,119 - INFO - dmf.workflows.DmfWorkflow - Adapting aspect angle in Earth-fixed frame to 0 deg and 0 deg
+2026-04-07 01:40:04,119 - INFO - dmf.workflows.DmfWorkflow - Creating workflow 2c3b484d-71c0-4328-9d4f-3083d6ac6c47
+2026-04-07 01:40:04,120 - INFO - dmf.workflows.analysis_modules.CEOnlyWorkflow - Attitude not simulated
+will override to default tumbling
+2026-04-07 01:40:04,121 - INFO - dmf.processes.DmfProcess - Creating coefficient estimator process 4ca8f700-7b1d-4cb7-87fc-2127d2f36834
+2026-04-07 01:40:09,409 - INFO - dmf.processes.CoefficientEstimatorProcess - Starting to execute COEFFICIENT ESTIMATOR 4ca8f700-7b1d-4cb7-87fc-2127d2f36834
+2026-04-07 01:40:09,421 - INFO - dmf.PyCe - sys.executable: C:\\Program Files\\DRAMA-4.1.2\\bin\\resources\\assets\\dmf_server.exe
+2026-04-07 01:40:09,421 - INFO - dmf.PyCe - PyCe_executable_path: C:\\Program Files\\DRAMA-4.1.2\\TOOLS\\CE
+2026-04-07 01:40:09,442 - INFO - dmf.PyCe - Got revision identifyer: 2.0.2
+2026-04-07 01:40:09,446 - INFO - dmf.PyCe - Geometry hash: 2d5e5faef84b49ed5cec3d16c5f9968a
+2026-04-07 01:40:09,447 - INFO - dmf.PyCe - 2d5e5faef84b49ed5cec3d16c5f9968a_aero_coefficients.nc exists already in DB_cache_dir (C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\data).
+2026-04-07 01:40:09,447 - INFO - dmf.PyCe - 2d5e5faef84b49ed5cec3d16c5f9968a_srp_coefficients.nc exists already in DB_cache_dir (C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\data).
+2026-04-07 01:40:09,448 - INFO - dmf.PyCe - 2d5e5faef84b49ed5cec3d16c5f9968a_cross_section.nc exists already in DB_cache_dir (C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\data).
+2026-04-07 01:40:09,448 - INFO - dmf.PyCe - 2d5e5faef84b49ed5cec3d16c5f9968a_opticalEquivalentArea.nc exists already in DB_cache_dir (C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\data).
+2026-04-07 01:40:09,448 - INFO - dmf.PyCe - 2d5e5faef84b49ed5cec3d16c5f9968a_radarEquivalentArea.nc exists already in DB_cache_dir (C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\data).
+2026-04-07 01:40:09,448 - INFO - dmf.PyCe - Start postprocessing.
+2026-04-07 01:40:09,477 - INFO - dmf.PyCe - saving of output files not requested.
+2026-04-07 01:40:09,488 - INFO - dmf.processes.CoefficientEstimatorProcess - Finished coefficient estimator process 4ca8f700-7b1d-4cb7-87fc-2127d2f36834
+2026-04-07 01:40:10,722 - INFO - dmf.processes.DmfProcess - Creating oscar process 86ed55b4-5ac0-4af3-aff8-5865d97513c7
+2026-04-07 01:40:16,169 - INFO - dmf.processes.OscarProcess - Starting to execute OSCAR 86ed55b4-5ac0-4af3-aff8-5865d97513c7
+2026-04-07 01:40:16,170 - INFO - dmf.processes.OscarProcess - Stored pyOSCAR inputs in C:\\Users\\thatf\\OneDrive\\Documents\\Purdue Classes\\AAE 450\\AAE450-Spacecraft-Design-Team-OD5\\Space Environment\\Test\\input\\last_oscar.json
+2026-04-07 01:40:26,668 - INFO - oscar_live_log - tmpsevid5vc                  _/_/      _/_/_/    _/_/_/    _/_/    _/_/_/
+2026-04-07 01:40:26,683 - INFO - oscar_live_log - tmpsevid5vc               _/    _/  _/        _/        _/    _/  _/    _/
+2026-04-07 01:40:26,699 - INFO - oscar_live_log - tmpsevid5vc              _/    _/    _/_/    _/        _/_/_/_/  _/_/_/
+2026-04-07 01:40:26,714 - INFO - oscar_live_log - tmpsevid5vc             _/    _/        _/  _/        _/    _/  _/    _/
+2026-04-07 01:40:26,729 - INFO - oscar_live_log - tmpsevid5vc              _/_/    _/_/_/      _/_/_/  _/    _/  _/    _/
+2026-04-07 01:40:26,760 - INFO - oscar_live_log - tmpsevid5vc    Debris Risk Assessment and Mitigation Analysis Tool Suite (v2.5.2)
+2026-04-07 01:40:26,776 - INFO - oscar_live_log - tmpsevid5vc                       Orbital Spacecraft Active Removal
+2026-04-07 01:40:26,792 - INFO - oscar_live_log - tmpsevid5vc  ___________________________ DRAMA - OSCAR ___________________________
+2026-04-07 01:40:27,008 - INFO - oscar_live_log - tmpsevid5vc  - Started OSCAR run at 2026-04-07T01:40:27.
+2026-04-07 01:40:27,025 - INFO - oscar_live_log - tmpsevid5vc  - Preparing solar and geomagnetic activity scenario...
+2026-04-07 01:40:27,040 - INFO - oscar_live_log - tmpsevid5vc REMARK in subroutine sogmact:
+2026-04-07 01:40:27,056 - INFO - oscar_live_log - tmpsevid5vc   Using ESA solar and geomagnetic activity data for the specified scenario.
+2026-04-07 01:40:27,071 - INFO - oscar_live_log - tmpsevid5vc REMARK in subroutine sogmact:
+"2026-04-07 01:40:27,087 - INFO - oscar_live_log - tmpsevid5vc   Using ESA daily solar & geomagnetic activity data file from 2021-05-03."
+2026-04-07 01:40:27,103 - INFO - oscar_live_log - tmpsevid5vc REMARK in subroutine sogmact:
+"2026-04-07 01:40:27,118 - INFO - oscar_live_log - tmpsevid5vc   Using ESA monthly solar & geomagnetic activity data file from 2021-05-04."
+2026-04-07 01:40:27,410 - INFO - oscar_live_log - tmpsevid5vc REMARK in subroutine rdesa:
+2026-04-07 01:40:27,429 - INFO - oscar_live_log - tmpsevid5vc   Solar and geomagnetic activity scenario can be covered by observed/available data. No forecast required.
+2026-04-07 01:40:27,444 - INFO - oscar_live_log - tmpsevid5vc  - Initializing FOCUS v2.6.2...
+2026-04-07 01:40:27,460 - INFO - oscar_live_log - tmpsevid5vc  - Starting propagation...
+2026-04-07 01:40:28,122 - INFO - oscar_live_log - tmpsevid5vc REMARK in subroutine chemical:
+2026-04-07 01:40:28,143 - INFO - oscar_live_log - tmpsevid5vc   Orbit lifetime of initial target orbit below remaining lifetime recommended by the ESA Space Debris Mitigation Requirements. No maneuver required to be
+2026-04-07 01:40:28,158 - INFO - oscar_live_log - tmpsevid5vc   compliant.
+2026-04-07 01:40:28,773 - INFO - oscar_live_log - tmpsevid5vc REMARK in subroutine chemical:
+2026-04-07 01:40:28,785 - INFO - oscar_live_log - tmpsevid5vc   Orbit lifetime of initial target orbit below specified lifetime limit. No maneuver required in this case.
+2026-04-07 01:40:28,800 - INFO - oscar_live_log - tmpsevid5vc  - Checking propagation exceptions...
+2026-04-07 01:40:28,816 - INFO - oscar_live_log - tmpsevid5vc  - SDMG compliance check...
+2026-04-07 01:40:28,832 - INFO - oscar_live_log - tmpsevid5vc  - Writing output files...
+2026-04-07 01:40:29,015 - INFO - oscar_live_log - tmpsevid5vc REMARK in subroutine plot:
+"2026-04-07 01:40:29,034 - INFO - oscar_live_log - tmpsevid5vc   Note that the requested plot Altitude vs. Declination is only generated for objects in the geosynchronous region and will thus not be displayed."
+2026-04-07 01:40:29,049 - INFO - oscar_live_log - tmpsevid5vc REMARK in subroutine plot:
+"2026-04-07 01:40:29,066 - INFO - oscar_live_log - tmpsevid5vc   Note that the requested plot Inclination vs. RAAN is only generated for objects in the geosynchronous region and will thus not be displayed."
+2026-04-07 01:40:29,321 - INFO - oscar_live_log - tmpsevid5vc OSCAR finished nominally at 2026-04-07T01:40:29. Elapsed user time: 1.719 s.
+2026-04-07 01:40:29,869 - INFO - dmf.processes.OscarProcess - Finished oscar process 86ed55b4-5ac0-4af3-aff8-5865d97513c7
+2026-04-07 01:40:41,763 - INFO - dmf.workflows.DmfWorkflow - Workflow 31a25bf7-b300-4d2e-af8f-6a5dce6637a7 finished

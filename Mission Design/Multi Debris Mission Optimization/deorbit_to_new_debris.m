@@ -27,7 +27,7 @@ x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
 r_a_0 = R_E + 600; % [km] periapsis
-r_p_0 = R_E + 120; % [km] periapsis
+r_p_0 = R_E + 135; % [km] periapsis
 e_d = (1 - r_p_0 / r_a_0) / (1 + r_p_0 / r_a_0); % [] eccentricity
 a_d = r_p_0 / (1 - e_d); % [km] semi-major axis
 i_d = deg2rad(98.1114); % [rad] inclination
@@ -77,9 +77,9 @@ default_tolerance = 1e-10;
 % Optimization variables
 eta1_bounds = [0, 0.85]; % [] initial -> intermediate transfer min efficiency
 eta2_bounds = [0, 0.85]; % [] intermediate -> target transfer min efficiency
-a_int_bounds = ([300, 2000] + R_E) / char_star.l; % [km] 
-e_int_bounds = [1e-5, 0.05]; % []
-i_int_bounds = [0.95, 1.05] * i_c; % [rad]
+a_int_bounds = ([600, 1400] + R_E) / char_star.l; % [km] 
+e_int_bounds = [1e-5, 0.04]; % []
+i_int_bounds = [0.97, 1.03] * i_c; % [rad]
 % Omega_int - assume same as original - all adjustments done by J2
 % omega_int - assume same as original - target almost circular
 var_bounds = [eta1_bounds; eta2_bounds; a_int_bounds; e_int_bounds; i_int_bounds];
@@ -175,7 +175,7 @@ function [dV_ToF] = QLaw_J2_drift_transfer(x_keplerian_0, x_keplerian_int, x_kep
     
     spacecraft_params.m_0 = spacecraft_params.m_0 - Qtransfer_to_int.delta_m;
         
-    [Qtransfer_to_targ] = QLaw_transfer_fast(x_keplerian_int, [x_keplerian_targ(1:3); x_keplerian_0(4); x_keplerian_targ(5:6)], mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20));
+    [Qtransfer_to_targ] = QLaw_transfer_fast(x_keplerian_int, [x_keplerian_targ(1:3); x_keplerian_0(4); x_keplerian_targ(5:6)], mu, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 50000, angular_step=deg2rad(20), max_t = max_ToF * 60 * 60 * 24);
     transfer_drift_2 = sum(J2_RAAN_drift(Qtransfer_to_targ.x_keplerian_mass(1, :), Qtransfer_to_targ.x_keplerian_mass(2, :), Qtransfer_to_targ.x_keplerian_mass(3, :), mu, R, J_2_val) .* [diff(Qtransfer_to_targ.t)', 0]);
 
     % Calculate wait time for RAAN phasing accounting for drift during transfers

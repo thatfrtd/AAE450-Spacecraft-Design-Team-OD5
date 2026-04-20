@@ -31,7 +31,7 @@ x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 a_d = 6978.1370; % [km] semi-major axis
 e_d = 0.003390; % [] eccentricity
 i_d = deg2rad(98.1114); % [rad] inclination
-Omega_d = deg2rad(320.5520 + 0.03); % [rad] right ascension of ascending node
+Omega_d = deg2rad(320.5520 ); % [rad] right ascension of ascending node
 omega_d = deg2rad(301.2069); % [rad] argument of periapsis
 nu_d = deg2rad(58.6658 ); % [rad] true anomaly at epoch
 
@@ -79,7 +79,7 @@ Q_params.n = 4;
 Q_params.r = 2;
 Q_params.Theta_rot = 0;
 
-[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 500000, angular_step=deg2rad(2), R_c = 0.01, a_disturbance = a_d_0);
+[Qtransfer] = QLaw_transfer_fast(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 500000, angular_step=deg2rad(2), R_c = 0.01, a_disturbance = a_d_0, integration_tolerance=1e-10);
 
 dVs = Qtransfer.delta_V;
 ToFs = Qtransfer.dt / 60 / 60 / 24;
@@ -114,7 +114,7 @@ x_keplerian_ck = cartesian_to_keplerian_array(x_keplerian_cartesian_ck', [0; 0; 
 x_Qtrans_cart = keplerian_to_cartesian_array(Qtransfer.x_keplerian_mass(1:6, :), [], mu_E); % QLaw output (not corrected for J2!)
 figure
 earthy(R_E, "Earth", 1, [0;0;0]); hold on;
-plot3(x_keplerian_cartesian_ck(:, 1), x_keplerian_cartesian_ck(:, 2), x_keplerian_cartesian_ck(:, 3))
+plot3(x_keplerian_cartesian_preck(:, 1), x_keplerian_cartesian_preck(:, 2), x_keplerian_cartesian_preck(:, 3))
 plot3(x_Qtrans_cart(1,:), x_Qtrans_cart(2,:), x_Qtrans_cart(3,:))
 
 legend("Earth", "Check", "Sol")
@@ -349,7 +349,7 @@ function [] = plot_Q_transfer(Qtransfer, x0_c_keplerian, x0_d_keplerian, char_st
     
     %% Plot Orbit Error and Control Histories
     figure
-    plot_orbit_transfer_histories(Qtransfer.t / 60 / 60, x_keplerian_c' ./ [char_star.l, ones([1, 5])], Qtransfer.x_keplerian_mass(1:6, :)' ./ [char_star.l, ones([1, 5])], interp1(1:numel(Qtransfer.not_coast), Qtransfer.u', linspace(1, numel(Qtransfer.not_coast), numel(Qtransfer.t)), 'nearest'));
+    plot_orbit_transfer_histories(Qtransfer.t / 60 / 60, x_keplerian_c' ./ [char_star.l, ones([1, 5])], Qtransfer.x_keplerian_mass(1:6, :)' ./ [char_star.l, ones([1, 5])], Qtransfer.u_cont');
     sgtitle("Q-Law Orbit Transfer with Periapsis Constraint Results")
     
     %% Plot Q Function
