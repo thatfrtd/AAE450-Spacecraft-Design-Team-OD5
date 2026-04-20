@@ -15,6 +15,9 @@ char_star = load_charecteristic_values_Earth();
 nd_scalar = [ones([13, 1]); char_star.m];
 g_0 = 9.81; % [km / s2]
 
+R_E = char_star.l;
+mu_E = char_star.mu;
+
 % Estimate spacecraft moment of inertia
 cylinder_MoI = @(m, r, h) [1 / 2 * m * r ^ 2; ...
                            1 / 12 * m * (3 * r ^ 2 + h ^ 2); ...
@@ -46,9 +49,9 @@ tau_max_RCS = 15; % [N m] Max allowable RCS torque (could make soft constraint l
 camera_LOS_trigger_distance = 0.08; % [km]
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = 6728; % [km] semi-major axis
-e_c = 0.01; % [] eccentricity
-i_c = deg2rad(10); % [rad] inclination
+a_c = R_E + 800; % [km] semi-major axis
+e_c = 0.003; % [] eccentricity
+i_c = deg2rad(98.6); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu0_c = deg2rad(0); % [rad] true anomaly at epoch

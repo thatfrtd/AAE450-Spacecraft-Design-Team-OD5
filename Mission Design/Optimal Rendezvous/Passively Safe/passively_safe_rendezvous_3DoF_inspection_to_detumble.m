@@ -18,14 +18,14 @@ g_0 = 9.81e-3; % [km / s2]
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = [4100; 232]; % [s]
+spacecraft_params.Isp = [4100; 300]; % [s]
 spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = [0.25; 100]; % [N]
+spacecraft_params.F_max = [0.25; 88]; % [N]
 F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = R_E + 800; % [km] semi-major axis
+a_c = char_star.l + 900; % [km] semi-major axis
 e_c = 0.003; % [] eccentricity
 i_c = deg2rad(98.6); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
@@ -44,34 +44,34 @@ N_safe = 200;
 tf = P_c / char_star.t; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
-% Initial conditions for spacecraft - specify orbit instead?
-b = 35 * 1e-3;
-phi = 0.95;
-psi = 1.31;
-c = 10*1e-3;
-nu = 5.4;
-r_0 = [b * sin(nu + phi); 2 * b * cos(nu + phi); c * sin(nu + psi)];
-R_E = 6378.137; % [km] Earth radius
-mu_E = 398600.4418; % [km3 / s2] Earth gravitational parameter
-v_0 = [b * n_c * cos(nu); -2 * b * n_c * sin(nu); c * n_c * cos(psi) * ones(size(nu))];
+b = sqrt(40^2/2);
+c = sqrt(10^2/2);
+aROE_0 = [0; % [km] delta semimajor axis
+          0; % [km] delta lambda
+         -b*1e-3; % [km] delta e_x
+          b*1e-3; % [km] delta e_y
+         -c*1e-3; % [km] delta i_x 
+          c*1e-3]; % [km] delta i_y
+
 % r_0 = [0.05; -0.05; 0.05]; % [km]
 % v_0 = [-0.001; -1e-3; 0]; % [km / s]
-x_0 = [r_0; v_0; spacecraft_params.m_0] ./ nd_scalar;
+x_0 = [ROE_to_cart_matrix(n_c, 0 * char_star.t) * aROE_0; spacecraft_params.m_0] ./ nd_scalar;
 
 % Terminal conditions
-r_f = [0; 0.02; 1e-5]; % [km]
-v_f = [0e-3; 0; 0]; % [km / s]
+% r_f = [0; 0.02; 1e-5]; % [km]
+% v_f = [0e-3; 0; 0]; % [km / s]
 %x_f = [r_f; v_f] ./ nd_scalar(1:6);
-b_final_orbit = 0.02; % [km]
 
-aROE_f = [0; % [km] delta semimajor axis
-         0; % [km] delta lambda
-        -0.007954951288348661; % [km] delta e_x
-         0.007954951288348661; % [km] delta e_y
-        -0.007954951288348661; % [km] delta i_x 
-         0.007954951288348661]; % [km] delta i_y
-
-x_f = ROE_to_cart_matrix(n_c, tf * char_star.t) * aROE_f ./ nd_scalar(1:6);
+% aROE_f = [0; % [km] delta semimajor axis
+%          0; % [km] delta lambda
+%         -0.007954951288348661; % [km] delta e_x
+%          0.007954951288348661; % [km] delta e_y
+%         -0.007954951288348661; % [km] delta i_x 
+%          0.007954951288348661]; % [km] delta i_y
+% 
+% x_f = ROE_to_cart_matrix(n_c, 0 * char_star.t) * aROE_f ./ nd_scalar(1:6);
+data_table = readtable("Full_Detumble_History.csv");
+x_f = [data_table.chaser_x(1); data_table.chaser_y(1); data_table.chaser_z(1); data_table.chaser_vx(1); data_table.chaser_vy(1); data_table.chaser_vz(1)] * 1e-3./ nd_scalar(1:6);
 
 %% Initialize
 N = 100;
@@ -95,8 +95,8 @@ np = 0; % Number of parameters (tf, v_0, etc)
 ptr_ops.iter_max = 25;
 ptr_ops.iter_min = 4;
 ptr_ops.Delta_min = 2e-7;
-ptr_ops.w_vc = 5e5;
-ptr_ops.w_tr = ones(1, N) * 2e-1;
+ptr_ops.w_vc = 5e6;
+ptr_ops.w_tr = ones(1, N) * 2e-0;
 ptr_ops.w_tr_p = 0;
 ptr_ops.update_w_tr = false;
 ptr_ops.delta_tol = 1e-2;
@@ -138,7 +138,7 @@ passive_safety_constraint = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) construc
 % keep_in_distance = 0.06; % [km]
 % keep_in_sphere_constraint = @(t, x, u, p) norm(x(1:3)) * nd_scalar(1) - keep_in_distance;
 % stable_final_orbit_constraint = {N-1, @(t, x, u, p, x_ref, u_ref, p_ref, k) construct_passive_safety_constraint(x, x_ref(:, k), @(t_prop, x_prop) f_opt(t_prop + t, x_prop, zeros([nu, 1]), p), @(t_prop, x_prop) A_func(t_prop + t, x_prop, zeros([nu, 1]), p), @(t_prop, x_prop) keep_in_sphere_constraint(t_prop + t, x_prop, zeros([nu, 1]), p), @(t_prop, x_prop, x_ref_safe) keep_in_sphere_constraint(t_prop + t, x_prop, zeros([nu, 1]), p), P_c / char_star.t, N_safe, 1e-10, -5)};
-state_nonconvex_constraints = {keep_out_sphere_constraint_linearized, passive_safety_constraint};
+state_nonconvex_constraints = {keep_out_sphere_constraint_linearized};
 
 % Nonconvex control constraints
 control_nonconvex_constraints = {};
@@ -242,7 +242,7 @@ end
 plot_cartesian_orbit(x_cont_sol(1:3,:)', 'k', 0.4, 1); hold on
 quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(1, :), u(2, :), u(3, :), 1, "filled", Color = "red")
 quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(4, :), u(5, :), u(6, :), 2, "filled", Color = "m", LineWidth=2)
-scatter3(r_0(1), r_0(2), r_0(3), 48, "green", "filled", "square"); hold on
+scatter3(x_0(1) * nd_scalar(1), x_0(2) * nd_scalar(2), x_0(3) * nd_scalar(3), 48, "green", "filled", "square"); hold on
 scatter3(x_f(1) * nd_scalar(1), x_f(2) * nd_scalar(2), x_f(3) * nd_scalar(3), 48, "red", "x"); hold on
 plot3(guess.x(1, :) * nd_scalar(1), guess.x(2, :) * nd_scalar(2), guess.x(3, :) * nd_scalar(3), Color = "green", LineStyle = "--");
 [s_x, s_y, s_z] = sphere(128);
