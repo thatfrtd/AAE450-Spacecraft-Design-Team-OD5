@@ -18,16 +18,16 @@ g_0 = 9.81e-3; % [km / s2]
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = [4100; 232]; % [s]
+spacecraft_params.Isp = [4100; 300]; % [s]
 spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = [0.25; 100]; % [N]
+spacecraft_params.F_max = [0.25; 88]; % [N]
 F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = 6728; % [km] semi-major axis
+a_c = char_star.l + 900; % [km] semi-major axis
 e_c = 0.003; % [] eccentricity
-i_c = deg2rad(10); % [rad] inclination
+i_c = deg2rad(98.6); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu0_c = deg2rad(0); % [rad] true anomaly at epoch
@@ -41,22 +41,40 @@ T = 2 * P_c / char_star.t; % [s] Safety horizon length
 N_safe = 200; 
 
 % Rendezvous time
-tf = 10000 / char_star.t; % [s] (nondimensionalized)
+tf = P_c / char_star.t; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
-% Initial conditions for spacecraft - specify orbit instead?
-r_0 = [0.05; -0.05; 0.05]; % [km]
-v_0 = [-0.001; -1e-3; 0]; % [km / s]
-x_0 = [r_0; v_0; spacecraft_params.m_0] ./ nd_scalar;
+b = sqrt(40^2/2);
+c = sqrt(10^2/2);
+aROE_0 = [0; % [km] delta semimajor axis
+          0; % [km] delta lambda
+         -b*1e-3; % [km] delta e_x
+          b*1e-3; % [km] delta e_y
+         -c*1e-3; % [km] delta i_x 
+          c*1e-3]; % [km] delta i_y
+
+% r_0 = [0.05; -0.05; 0.05]; % [km]
+% v_0 = [-0.001; -1e-3; 0]; % [km / s]
+x_0 = [ROE_to_cart_matrix(n_c, 0 * char_star.t) * aROE_0; spacecraft_params.m_0] ./ nd_scalar;
 
 % Terminal conditions
-r_f = [0; 0.05; 1e-5]; % [km]
-v_f = [0e-3; 0; 0]; % [km / s]
-x_f = [r_f; v_f] ./ nd_scalar(1:6);
-b_final_orbit = 0.02; % [km]
+% r_f = [0; 0.02; 1e-5]; % [km]
+% v_f = [0e-3; 0; 0]; % [km / s]
+%x_f = [r_f; v_f] ./ nd_scalar(1:6);
+
+% aROE_f = [0; % [km] delta semimajor axis
+%          0; % [km] delta lambda
+%         -0.007954951288348661; % [km] delta e_x
+%          0.007954951288348661; % [km] delta e_y
+%         -0.007954951288348661; % [km] delta i_x 
+%          0.007954951288348661]; % [km] delta i_y
+% 
+% x_f = ROE_to_cart_matrix(n_c, 0 * char_star.t) * aROE_f ./ nd_scalar(1:6);
+data_table = readtable("Full_Detumble_History.csv");
+x_f = [data_table.chaser_x(1); data_table.chaser_y(1); data_table.chaser_z(1); data_table.chaser_vx(1); data_table.chaser_vy(1); data_table.chaser_vz(1)] * 1e-3./ nd_scalar(1:6);
 
 %% Initialize
-N = 50;
+N = 100;
 t_k_actual = linspace(0, tf, N);
 tspan = [0, tf];
 t_k = linspace(tspan(1), tspan(2), N);
@@ -77,8 +95,8 @@ np = 0; % Number of parameters (tf, v_0, etc)
 ptr_ops.iter_max = 25;
 ptr_ops.iter_min = 4;
 ptr_ops.Delta_min = 2e-7;
-ptr_ops.w_vc = 5e5;
-ptr_ops.w_tr = ones(1, N) * 2e-1;
+ptr_ops.w_vc = 5e6;
+ptr_ops.w_tr = ones(1, N) * 2e-0;
 ptr_ops.w_tr_p = 0;
 ptr_ops.update_w_tr = false;
 ptr_ops.delta_tol = 1e-2;
@@ -101,7 +119,7 @@ A_func = dynamics_jacobian(f_opt, nx, nu, np);
 %% Specify Constraints
 final_position_constraint = {N, @(t, x, u, p) nd_scalar(1) * norm(x(1:3)) - norm(r_f)};
 max_b_constraint = {N, @(t, x, u, p) norm([1; 1/4] .* x(4:5) * char_star.v) / n_c - b_final_orbit};
-state_convex_constraints = {final_position_constraint, max_b_constraint};
+state_convex_constraints = {};
 
 % Convex control constraints
 max_thrust_constraint_1 = {1:Nu, @(t, x, u, p) norm(u(1:3)) - F_max_nd(1)};
@@ -112,7 +130,7 @@ control_convex_constraints = {max_thrust_constraint_1, max_thrust_constraint_2};
 convex_constraints = [state_convex_constraints, control_convex_constraints];
 
 % Nonconvex state constraints
-keep_out_distance = 0.01; % [km]
+keep_out_distance = 0.010; % [km]
 keep_out_sphere_constraint = @(t, x, u, p) (keep_out_distance ^ 2 - nd_scalar(1) ^ 2 * (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2)) * 1e3;
 keep_out_sphere_constraint_linearized_func = linearize_constraint(keep_out_sphere_constraint, nx, nu, np, "x", 1:3);
 keep_out_sphere_constraint_linearized = {1:N, keep_out_sphere_constraint_linearized_func};
@@ -120,7 +138,7 @@ passive_safety_constraint = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) construc
 % keep_in_distance = 0.06; % [km]
 % keep_in_sphere_constraint = @(t, x, u, p) norm(x(1:3)) * nd_scalar(1) - keep_in_distance;
 % stable_final_orbit_constraint = {N-1, @(t, x, u, p, x_ref, u_ref, p_ref, k) construct_passive_safety_constraint(x, x_ref(:, k), @(t_prop, x_prop) f_opt(t_prop + t, x_prop, zeros([nu, 1]), p), @(t_prop, x_prop) A_func(t_prop + t, x_prop, zeros([nu, 1]), p), @(t_prop, x_prop) keep_in_sphere_constraint(t_prop + t, x_prop, zeros([nu, 1]), p), @(t_prop, x_prop, x_ref_safe) keep_in_sphere_constraint(t_prop + t, x_prop, zeros([nu, 1]), p), P_c / char_star.t, N_safe, 1e-10, -5)};
-state_nonconvex_constraints = {keep_out_sphere_constraint_linearized, passive_safety_constraint};
+state_nonconvex_constraints = {keep_out_sphere_constraint_linearized};
 
 % Nonconvex control constraints
 control_nonconvex_constraints = {};
@@ -130,15 +148,15 @@ nonconvex_constraints = [state_nonconvex_constraints, control_nonconvex_constrai
 
 %% Boundary conditions
 initial_bc = @(x, p) [x - x_0];
-terminal_bc = @(x, p, x_ref, p_ref) [4 * x(1) * nd_scalar(1) + 2 / n_c * x(5) * nd_scalar(5);
-                                     x(2) * nd_scalar(2) - 2 / n_c * x(4) * nd_scalar(4); 
-                                     zeros([3, 1]); x(3); x(6)];
+terminal_bc = @(x, p, x_ref, p_ref) [x(1:6) - x_f; 0]*1e3; %[4 * x(1) * nd_scalar(1) + 2 / n_c * x(5) * nd_scalar(5);
+                                     %x(2) * nd_scalar(2) - 2 / n_c * x(4) * nd_scalar(4); 
+                                     %zeros([3, 1]); x(3); x(6)];
                                      %(x_ref(1) ^ 2 + 2 * x_ref(1) * (x(1) - x_ref(1)) + 1 / 4 * (x_ref(2) ^ 2 + 2 * x_ref(2) * (x(2) - x_ref(2)))) * char_star.l ^ 2 - b_final_orbit ^ 2]; % Don't constrain final mass
 
 %terminal_bc = @(x, p, x_ref, p_ref) [zeros([3, 1]); x(4:6) - x_f(4:6); 0]; % Don't constrain final mass
 
 %% Specify Objective
-objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(1:3, :))) * delta_t * char_star.F / (spacecraft_params.Isp(1) * g_0) * 1000 ...
+objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(1:3, :))) * delta_t * char_star.F / (spacecraft_params.Isp(1) * g_0) * 1000000 ...
                                                    + sum(norms(u(4:6, :))) * delta_t * char_star.F / (spacecraft_params.Isp(2) * g_0) * 1000;
 
 %% Create Guess
@@ -205,8 +223,8 @@ x_safety_ck = x_safety_ck .* nd_scalar;
 %% Plot Trajectory
 figure;
 fig = scatter3(0, 0, 0, 60, "blue", "filled", "diamond"); hold on
-lim = max(abs(x(1:3, :)), [], "all") * 1;
-for k = (N):(N - 0)
+lim = max(abs(x(1:3, :)), [], "all") * 1.2;
+for k = (N - N + 1):(N - 0)
     if k == 1
         handvis = "on";
     else
@@ -215,11 +233,17 @@ for k = (N):(N - 0)
     x_safety_ck(:, vecnorm(x_safety_ck(1:3, :, k)) > lim, k) = nan;
     plot3(x_safety_ck(1, :, k), x_safety_ck(2, :, k), x_safety_ck(3, :, k), Color="b", HandleVisibility=handvis)
 end
+for k = 1 : Nu
+    u_norm = norm(u(1:3, :));
+    if u_norm < 1e-12
+        u(1:3, k) = 0;
+    end
+end
 plot_cartesian_orbit(x_cont_sol(1:3,:)', 'k', 0.4, 1); hold on
 quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(1, :), u(2, :), u(3, :), 1, "filled", Color = "red")
-quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(4, :), u(5, :), u(6, :), 2, "filled", Color = "m")
-scatter3(r_0(1), r_0(2), r_0(3), 48, "green", "filled", "square"); hold on
-scatter3(r_f(1), r_f(2), r_f(3), 48, "red", "x"); hold on
+quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(4, :), u(5, :), u(6, :), 2, "filled", Color = "m", LineWidth=2)
+scatter3(x_0(1) * nd_scalar(1), x_0(2) * nd_scalar(2), x_0(3) * nd_scalar(3), 48, "green", "filled", "square"); hold on
+scatter3(x_f(1) * nd_scalar(1), x_f(2) * nd_scalar(2), x_f(3) * nd_scalar(3), 48, "red", "x"); hold on
 plot3(guess.x(1, :) * nd_scalar(1), guess.x(2, :) * nd_scalar(2), guess.x(3, :) * nd_scalar(3), Color = "green", LineStyle = "--");
 [s_x, s_y, s_z] = sphere(128);
 h = surfl(s_x * keep_out_distance, s_y * keep_out_distance, s_z * keep_out_distance); 

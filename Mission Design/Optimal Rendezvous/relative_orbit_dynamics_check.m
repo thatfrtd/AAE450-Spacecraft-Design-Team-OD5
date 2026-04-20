@@ -9,6 +9,10 @@
 % Last Modified On: 9 March, 2026
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% Load Data
+data_table = readtable("Full_Detumble_History.csv");
+
+%%
 char_star = load_charecteristic_values_Earth();
 nd_scalar = [char_star.l * ones([3, 1]); char_star.v * ones([3, 1]); char_star.m];
 
@@ -23,9 +27,9 @@ F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star
 alpha = 1 / (spacecraft_params.Isp * 9.81e-3);
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = 6728; % [km] semi-major axis
-e_c = 0.004; % [] eccentricity
-i_c = deg2rad(80); % [rad] inclination
+a_c = char_star.l + 800; % [km] semi-major axis
+e_c = 0.000; % [] eccentricity
+i_c = deg2rad(98); % [rad] inclination
 Omega_c = deg2rad(0); % [rad] right ascension of ascending node
 omega_c = deg2rad(0); % [rad] argument of periapsis
 nu0_c = deg2rad(0); % [rad] true anomaly at epoch
@@ -35,17 +39,41 @@ x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 n = sqrt(char_star.mu / a_c ^ 3); % [rad / s]
 
 % Rendezvous time
-tf = 3600; % / char_star.t; % [s] (nondimensionalized)
+tf = 7200; % / char_star.t; % [s] (nondimensionalized)
 tspan = linspace(0, tf, 1000);
 
+b = sqrt(40^2/2);
+c = sqrt(10^2/2);
+aROE = [0; % [km] delta semimajor axis
+        0; % [km] delta lambda
+        b*1e-3; % [km] delta e_x
+        b*1e-3; % [km] delta e_y
+        c*1e-3; % [km] delta i_x 
+        c*1e-3]; % [km] delta i_y
+
+cart_ROE = ROE_to_cart_matrix(n, 0) * aROE;
+%%
+ROE_to_cart_matrix(n, 0) * cart_to_ROE_matrix(n, 0)
+%%
+
 % Initial conditions for spacecraft - specify orbit instead?
-r_0 = [0; -1; 0]; % [km]
-v_0 = [0e-3; 4e-3; -0.024]; % [km / s]
-x_0 = [r_0; v_0; spacecraft_params.m_0];
+% r_0 = [0; -1; 0]; % [km]
+% v_0 = [0e-3; 4e-3; -0.024]; % [km / s]
+% x_0 = [cart_ROE; spacecraft_params.m_0];
+
+r_0 = [data_table.chaser_x(1); data_table.chaser_y(1); data_table.chaser_z(1)]*1e-3; % [km]
+v_0 = [data_table.chaser_vx(1); data_table.chaser_vy(1); data_table.chaser_vz(1)]*1e-3; % [km / s]
+x_0 = [cart_ROE; spacecraft_params.m_0];
 
 % Algorithm parameters
 default_tolerance = 1e-13;
 tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance);
+
+%%
+aROE_ck = cart_to_ROE_matrix(n, 0) * [r_0; v_0];
+
+%%
+
 
 %% Convert IC to Cartesian Elements
 x_0_cartesian_c = keplerian_to_cartesian(x_keplerian_c, nu0_c, char_star.mu);
@@ -59,8 +87,8 @@ f_CWH = @(t, x, u, p) CWH_relative_orbit_EoM(t, x, u, p, [a_c; spacecraft_params
 
 %% Propagate
 p = [];
-u = [0; 1; 0];
-u = u / norm(u) * spacecraft_params.F_max / 1000;
+u = [0; 0; 0];
+%u = u / norm(u) * spacecraft_params.F_max / 1000;
 a_d_0 = @(t, x) [0; 0; 0];
 a_d = @(t, x) RTN_to_ECI_array(x(1:3), x(4:6)) * u / x(7);
 
@@ -98,12 +126,16 @@ x_nonlinear = x_nonlinear' .* 1;%nd_scalar;
 %% Compare
 figure
 plot3(x_CWH(1, :), x_CWH(2, :), x_CWH(3, :)); hold on
+scatter3(data_table.chaser_x(1:100:end)*1e-3, data_table.chaser_y(1:100:end)*1e-3, data_table.chaser_z(1:100:end)*1e-3); hold on
 plot3(x_linearized(1, :), x_linearized(2, :), x_linearized(3, :)); hold on
 plot3(x_nonlinear(1, :), x_nonlinear(2, :), x_nonlinear(3, :)); hold on
 plot3(x_cartesian_hill(1, :), x_cartesian_hill(2, :), x_cartesian_hill(3, :)); hold off
 grid on
-legend("CWH", "Linearized", "Nonlinear", "Cart")
+legend("CWH", "Atharva", "Linearized", "Nonlinear", "Cart")
 axis equal
+xlabel("R")
+ylabel("T")
+zlabel("N")
 title("Position Comparison")
 
 figure
@@ -114,7 +146,20 @@ plot3(x_cartesian_hill(4, :), x_cartesian_hill(5, :), x_cartesian_hill(6, :)); h
 grid on
 legend("CWH", "Linearized", "Nonlinear", "Cart")
 axis equal
+xlabel("R")
+ylabel("T")
+zlabel("N")
 title("Velocity Comparison")
+
+%%
+r_cont_sol = x_CWH(1:3, :);
+
+output_array = [tspan', r_cont_sol'];
+state_names = ["r_1", "r_2", "r_3"];
+output_names = ["Time", state_names];
+
+output_table = array2table(output_array, VariableNames = output_names);
+writetable(output_table,"./Animation/inspection_orbit.csv")
 
 %% Helper Functions
 function [xdot] = CWH_EoM_manual(t, x, u, mu, r_c, alpha)

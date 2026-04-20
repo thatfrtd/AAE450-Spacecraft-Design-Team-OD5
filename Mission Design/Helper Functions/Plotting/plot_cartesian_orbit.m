@@ -1,8 +1,15 @@
-function [] = plot_cartesian_orbit(x_cartesian, color, scale, grade)
+function [] = plot_cartesian_orbit(x_cartesian, color, scale, grade, width)
 %PLOT_CARTESIAN_ORBIT Summary of this function goes here
 %   Detailed explanation goes here
+arguments
+    x_cartesian
+    color
+    scale
+    grade
+    width = 0.5
+end
 
-plot3(x_cartesian(:, 1),x_cartesian(:, 2),x_cartesian(:, 3), color); hold on;
+plot3(x_cartesian(:, 1),x_cartesian(:, 2),x_cartesian(:, 3), color, LineWidth=width); hold on;
 plotOrbitWithArrows(x_cartesian(:, 1),x_cartesian(:, 2),x_cartesian(:, 3), size(x_cartesian, 1) / 23, color, scale, grade);
 
 function plotOrbitWithArrows(x, y, z, n, color, scale, grade)

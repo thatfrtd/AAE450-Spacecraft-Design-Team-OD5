@@ -81,7 +81,7 @@ control_convex_constraints = {max_thrust_constraint_1, max_thrust_constraint_2};
 convex_constraints = [state_convex_constraints, control_convex_constraints];
 
 % Nonconvex state constraints
-keep_out_distance = 0.2; % [km] - should give better initial guess when using this constraint so it converges faster
+keep_out_distance = 0.03; % [km] - should give better initial guess when using this constraint so it converges faster
 keep_out_sphere_constraint = @(t, x, u, p) keep_out_distance ^ 2 - nd_scalar(1) ^ 2 * (x(1) ^ 2 + x(2) ^ 2 + x(3) ^ 2);
 keep_out_sphere_constraint_linearized = {1:N, linearize_constraint(keep_out_sphere_constraint, nx, nu, np, "x", 1:3)};
 state_nonconvex_constraints = {};
@@ -162,11 +162,17 @@ rendezvous_solution.u = u_cont_sol;
 %% Plot
 if options.plot_results
     % Plot Trajectory
+    for k = 1 : Nu
+        u_norm = norm(u(1:3, :));
+        if u_norm < 1e-10
+            u(1:3, k) = 0;
+        end
+    end
     figure
     scatter3(0, 0, 0, 60, "blue", "filled", "diamond"); hold on
     plot_cartesian_orbit(x_cont_sol(1:3,:)', 'k', 0.4, 1); hold on
-    quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(1, :), u(2, :), u(3, :), 1, "filled", Color = "red")
-    quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(4, :) .* (vecnorm(u(4:6,:)) > 1e-6), u(5, :) .* (vecnorm(u(4:6,:)) > 1e-6), u(6, :) .* (vecnorm(u(4:6,:)) > 1e-6), 2, "filled", Color = "m")
+    quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(1, :), u(2, :), u(3, :), 1, "filled", Color = "cyan")
+    quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(4, :) .* (vecnorm(u(4:6,:)) > 1e-6), u(5, :) .* (vecnorm(u(4:6,:)) > 1e-6), u(6, :) .* (vecnorm(u(4:6,:)) > 1e-6), 2, "filled", Color = "r", LineWidth=2)
     scatter3(x_0_hill(1), x_0_hill(2), x_0_hill(3), 48, "green", "filled", "square"); hold on
     scatter3(x_f_hill(1), x_f_hill(2), x_f_hill(3), 48, "red", "x"); hold on
     plot3(guess.x(1, :) * nd_scalar(1), guess.x(2, :) * nd_scalar(2), guess.x(3, :) * nd_scalar(3), Color = "green", LineStyle = "--");
@@ -179,7 +185,7 @@ if options.plot_results
     ylabel("\theta [km]")
     zlabel("n [km]")
     axis equal
-    legend("Target", 'Spacecraft', "", "Thrust 1", "Thrust 2", "Start", "End", "Guess", "Keepout Sphere", 'Location', 'northwest'); axis equal; grid on
+    legend("Target", 'Spacecraft', "", "Ion Thrust", "RCS Thrust", "Start", "End", "Guess", "Keepout Sphere", 'Location', 'northwest'); axis equal; grid on
     
     %% Plot Control
     figure

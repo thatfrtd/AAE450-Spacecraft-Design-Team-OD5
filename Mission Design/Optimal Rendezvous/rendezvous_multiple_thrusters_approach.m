@@ -68,7 +68,7 @@ np = 0; % Number of parameters (tf, v_0, etc)
 ptr_ops.iter_max = 15;
 ptr_ops.iter_min = 4;
 ptr_ops.Delta_min = 1e-7;
-ptr_ops.w_vc = 5e5;
+ptr_ops.w_vc = 5e8;
 ptr_ops.w_tr = ones(1, N) * 5e-0;
 ptr_ops.w_tr_p = 0;
 ptr_ops.update_w_tr = false;
@@ -113,7 +113,7 @@ approach_cone_constraint = @(t, x, u, p) cos(approach_cone_angle) * norm(x(1:3) 
 keep_out_ellipsoid_form = [15; 10; 10]*1e-3 ./ nd_scalar(1:3); % [km] 
 keep_out_ellipsoid_constraint = @(t, x, u, p) 1 - ((x(1) / keep_out_ellipsoid_form(1)) ^ 2 + (x(2) / keep_out_ellipsoid_form(2)) ^ 2 + (x(3) / keep_out_ellipsoid_form(3)) ^ 2);
 keep_out_ellipsoid_constraint_linearized_func = linearize_constraint(keep_out_ellipsoid_constraint, nx, nu, np, "x", 1:3);
-keep_out_ellipsoid_constraint_linearized_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) keep_out_ellipsoid_constraint_linearized_func(t, x, u, p, x_ref, u_ref, p_ref, k) * max(approach_cone_constraint(t, x_ref(:, k), u_ref(:, k), p_ref), 0)};
+keep_out_ellipsoid_constraint_linearized_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) keep_out_ellipsoid_constraint_linearized_func(t, x, u, p, x_ref, u_ref, p_ref, k) * max(approach_cone_constraint(t, x_ref(:, k), u_ref(:, k), p_ref), 0)*1e5};
 approach_cone_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) approach_cone_constraint(t, x, u, p) * (keep_out_ellipsoid_constraint(t, x_ref(:, k), u_ref(:, k), p_ref) > 0)};% * (keep_out_ellipsoid_constraint(t, x_ref(:, k), u_ref(:, k), p_ref) > 0)};
 state_nonconvex_constraints = {keep_out_ellipsoid_constraint_linearized_STC};
 
