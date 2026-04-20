@@ -15,23 +15,23 @@ mu_E = 398600.4418; % [km3 / s2] Earth gravitational parameter
 J_2_val = 1.08262668e-3*0; % [] Earth J2
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
-a_c = 7044.7634; % [km] semi-major axis
+a_c = R_E + 800; % [km] semi-major axis
 e_c = 0.003390; % [] eccentricity
-i_c = deg2rad(98.1114 ); % [rad] inclination
+i_c = deg2rad(98.3 ); % [rad] inclination
 Omega_c = deg2rad(320.5520 ); % [rad] right ascension of ascending node
 omega_c = deg2rad(301.2069 ); % [rad] argument of periapsis
 nu_c = deg2rad(58.6658 ); % [rad] true anomaly at epoch
-n = sqrt(char_star.mu / a_c ^ 3); % [rad / s]
+n = sqrt(mu_E / a_c ^ 3);
 
 M_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu_c, e_c), e_c);
 x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M_c];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, nu_c, mu_E);
 
 % Initial conditions for spacecraft
-a_d = 6978.1370; % [km] semi-major axis
-e_d = 0.003390; % [] eccentricity
-i_d = deg2rad(98.1114); % [rad] inclination
-Omega_d = deg2rad(320.5520 + 0.03); % [rad] right ascension of ascending node
+a_d = 7139; % [km] semi-major axis
+e_d = 0.00001; % [] eccentricity
+i_d = deg2rad(98.2); % [rad] inclination
+Omega_d = deg2rad(320.5520 ); % [rad] right ascension of ascending node
 omega_d = deg2rad(301.2069); % [rad] argument of periapsis
 nu_d = deg2rad(58.6658 ); % [rad] true anomaly at epoch
 
@@ -46,7 +46,7 @@ spacecraft_params = struct();
 spacecraft_params.Isp = 4100; % [s]
 spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 1000; % [kg]
-spacecraft_params.F_max = 0.25; % [N]
+spacecraft_params.F_max = 0.235; % [N]
 
 % Integration error tolerance
 default_tolerance = 1e-10;
@@ -79,7 +79,7 @@ Q_params.n = 4;
 Q_params.r = 2;
 Q_params.Theta_rot = 0;
 
-[Qtransfer] = QLaw_transfer(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 500000, angular_step=deg2rad(2), R_c = 0.01, a_disturbance = a_d_0);
+[Qtransfer] = QLaw_transfer_fast(x0_d_keplerian, x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 500000, angular_step=deg2rad(2), R_c = 0.01, a_disturbance = a_d_0, integration_tolerance=1e-10);
 
 dVs = Qtransfer.delta_V;
 ToFs = Qtransfer.dt / 60 / 60 / 24;
@@ -114,7 +114,7 @@ x_keplerian_ck = cartesian_to_keplerian_array(x_keplerian_cartesian_ck', [0; 0; 
 x_Qtrans_cart = keplerian_to_cartesian_array(Qtransfer.x_keplerian_mass(1:6, :), [], mu_E); % QLaw output (not corrected for J2!)
 figure
 earthy(R_E, "Earth", 1, [0;0;0]); hold on;
-plot3(x_keplerian_cartesian_ck(:, 1), x_keplerian_cartesian_ck(:, 2), x_keplerian_cartesian_ck(:, 3))
+plot3(x_keplerian_cartesian_preck(:, 1), x_keplerian_cartesian_preck(:, 2), x_keplerian_cartesian_preck(:, 3))
 plot3(x_Qtrans_cart(1,:), x_Qtrans_cart(2,:), x_Qtrans_cart(3,:))
 
 legend("Earth", "Check", "Sol")
@@ -132,7 +132,7 @@ delta_M_transfer = Qtransfer.x_keplerian_mass(6, end) - M_d;
 delta_M_chief = sqrt(char_star.mu / a_c ^ 3) * Qtransfer.t(end);
 M0_c_refined = wrapToPi(delta_M_transfer - delta_M_chief); % Assuming M_c is 0 DOES NOT WORK - JUST USE OPTIMIZATION FUNCTION
 
-x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M0_c_refined + deg2rad(57.9)];
+x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M0_c_refined + deg2rad(55.9)];
 %x0_c_keplerian = [a_c; e_c; i_c; Omega_c; omega_c; M0_c_refined + deg2rad(77.845)];
 x0_c_cartesian = keplerian_to_cartesian(x0_c_keplerian, [], mu_E);
 x_c_cartesian = propagate_conic_array(x0_c_cartesian, Qtransfer.t, char_star.mu);
@@ -195,10 +195,20 @@ x_f_hill = cart_ROE; % [km / s]
 ToF_rendezvous = 3600 * 5; % [s]
 spacecraft_params_mod = spacecraft_params;
 spacecraft_params_mod.Isp = [4155; 300];
-spacecraft_params_mod.F_max = [0; 100];
+spacecraft_params_mod.F_max = [0.235; 88];
 % Actually use QLaw control for "nocont" part to check better
 %[optimal_rendezvous, rendezvous_SCP_info, nocont_rendezvous] = nonlinear_rendezvous_func(x_0_hill, x_f_hill, ToF_rendezvous, x0_c_keplerian, spacecraft_params_mod, N = 150, dynamics = "Nonlinear", u_hold = "ZOH", max_iters = 15, integration_tolerance = 5e-12);
-[optimal_rendezvous, rendezvous_SCP_info] = nonlinear_rendezvous_multithruster_func(x_0_hill, x_f_hill, ToF_rendezvous, x0_c_keplerian, spacecraft_params_mod, N = 150, u_hold = "ZOH", max_iters = 15, integration_tolerance = 5e-12);
+[optimal_rendezvous, rendezvous_SCP_info] = nonlinear_rendezvous_multithruster_func(x_0_hill, x_f_hill, ToF_rendezvous, x0_c_keplerian, spacecraft_params_mod, N = 250, u_hold = "ZOH", max_iters = 15, integration_tolerance = 5e-12);
+
+%% Save Rendezvous
+output_array = [optimal_rendezvous.t(2:end), optimal_rendezvous.x(1:3, 2:end)', optimal_rendezvous.u'];
+state_names = ["r_1", "r_2", "r_3"];
+control_names = ["u_main_1", "u_main_2", "u_main_3", "u_RCS_1", "u_RCS_2", "u_RCS_3"];
+output_names = ["Time", state_names, control_names];
+
+output_table = array2table(output_array, VariableNames = output_names);
+writetable(output_table,"./Animation/close_rendezvous.csv")
+
 
 %% Package Output
 pickle = 800;
@@ -224,7 +234,7 @@ trajectory_to_target.rendezvous = rendezvous_SCP_info;
 
 %%
 figure
-plt_start_i = 24000; 
+plt_start_i = 23000; 
 i_end = size(x_cont_traj, 2);
 plot3(x_cont_traj(1, i_engage:i_end), x_cont_traj(2, i_engage:i_end), x_cont_traj(3, i_engage:i_end)); hold on
 plot3(x_Qtransfer_hill_plus(1, plt_start_i:i_engage + pickle), x_Qtransfer_hill_plus(2, plt_start_i:i_engage + pickle), x_Qtransfer_hill_plus(3, plt_start_i:i_engage + pickle))
@@ -349,7 +359,7 @@ function [] = plot_Q_transfer(Qtransfer, x0_c_keplerian, x0_d_keplerian, char_st
     
     %% Plot Orbit Error and Control Histories
     figure
-    plot_orbit_transfer_histories(Qtransfer.t / 60 / 60, x_keplerian_c' ./ [char_star.l, ones([1, 5])], Qtransfer.x_keplerian_mass(1:6, :)' ./ [char_star.l, ones([1, 5])], interp1(1:numel(Qtransfer.not_coast), Qtransfer.u', linspace(1, numel(Qtransfer.not_coast), numel(Qtransfer.t)), 'nearest'));
+    plot_orbit_transfer_histories(Qtransfer.t / 60 / 60, x_keplerian_c' ./ [char_star.l, ones([1, 5])], Qtransfer.x_keplerian_mass(1:6, :)' ./ [char_star.l, ones([1, 5])], Qtransfer.u_cont');
     sgtitle("Q-Law Orbit Transfer with Periapsis Constraint Results")
     
     %% Plot Q Function

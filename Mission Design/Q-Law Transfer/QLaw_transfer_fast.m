@@ -19,6 +19,8 @@ arguments
     options.a_disturbance = @(t,x) [0;0;0] % @(t, x) [3, 1] Disturbing accelerations
     options.return_dt_dm_only = false % Only return info to evaluate Q_params for global optimization of Qlaw parameters
     options.thrust_during_eclipse = true % if an eclipse is detected at the start of the step, should thrust occur?
+    options.max_t = 365.25 * 60 * 60 * 24 * 2
+    options.max_dV = 2
 end
 
 % Constants
@@ -59,6 +61,7 @@ alpha = [];
 beta = [];
 t_nd = 0;
 u_cont_nd = zeros([3, 1]);
+dV = 0;
 
 % Simulate
 iter = 1;
@@ -66,7 +69,7 @@ Q = [];
 P = [];
 eclipsed = [];
 not_coast = [];
-while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass_nd(7, end) > m_dry_nd
+while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass_nd(7, end) > m_dry_nd && t_nd(end) * char_star.t < options.max_t && dV < options.max_dV
     [t_step, x_step, Q(end + 1), P(end + 1), alpha(end + 1), beta(end + 1), u_nd(:, end + 1), not_coast(end + 1)] = QLaw_transfer_inner_mex(x_me_mass_nd(:, end), t_nd(end), oe_t, ...
                                                                                                                                             Q_params.W_oe, Q_params.m, Q_params.n, Q_params.r, Q_params.Theta_rot, Q_params.eta_a_min, Q_params.eta_r_min, ...
                                                                                                                                             penalty_params.W_p, penalty_params.k, ...
@@ -76,6 +79,8 @@ while iter == 1 || Q(iter - 1) >= Q_stop && iter < options.iter_max && x_me_mass
     t_nd = [t_nd; t_step(2:end)];
     x_me_mass_nd = [x_me_mass_nd, x_step(2:end, :)'];
     u_cont_nd = [u_cont_nd, repmat(u_nd(:, iter), 1, numel(t_step(2:end)))];
+
+    dV = spacecraft_params.Isp * g_0 * log(spacecraft_params.m_0 / (x_me_mass_nd(7, end) * char_star.m));
 
     % fprintf("Iter %g\n", iter)
     % Wrap up iteration

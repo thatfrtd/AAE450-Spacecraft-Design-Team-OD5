@@ -1,0 +1,6 @@
+{
+  "eccentricity": [0.0001],
+  "inclination": [7.5],
+  "perigee_altitude": [300],
+  "crosssectional_area": [0.05]
+}
