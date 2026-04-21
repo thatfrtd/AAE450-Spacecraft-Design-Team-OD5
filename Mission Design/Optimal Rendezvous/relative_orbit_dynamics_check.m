@@ -55,6 +55,8 @@ cart_ROE = ROE_to_cart_matrix(n, 0) * aROE;
 %%
 ROE_to_cart_matrix(n, 0) * cart_to_ROE_matrix(n, 0)
 %%
+cart_to_ROE_matrix(n, 0) * [data_table.chaser_x(1); data_table.chaser_y(1); data_table.chaser_z(1); data_table.chaser_vx(1); data_table.chaser_vy(1); data_table.chaser_vz(1)]
+%%
 
 % Initial conditions for spacecraft - specify orbit instead?
 % r_0 = [0; -1; 0]; % [km]

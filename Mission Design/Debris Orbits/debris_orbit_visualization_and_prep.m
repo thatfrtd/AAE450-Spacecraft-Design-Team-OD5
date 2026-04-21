@@ -10,18 +10,19 @@
 
 % Create Mission
 mission.StartDate = datetime(2026, 4, 1, 12, 0, 0);
-duration_yr = 7;
+duration_yr = 0.1;
 mission.Duration  = years(duration_yr);
 mission.StopDate = mission.StartDate + mission.Duration;
-sampleTime = 60000;
+sampleTime = 60;
 sc = satelliteScenario(mission.StartDate, mission.StopDate, sampleTime);
 
 % Load Debris
 debris_ID = [20791, 28480, 31114, 32063, 37766, 39203, 39261, 41858, 44548];
+%debris_ID = debris_ID([2, 6, 5]);
 debris_mass = [2000, 4000, 4000, 2000, 4000, 4000, 2000, 4000, 4000];
 N_debris = numel(debris_ID);
 tleFiles = strings(size(debris_ID));
-for i = 1 : N_debris
+for i = 1 : 9
     tleFiles(i) = sprintf("%g.tle", debris_ID(i));
 end
 
@@ -36,7 +37,7 @@ for i = 2 : N_debris
 end
 
 % Visualize
-%v = satelliteScenarioViewer(sc);
+v = satelliteScenarioViewer(sc);
 %play(sc)
 
 %%
@@ -64,6 +65,9 @@ for i = 2 : N_debris
     x_keplerian_array(:, :, i) = cartesian_to_keplerian_array(x, [0; 0; 1], [1; 0; 0], mu_E);
 end
 
+x0_keplerian_debris = squeeze(x_keplerian_array(:, 1, :));
+save("Debris Orbits\initial_debris_keplerian_orbits.mat", "x0_keplerian_debris")
+
 %% Compare relative RAAN drift
 num_transfers_per_debris = zeros(size(debris_ID, 2), size(debris_ID, 2));
 delta_RAAN_step = 30; % [deg] how big RAAN difference has to be before there needs to be another data point
@@ -71,6 +75,11 @@ delta_RAAN_step = 30; % [deg] how big RAAN difference has to be before there nee
 for i = 1 : N_debris
     figure
     plot(linspace(0, duration_yr, size(x_keplerian, 2)), squeeze(rad2deg(unwrap(x_keplerian_array(4, :, :)) - unwrap(x_keplerian_array(4, :, i)))))
+    grid on
+    xlabel("Time [years]")
+    ylabel("Relative RAAN Difference")
+    title(sprintf("RAAN Drift Relative to Debris %g", debris_ID(i)))
+    legend(string(debris_ID))
     relative_shifts = squeeze(rad2deg(unwrap(x_keplerian_array(4, :, :)) - unwrap(x_keplerian_array(4, :, i))));
     relative_RAAN_range = relative_shifts(1, :) - relative_shifts(end, :);
     num_transfers_per_debris(i, :) = ceil(abs(relative_RAAN_range) / delta_RAAN_step) + 1;
