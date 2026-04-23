@@ -836,8 +836,8 @@ gamma_0 = np.arctan2(h_T, h_R)
 # Design the Passively Safe Orbit 
 phi_g = gamma_0 + (np.pi / 2.0)
 
-ade = 9.0 # In-plane scale [m]
-adi = 9.0 # Out-of-plane scale [m]
+ade = 18.0 # In-plane scale [m]
+adi = 18.0 # Out-of-plane scale [m]
 
 # Making the Relative Orbital Elements by hand to ensure parallel
 delta_a = np.array([0, 0, ade*np.cos(phi_g), ade*np.sin(phi_g), adi*np.cos(phi_g), adi*np.sin(phi_g)])
