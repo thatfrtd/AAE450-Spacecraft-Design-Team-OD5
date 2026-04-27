@@ -96,8 +96,7 @@ legend([bar(NaN,NaN,'FaceColor',[0.20 0.48 0.78],'EdgeColor','none'), ...
 set(gca,'XTick',xs,'XTickLabel',names_s,'XTickLabelRotation',35,'FontSize',8);
 ylabel('Temperature [°C]');
 n_fail = sum(cold_viol_s);
-title(sprintf('COLD CASE Temperatures  (%d of %d Components Need Heaters)', ...
-     n_fail, Ns),'FontWeight','bold','FontSize',11);
+title('COLD CASE Temperatures','FontWeight','bold','FontSize',11);
 
 %% FIG 3 — RADIATOR (per-component attribution) ----------------------------
 %

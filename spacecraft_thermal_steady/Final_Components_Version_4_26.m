@@ -95,7 +95,7 @@ comps(i).name         = 'Ion Thruster Head';
 comps(i).Q_hot_W      = 0.05 * 0.30 * 6900;   % 103.5 W — structural interface only
 comps(i).Q_cold_W     = 0;
 comps(i).T_op_min_C   = -24;    % Team component layout PDF (Op5 OD5, April 2026)
-comps(i).T_op_max_C   = 150;     % Team component layout PDF — GIMBAL INTERFACE ONLY
+comps(i).T_op_max_C   = 150;    % 300, Placeholder value
 % Actually ~300 C, artificially set to 150 C to appear on graph                                 
                                  % NOTE: at G=4 W/K, ΔT=103.5/4=25.9°C → T_bus_max=19.1°C
                                  % This may be the binding hot-case constraint; see console.
@@ -131,10 +131,10 @@ comps(i).Q_hot_W      = (1 - 0.92) * 6900;   % 552 W — 92% efficiency (Brophy 
                                                % "NEXT Ion Propulsion System," AIAA-2012-3833:
                                                % NEXT-class PPU measured at ~92-93% efficiency)
 comps(i).Q_cold_W     = 0;                    % thruster off in safe mode
-comps(i).T_op_min_C   = -20;                  % TODO: PPU vendor datasheet
-comps(i).T_op_max_C   = 70;                   % TODO: PPU vendor datasheet (typical electronics limit)
-comps(i).T_surv_min_C = -30;                  % TODO: PPU vendor datasheet
-comps(i).T_surv_max_C = 85;                   % TODO: PPU vendor datasheet
+comps(i).T_op_min_C   = -40;                  % Checked
+comps(i).T_op_max_C   = 50;                   % Checked
+comps(i).T_surv_min_C = -24;                  % Checked
+comps(i).T_surv_max_C = 71;                   % Checked
 comps(i).G_W_K        = 25.0;   % DESIGN TARGET — requires Cu cold plate or direct strap
                                  % TODO: calculate from cold plate geometry and TIM spec
 comps(i).always_on    = false;
@@ -162,10 +162,9 @@ comps(i).T_op_min_C   = 16.1;   % Team component layout PDF (OD5, April 2026)
                                   % WARNING: high T_op_min means tank WILL need heaters in eclipse.
                                   % At G=2 W/K, heater ≈ 2*(16.1 - T_int_cold) W before margin.
 comps(i).T_op_max_C   = 50;     % Team component layout PDF (pressure vessel limit)
-comps(i).T_surv_min_C = 10;     % Margin below op min; above any regulator/valve cold limit
+comps(i).T_surv_min_C = 16.1;     % Margin below op min; above any regulator/valve cold limit
                                   % Xe condenses at -108°C @1atm — not the constraint here
-comps(i).T_surv_max_C = 60;     % Team component layout PDF
-comps(i).T_surv_max_C = 60;     % TODO: tank vendor
+comps(i).T_surv_max_C = 50;     % Team component layout PDF
 comps(i).G_W_K        = 2.0;    % Isolated titanium strut mounts
                                  % TODO: calculate from strut geometry
 comps(i).always_on    = false;
@@ -200,8 +199,8 @@ comps(i).Q_hot_W      = 0;
 comps(i).Q_cold_W     = 0;
 comps(i).T_op_min_C   = -2;     % MMH lower limit (team PDF); binding over MON-3 -4°C
 comps(i).T_op_max_C   = 40;     % MON-3 upper limit (team PDF); binding over MMH 70°C
-comps(i).T_surv_min_C = -9;     % 3°C margin above MON-3 freeze (-11.2°C) [ECSS-E-HB-31A]
-comps(i).T_surv_max_C = 50;     % Margin above op max; confirm with tank vendor
+comps(i).T_surv_min_C = -2;     % 3°C margin above MON-3 freeze (-11.2°C) [ECSS-E-HB-31A]
+comps(i).T_surv_max_C = 40;     % Margin above op max; confirm with tank vendor
 comps(i).G_W_K        = 2.0;    % Isolated strut mounts
                                   % TODO: calculate from strut geometry
 comps(i).always_on    = false;
@@ -259,8 +258,8 @@ comps(i).Q_hot_W      = 130;    % team value (charge + discharge losses)
 comps(i).Q_cold_W     = 40;     % eclipse discharge to safe-mode loads  % TODO: EPS team
 comps(i).T_op_min_C   = 10;     % team value (Li-ion lower charge limit)
 comps(i).T_op_max_C   = 40;     % team value (Li-ion upper limit)
-comps(i).T_surv_min_C = 0;      % Li-ion survival (no charging below 0 C)
-comps(i).T_surv_max_C = 60;     % TODO: confirm with cell vendor
+comps(i).T_surv_min_C = 10;      % Li-ion survival (no charging below 0 C)
+comps(i).T_surv_max_C = 40;     % TODO: confirm with cell vendor
 comps(i).G_W_K        = 15.0;   % REQUIRES dedicated cold plate with TIM
                                  % TODO: design cold plate; verify G achievability
 comps(i).always_on    = true;
@@ -283,10 +282,9 @@ comps(i).Q_hot_W      = 20;     % peak dissipation  % TODO: payload team
 comps(i).Q_cold_W     = 0;
 comps(i).T_op_min_C   = 0;
 comps(i).T_op_max_C   = 40;
-comps(i).T_surv_min_C = -20;    % TODO: payload team
-comps(i).T_surv_max_C = 60;     % TODO: payload team
+comps(i).T_surv_min_C = 0;      %
+comps(i).T_surv_max_C = 40;     % 
 comps(i).G_W_K        = 3.0;    % Bolted bracket with TIM
-                                 % TODO: mech team to confirm
 comps(i).always_on    = false;
 comps(i).decoupled    = false;
 
@@ -300,9 +298,9 @@ i = i+1;
 comps(i).name         = 'Robotic Arm';
 comps(i).Q_hot_W      = 10;     % TODO: actuator power — placeholder
 comps(i).Q_cold_W     = 0;      % assumed stowed and off in safe mode
-comps(i).T_op_min_C   = -40;    % TODO: mechanisms team
-comps(i).T_op_max_C   = 80;     % TODO: mechanisms team
-comps(i).T_surv_min_C = -55;    % TODO: mechanisms team
+comps(i).T_op_min_C   = -50;    % TODO: mechanisms team
+comps(i).T_op_max_C   = 100;     % TODO: mechanisms team
+comps(i).T_surv_min_C = -50;    % TODO: mechanisms team
 comps(i).T_surv_max_C = 100;    % TODO: mechanisms team
 comps(i).G_W_K        = 2.0;    % Main body attachment point
                                  % TODO: mech team
@@ -331,8 +329,8 @@ comps(i).Q_hot_W      = 8.9;    % max of 5.6–8.9 W range (conservative)
 comps(i).Q_cold_W     = 8.9;    % always on — same power
 comps(i).T_op_min_C   = -30;    % TODO: vendor datasheet
 comps(i).T_op_max_C   = 60;     % TODO: vendor datasheet
-comps(i).T_surv_min_C = -40;    % TODO: vendor datasheet
-comps(i).T_surv_max_C = 70;     % TODO: vendor datasheet
+comps(i).T_surv_min_C = -30;    % TODO: vendor datasheet
+comps(i).T_surv_max_C = 60;     % TODO: vendor datasheet
 comps(i).G_W_K        = 1.0;    % Vibration-isolated exterior bracket
                                  % Low G intentional — do not increase without
                                  % checking microvibration requirements
@@ -355,8 +353,8 @@ comps(i).Q_cold_W     = 12;     % always on — same power in safe mode
 comps(i).T_op_min_C   = -62;    % Team component layout PDF (OD5, April 2026)
                                   % Northrop Grumman LN-200 class IMU rated to -62°C
 comps(i).T_op_max_C   = 85;     % Team component layout PDF
-comps(i).T_surv_min_C = -67;    % 5°C margin below op min; typical for military-grade IMUs
-comps(i).T_surv_max_C = 95;     % TODO: confirm with vendor
+comps(i).T_surv_min_C = -62;    % 5°C margin below op min; typical for military-grade IMUs
+comps(i).T_surv_max_C = 85;     % TODO: confirm with vendor
 comps(i).G_W_K        = 5.0;    % Rigid interior mount with TIM
                                  % TODO: mech team to verify
 comps(i).always_on    = true;
@@ -374,10 +372,10 @@ i = i+1;
 comps(i).name         = 'RCWs(3x)';
 comps(i).Q_hot_W      = 38;   % 38 W max per team PDF (OD5, April 2026)
 comps(i).Q_cold_W     = 0;      % assumed off/standby in safe mode  % TODO: confirm
-comps(i).T_op_min_C   = -30;    % Team component layout PDF (OD5, April 2026)
-comps(i).T_op_max_C   = 70;     % Team component layout PDF
-comps(i).T_surv_min_C = -40;    % Extended 10°C below op min; confirm with vendor
-comps(i).T_surv_max_C = 85;     % TODO: CMG vendor
+comps(i).T_op_min_C   = -30;    % Checked
+comps(i).T_op_max_C   = 70;     % Checked
+comps(i).T_surv_min_C = -30;    % Extended 10°C below op min; confirm with vendor
+comps(i).T_surv_max_C = 70;     % Checked
 comps(i).G_W_K        = 5.0;    % Solid structural interface with TIM
                                  % TODO: mech team to verify
 comps(i).always_on    = false;
@@ -404,8 +402,8 @@ comps(i).Q_hot_W      = 1.5;    % team value — thermal only (not RF power)
 comps(i).Q_cold_W     = 1.5;    % always on
 comps(i).T_op_min_C   = -40;
 comps(i).T_op_max_C   = 80;
-comps(i).T_surv_min_C = -50;    % TODO: antenna vendor
-comps(i).T_surv_max_C = 90;     % TODO: antenna vendor
+comps(i).T_surv_min_C = -40;    % 
+comps(i).T_surv_max_C = 80;     % 
 comps(i).G_W_K        = 0.5;    % Exterior mount, small contact area
 comps(i).always_on    = true;
 comps(i).decoupled    = false;
@@ -423,8 +421,8 @@ comps(i).Q_hot_W      = 0.5;    % conservative placeholder  % TODO: confirm with
 comps(i).Q_cold_W     = 0.5;    % always on
 comps(i).T_op_min_C   = -55;
 comps(i).T_op_max_C   = 85;
-comps(i).T_surv_min_C = -65;    % TODO: antenna vendor
-comps(i).T_surv_max_C = 95;     % TODO: antenna vendor
+comps(i).T_surv_min_C = -55;    % TODO: antenna vendor
+comps(i).T_surv_max_C = 85;     % TODO: antenna vendor
 comps(i).G_W_K        = 0.5;    % Exterior patch mount
 comps(i).always_on    = true;
 comps(i).decoupled    = false;
@@ -446,10 +444,10 @@ i = i+1;
 comps(i).name         = 'Flight Computer';
 comps(i).Q_hot_W      = 5;      % TODO: placeholder — confirm with avionics team
 comps(i).Q_cold_W     = 5;      % always on — same power
-comps(i).T_op_min_C   = -20;    % TODO: vendor datasheet
-comps(i).T_op_max_C   = 70;     % TODO: vendor datasheet
-comps(i).T_surv_min_C = -30;    % TODO: vendor datasheet
-comps(i).T_surv_max_C = 85;     % TODO: vendor datasheet
+comps(i).T_op_min_C   = -20;    % 
+comps(i).T_op_max_C   = 70;     % 
+comps(i).T_surv_min_C = -20;    %
+comps(i).T_surv_max_C = 70;     % 
 comps(i).G_W_K        = 5.0;    % Bolted PCB mount with TIM
                                  % TODO: mech team to verify
 comps(i).always_on    = true;
@@ -476,10 +474,10 @@ comps(i).name         = 'RCS Thrusters (16x)';
 comps(i).Q_hot_W      = 50;     % conservative placeholder  % TODO: propulsion team
                                  % Note: duty-cycle-averaged value could be ~2 W (4_20 estimate)
 comps(i).Q_cold_W     = 0;
-comps(i).T_op_min_C   = -20;    % TODO: propulsion team
-comps(i).T_op_max_C   = 120;    % TODO: propulsion team
-comps(i).T_surv_min_C = -40;    % TODO: propulsion team
-comps(i).T_surv_max_C = 150;    % TODO: propulsion team
+comps(i).T_op_min_C   = -10;    % Checked
+comps(i).T_op_max_C   = 150;    % Checked
+comps(i).T_surv_min_C = -10;    % Checked
+comps(i).T_surv_max_C = 150;    % Checked
 comps(i).G_W_K        = 1.0;    % Isolated titanium bracket mounts
                                  % TODO: mech team to verify
 comps(i).always_on    = false;
@@ -495,8 +493,8 @@ i = i+1;
 comps(i).name         = 'Plasma Contactor';
 comps(i).Q_hot_W      = 10;     % TODO: placeholder — subsystem team
 comps(i).Q_cold_W     = 0;
-comps(i).T_op_min_C   = -40;    % TODO: subsystem team
-comps(i).T_op_max_C   = 80;     % TODO: subsystem team
+comps(i).T_op_min_C   = -50;    % TODO: subsystem team
+comps(i).T_op_max_C   = 100;    % TODO: subsystem team
 comps(i).T_surv_min_C = -50;    % TODO: subsystem team
 comps(i).T_surv_max_C = 100;    % TODO: subsystem team
 comps(i).G_W_K        = 1.0;    % Exterior rear mount
