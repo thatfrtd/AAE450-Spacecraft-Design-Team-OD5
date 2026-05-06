@@ -96,7 +96,7 @@ a_d_J2_ECI = @(t,x) J2_perturbation_ECI(x, mu_E, R_E, J_2_val);
 a_d_RTNcontrol = @(t,x) a_d_J2_ECI(t,x) + RTN_to_ECI(x(1:3), x(4:6)) * interp1(Qtransfer.t, Qtransfer.u_cont' ./ Qtransfer.x_keplerian_mass(7, :)', t, "previous")';
 
 % Simulate 
-tolerances = odeset(RelTol=default_tolerance, AbsTol=default_tolerance);
+tolerances = odeset(RelTol=1e-8, AbsTol=1e-8);
 
 % Run first to see how far off orbit gets from desired because of J2
 [~,x_keplerian_cartesian_preck] = ode45(@(t,x) gauss_planetary_eqn(f0_cartesian(x, mu_E), B_cartesian(x, mu_E), a_d_RTNcontrol(t,x)), Qtransfer.t, x0_d_cartesian, tolerances);
@@ -124,7 +124,7 @@ grid on
 %% Find Transition from Transfer to Rendezvous
 % Find where QLaw gets 1 km away and use those as initial conditions for
 % SCP rendezvous
-max_engagement_dist = 6; % [km] Distance to switch to rendezvous from transfer
+max_engagement_dist = 3.5; % [km] Distance to switch to rendezvous from transfer
 
 x_d_cartesian = x_keplerian_cartesian_ck';%keplerian_to_cartesian_array(Qtransfer.x_keplerian_mass(1:6, :), [], mu_E);
 
@@ -182,7 +182,7 @@ writetable(trans_table, "Wes_QLaw_TTC_test.csv")
 %% Relative Orbit Transfer using SCP 
 x_0_hill = x_d_engage_hill;
 b = sqrt(40^2/2);
-c = sqrt(10^2/2);
+c = sqrt(20^2/2);
 aROE = [0; % [km] delta semimajor axis
         0; % [km] delta lambda
         b*1e-3; % [km] delta e_x
@@ -279,7 +279,7 @@ Q_params.r = 2;
 Q_params.Theta_rot = 0;
 
 spacecraft_params.m_0 = optimal_rendezvous.x(7, end) + m_debris;
-[Qtransfer] = QLaw_transfer(x0_d_keplerian_deorbit(1:6), x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 150000, angular_step=deg2rad(20), R_c = 1);
+[Qtransfer] = QLaw_transfer_fast(x0_d_keplerian_deorbit(1:6), x0_c_keplerian, mu_E, spacecraft_params, Q_params, penalty_params, Qdot_opt_params, return_dt_dm_only = false, iter_max = 150000, angular_step=deg2rad(20), R_c = 1);
 
 dVs = Qtransfer.delta_V;
 ToFs = Qtransfer.dt / 60 / 60 / 24;

@@ -33,7 +33,7 @@ cylinder_MoI = @(m, r, h) [1 / 2 * m * r ^ 2; ...
 % Spacedebris Parameters
 spacedebris_params = struct();
 spacedebris_params.Isp = [4100; 232]; % [s]
-spacedebris_params.m = 1500; % [kg]
+spacedebris_params.m = 4000; % [kg]
 spacedebris_params.r = 1.85; % [m]
 spacedebris_params.h = 11.9; % [m]
 spacedebris_params.I = cylinder_MoI(spacedebris_params.m, spacedebris_params.r, spacedebris_params.h);
@@ -90,7 +90,7 @@ ptr_ops.iter_max = 15;
 ptr_ops.iter_min = 4;
 ptr_ops.Delta_min = 1e-7;
 ptr_ops.w_vc = 5e5;
-ptr_ops.w_tr = ones(1, N) * 5e-0;
+ptr_ops.w_tr = ones(1, N) * 5e2;
 ptr_ops.w_tr_p = 0;
 ptr_ops.update_w_tr = false;
 ptr_ops.delta_tol = 1e-2;
@@ -128,16 +128,22 @@ control_convex_constraints = {max_thrust_constraint_1, max_thrust_constraint_2};
 convex_constraints = [state_convex_constraints, control_convex_constraints];
 
 % Nonconvex state constraints
-approach_cone_angle = deg2rad(1);
-d_capture = 10e-3 ./ char_star.l; % [m] Distance of capture point (where s/c CoM will be) from debris CoM
-approach_cone_constraint = @(t, x, u, p) cos(approach_cone_angle) * norm(x(1:3) - [d_capture; 0; 0]) - (x(1) - d_capture);
-keep_out_ellipsoid_form = [10; 5; 5]*1e-3 ./ nd_scalar(1:3); % [km] 
+approach_cone_angle = deg2rad(80);
+d_capture = 11e-3 ./ char_star.l; % [m] Distance of capture point (where s/c CoM will be) from debris CoM
+approach_cone_constraint = @(t, x, u, p) cos(approach_cone_angle) * norm(x(1:3) - [-d_capture; 0; 0]) + (x(1) + d_capture);
+keep_out_ellipsoid_form = [18; 10; 10]*1e-3 ./ nd_scalar(1:3); % [km] 
 keep_out_ellipsoid_constraint = @(t, x, u, p) 1 - ((x(1) / keep_out_ellipsoid_form(1)) ^ 2 + (x(2) / keep_out_ellipsoid_form(2)) ^ 2 + (x(3) / keep_out_ellipsoid_form(3)) ^ 2);
 keep_out_ellipsoid_constraint_linearized_func = linearize_constraint(keep_out_ellipsoid_constraint, nx, nu, np, "x", 1:3);
-%keep_out_ellipsoid_constraint_linearized_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) keep_out_ellipsoid_constraint_linearized_func(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x(1:3), u, p, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x_ref(1:3, :), u_ref, p_ref, k) * max(approach_cone_constraint(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x_ref(1:3, k), u_ref(:, k), p_ref), 0)*1e5};
-keep_out_ellipsoid_constraint_linearized_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) keep_out_ellipsoid_constraint_linearized_func(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x(1:3), u, p, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x_ref(1:3, :), u_ref, p_ref, k)*1e5};
-approach_cone_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) approach_cone_constraint(t, x, u, p) * (keep_out_ellipsoid_constraint(t, x_ref(:, k), u_ref(:, k), p_ref) > 0)};% * (keep_out_ellipsoid_constraint(t, x_ref(:, k), u_ref(:, k), p_ref) > 0)};
-state_nonconvex_constraints = {keep_out_ellipsoid_constraint_linearized_STC};
+keep_out_ellipsoid_constraint_linearized_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) keep_out_ellipsoid_constraint_linearized_func(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x(1:3), u, p, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x_ref(1:3, :), u_ref, p_ref, k) * max(approach_cone_constraint(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x_ref(1:3, k), u_ref(:, k), p_ref), 0)*1e5};
+%keep_out_ellipsoid_constraint_linearized_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) keep_out_ellipsoid_constraint_linearized_func(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x(1:3), u, p, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x_ref(1:3, :), u_ref, p_ref, k)*1e5};
+approach_cone_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) approach_cone_constraint(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x(1:3), u, p) * max(keep_out_ellipsoid_constraint(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x_ref(1:3, k), u_ref(:, k), p_ref), 0)*1e3};% * (keep_out_ellipsoid_constraint(t, x_ref(:, k), u_ref(:, k), p_ref) > 0)};
+state_nonconvex_constraints = {keep_out_ellipsoid_constraint_linearized_STC, approach_cone_STC};
+
+%%
+approach_cone_constraint([], quat_rotmatrix(q_conj(qw_debris_array(1:4, end))) * x_f(1:3), [], [])
+keep_out_ellipsoid_constraint_linearized_STC{2}(0, x_f .* [1.2 * ones([3, 1]); ones([3, 1])], [], [], x_f, 0, [], 1)
+approach_cone_STC{2}(0, x_f .* [1.2 * ones([3, 1]); ones([3, 1])], [], [], x_f, 0, [], 1)
+%%
 
 % Nonconvex control constraints
 control_nonconvex_constraints = {};

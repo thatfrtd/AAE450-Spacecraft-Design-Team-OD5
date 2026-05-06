@@ -51,13 +51,13 @@ ptr_ops.iter_max = options.max_iters;
 ptr_ops.iter_min = 1;
 ptr_ops.Delta_min = 1e-8;
 ptr_ops.w_vc = 5e5;
-ptr_ops.w_tr = ones(1, N) * 5e-5;
+ptr_ops.w_tr = ones(1, N) * 5e-1;
 ptr_ops.w_tr_p = 0;
 ptr_ops.update_w_tr = false;
 ptr_ops.delta_tol = 1e-2;
 ptr_ops.q = 2;
 ptr_ops.alpha_x = 1;
-ptr_ops.alpha_u = 0;
+ptr_ops.alpha_u = 1;
 ptr_ops.alpha_p = 0;
 
 % Scaling currently not helping...
