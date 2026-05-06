@@ -43,7 +43,7 @@ tf = 7200; % / char_star.t; % [s] (nondimensionalized)
 tspan = linspace(0, tf, 1000);
 
 b = sqrt(40^2/2);
-c = sqrt(10^2/2);
+c = sqrt(20^2/2);
 aROE = [0; % [km] delta semimajor axis
         0; % [km] delta lambda
         b*1e-3; % [km] delta e_x
@@ -54,6 +54,8 @@ aROE = [0; % [km] delta semimajor axis
 cart_ROE = ROE_to_cart_matrix(n, 0) * aROE;
 %%
 ROE_to_cart_matrix(n, 0) * cart_to_ROE_matrix(n, 0)
+%%
+cart_to_ROE_matrix(n, 0) * [data_table.chaser_x(1); data_table.chaser_y(1); data_table.chaser_z(1); data_table.chaser_vx(1); data_table.chaser_vy(1); data_table.chaser_vz(1)]
 %%
 
 % Initial conditions for spacecraft - specify orbit instead?
@@ -152,9 +154,9 @@ zlabel("N")
 title("Velocity Comparison")
 
 %%
-r_cont_sol = x_CWH(1:3, :);
+r_cont_sol_inspection = x_CWH(1:3, :);
 
-output_array = [tspan', r_cont_sol'];
+output_array = [tspan', r_cont_sol_inspection'];
 state_names = ["r_1", "r_2", "r_3"];
 output_names = ["Time", state_names];
 

@@ -12,11 +12,11 @@ mu_E = 398600; % [km3 / s2] Earth gravitational parameter
 J_2_val = 1.0826e-3; % [] Earth J2
 
 % Spacecraft parameters
-m = 4000; % [kg]
+m = 2000; % [kg]
 
 % Initial conditions for s/c in Earth orbit (in Earth Centered Inertial (ECI) frame)
 r_a_0 = R_E + 600; % [km] periapsis
-r_p_0 = R_E + 120.9; % [km] periapsis
+r_p_0 = R_E + 100; % [km] periapsis
 e_0 = (1 - r_p_0 / r_a_0) / (1 + r_p_0 / r_a_0); % [] eccentricity
 a_0 = r_p_0 / (1 - e_0); % [km] semi-major axis
 i_0 = deg2rad(99); % [rad] inclination
@@ -29,7 +29,7 @@ x0_keplerian = [a_0; e_0; i_0; Omega_0; omega_0; M_0];
 x0_cartesian = keplerian_to_cartesian(x0_keplerian, nu_0, mu_E);
 
 % Propagation Time 
-orbits = 10;
+orbits = 30;
 tspan = linspace(0, orbits * period(a_0, mu_E), 1e5);
 t_orbits = linspace(0, orbits, numel(tspan));
 t_hr = tspan / 60 / 60;
@@ -42,7 +42,7 @@ F_mag = 0; % [N]
 accel_thrust = F_mag / m / 1000; % [km / s2]
 
 % Drag
-A_over_m = pi * 1 ^ 2 / m * 1e-6; % [km2 / kg] spacecraft area to mass ratio
+A_over_m = pi * 1.7 ^ 2 / m * 1e-6; % [km2 / kg] spacecraft area to mass ratio
 C_D = 2.31; % [] drag coefficient
 
 stop_altitude = 20; % [km]
@@ -65,8 +65,8 @@ a_d_thrust = @(t,x) [accel_thrust * sind(0); ...
                      accel_thrust * sind(0)]; % [km / s2] Orbital RTN frame (Radial-Theta-Normal frame)
 
 %a_d = @(t,x) a_d_J2(t,x) + cartesian_to_RTN_DCM_from_cart(x, mu_E) * a_d_thrust(t,x) ...
-a_d = @(t,x) a_d_J2(t,x);% ...
-                         %+ drag_perturbation_nrlmsise(t, x, mu_E, C_D, A_over_m, t0_datetime, false);
+a_d = @(t,x) a_d_J2(t,x) ...
+                         + drag_perturbation_nrlmsise(t, x, mu_E, C_D, A_over_m, t0_datetime, false);
                          %+ drag_perturbation_simple(t, x, mu_E, R_E, C_D, A_over_m);
 
 % Simulate 

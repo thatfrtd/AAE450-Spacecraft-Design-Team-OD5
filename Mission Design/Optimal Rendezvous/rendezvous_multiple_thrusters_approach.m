@@ -17,11 +17,26 @@ g_0 = 9.81e-3; % [km / s2]
 
 % Spacecraft Parameters: Isp, max thrust, initial mass, fuel mass
 spacecraft_params = struct();
-spacecraft_params.Isp = [303; 232]; % [s]
+spacecraft_params.r = 1; % [m]
+spacecraft_params.h = 2; % [m]
+spacecraft_params.Isp = [4155; 303]; % [s]
 spacecraft_params.m_0 = 1500; % [kg]
 spacecraft_params.m_dry = 600; % [kg]
-spacecraft_params.F_max = [0.8; 100]; % [N]
+spacecraft_params.F_max = [0; 88]; % [N]
 F_max_nd = spacecraft_params.F_max / 1000 / char_star.F; % F_max in N, char_star.F in kN
+
+% Estimate spacecraft moment of inertia
+cylinder_MoI = @(m, r, h) [1 / 2 * m * r ^ 2; ...
+                           1 / 12 * m * (3 * r ^ 2 + h ^ 2); ...
+                           1 / 12 * m * (3 * r ^ 2 + h ^ 2)];
+
+% Spacedebris Parameters
+spacedebris_params = struct();
+spacedebris_params.Isp = [4100; 232]; % [s]
+spacedebris_params.m = 4000; % [kg]
+spacedebris_params.r = 1.85; % [m]
+spacedebris_params.h = 11.9; % [m]
+spacedebris_params.I = cylinder_MoI(spacedebris_params.m, spacedebris_params.r, spacedebris_params.h);
 
 % Initial conditions for target Earth orbit (in Earth Centered Inertial (ECI) frame)
 a_c = 6728; % [km] semi-major axis
@@ -34,25 +49,31 @@ M0_c = eccentric_to_mean_anomaly(true_to_eccentric_anomaly(nu0_c, e_c), e_c);
 x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 
 % Rendezvous time
-tf = 500 / char_star.t; % [s] (nondimensionalized)
-
-% Initial conditions for spacecraft - specify orbit instead?
-r_0 = [-0.02; -0.008; 0.005]; % [km]
-v_0 = [0.001; 1e-3; 0]; % [km / s]
-x_0 = [r_0; v_0; spacecraft_params.m_0] ./ nd_scalar;
-
-% Terminal conditions
-r_f = [0.01; 0; 0]; % [km]
-v_f = [0e-3; 0; 0]; % [km / s]
-x_f = [r_f; v_f] ./ nd_scalar(1:6);
-
-%% Initialize
+tf = 60 / char_star.t; % [s] (nondimensionalized)
 N = 100;
 t_k_actual = linspace(0, tf, N);
 tspan = [0, tf];
 t_k = linspace(tspan(1), tspan(2), N);
 delta_t = t_k(2) - t_k(1);
 
+% Initial conditions for spacecraft - specify orbit instead?
+data_table = readtable("Full_Detumble_History.csv");
+rv_0 = [data_table.chaser_x(end); data_table.chaser_y(end); data_table.chaser_z(end); data_table.chaser_vx(end); data_table.chaser_vy(end); data_table.chaser_vz(end)] * 1e-3;
+r_0 = rv_0(1:3);
+v_0 = rv_0(4:6);
+x_0 = [rv_0; spacecraft_params.m_0] ./ nd_scalar;
+
+% Terminal conditions
+seperation_distance = 5; % [m]
+d_vec = [-(spacedebris_params.h / 2 + spacecraft_params.h / 2 + seperation_distance); 0; 0]*1e-3;
+w0_debris = -deg2rad([0.0739732221634118; 0.0063002539406854; 0.0109314217396326]);
+q0_debris = [data_table.q_x(end); data_table.q_y(end); data_table.q_z(end); data_table.q_w(end)];
+[x_f_interstellar, qw_debris_array] = interstellar_boundary_conditions(q0_debris, w0_debris, t_k, spacedebris_params.I, d_vec);
+x_f = x_f_interstellar(1:6) ./ nd_scalar(1:6);
+q_f = x_f_interstellar(7:10);
+r_f = x_f_interstellar(1:3);
+
+%% Initialize
 % Control discretization method
 % Zero Order Hold (ZOH) - Piecewise constant
 % First Order Hold (FOH) - Piecewise linear (DOESN'T LIKE THIS PROBLEM... PROBABLY SCALING ISSUE :( )
@@ -68,8 +89,8 @@ np = 0; % Number of parameters (tf, v_0, etc)
 ptr_ops.iter_max = 15;
 ptr_ops.iter_min = 4;
 ptr_ops.Delta_min = 1e-7;
-ptr_ops.w_vc = 5e8;
-ptr_ops.w_tr = ones(1, N) * 5e-0;
+ptr_ops.w_vc = 5e5;
+ptr_ops.w_tr = ones(1, N) * 5e2;
 ptr_ops.w_tr_p = 0;
 ptr_ops.update_w_tr = false;
 ptr_ops.delta_tol = 1e-2;
@@ -107,15 +128,22 @@ control_convex_constraints = {max_thrust_constraint_1, max_thrust_constraint_2};
 convex_constraints = [state_convex_constraints, control_convex_constraints];
 
 % Nonconvex state constraints
-approach_cone_angle = deg2rad(1);
-d_capture = 10e-3 ./ char_star.l; % [m] Distance of capture point (where s/c CoM will be) from debris CoM
-approach_cone_constraint = @(t, x, u, p) cos(approach_cone_angle) * norm(x(1:3) - [d_capture; 0; 0]) - (x(1) - d_capture);
-keep_out_ellipsoid_form = [15; 10; 10]*1e-3 ./ nd_scalar(1:3); % [km] 
+approach_cone_angle = deg2rad(80);
+d_capture = 11e-3 ./ char_star.l; % [m] Distance of capture point (where s/c CoM will be) from debris CoM
+approach_cone_constraint = @(t, x, u, p) cos(approach_cone_angle) * norm(x(1:3) - [-d_capture; 0; 0]) + (x(1) + d_capture);
+keep_out_ellipsoid_form = [18; 10; 10]*1e-3 ./ nd_scalar(1:3); % [km] 
 keep_out_ellipsoid_constraint = @(t, x, u, p) 1 - ((x(1) / keep_out_ellipsoid_form(1)) ^ 2 + (x(2) / keep_out_ellipsoid_form(2)) ^ 2 + (x(3) / keep_out_ellipsoid_form(3)) ^ 2);
 keep_out_ellipsoid_constraint_linearized_func = linearize_constraint(keep_out_ellipsoid_constraint, nx, nu, np, "x", 1:3);
-keep_out_ellipsoid_constraint_linearized_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) keep_out_ellipsoid_constraint_linearized_func(t, x, u, p, x_ref, u_ref, p_ref, k) * max(approach_cone_constraint(t, x_ref(:, k), u_ref(:, k), p_ref), 0)*1e5};
-approach_cone_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) approach_cone_constraint(t, x, u, p) * (keep_out_ellipsoid_constraint(t, x_ref(:, k), u_ref(:, k), p_ref) > 0)};% * (keep_out_ellipsoid_constraint(t, x_ref(:, k), u_ref(:, k), p_ref) > 0)};
-state_nonconvex_constraints = {keep_out_ellipsoid_constraint_linearized_STC};
+keep_out_ellipsoid_constraint_linearized_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) keep_out_ellipsoid_constraint_linearized_func(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x(1:3), u, p, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x_ref(1:3, :), u_ref, p_ref, k) * max(approach_cone_constraint(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x_ref(1:3, k), u_ref(:, k), p_ref), 0)*1e5};
+%keep_out_ellipsoid_constraint_linearized_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) keep_out_ellipsoid_constraint_linearized_func(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x(1:3), u, p, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x_ref(1:3, :), u_ref, p_ref, k)*1e5};
+approach_cone_STC = {1:N, @(t, x, u, p, x_ref, u_ref, p_ref, k) approach_cone_constraint(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x(1:3), u, p) * max(keep_out_ellipsoid_constraint(t, quat_rotmatrix(q_conj(qw_debris_array(1:4, k))) * x_ref(1:3, k), u_ref(:, k), p_ref), 0)*1e3};% * (keep_out_ellipsoid_constraint(t, x_ref(:, k), u_ref(:, k), p_ref) > 0)};
+state_nonconvex_constraints = {keep_out_ellipsoid_constraint_linearized_STC, approach_cone_STC};
+
+%%
+approach_cone_constraint([], quat_rotmatrix(q_conj(qw_debris_array(1:4, end))) * x_f(1:3), [], [])
+keep_out_ellipsoid_constraint_linearized_STC{2}(0, x_f .* [1.2 * ones([3, 1]); ones([3, 1])], [], [], x_f, 0, [], 1)
+approach_cone_STC{2}(0, x_f .* [1.2 * ones([3, 1]); ones([3, 1])], [], [], x_f, 0, [], 1)
+%%
 
 % Nonconvex control constraints
 control_nonconvex_constraints = {};
@@ -185,6 +213,12 @@ u_cont_sol = u_cont_sol * char_star.F * 1000;
 
 %% Plot Trajectory
 figure
+for k = 1 : Nu
+    u_norm = norm(u(1:3, :));
+    if u_norm < 1e-10
+        u(1:3, k) = 0;
+    end
+end
 scatter3(0, 0, 0, 60, "blue", "filled", "diamond"); hold on
 plot_cartesian_orbit(x_cont_sol(1:3,:)', 'k', 0.4, 1); hold on
 quiver3(x(1, 1:Nu), x(2, 1:Nu), x(3, 1:Nu), u(1, :), u(2, :), u(3, :), 1, "filled", Color = "red")
@@ -194,6 +228,14 @@ scatter3(r_f(1), r_f(2), r_f(3), 48, "red", "x"); hold on
 plot3(guess.x(1, :) * nd_scalar(1), guess.x(2, :) * nd_scalar(2), guess.x(3, :) * nd_scalar(3), Color = "green", LineStyle = "--");
 [x_1, y_1, z_1] = ellipsoid(0,0,0,keep_out_ellipsoid_form(1) * char_star.l,keep_out_ellipsoid_form(2) * char_star.l,keep_out_ellipsoid_form(3) * char_star.l);
 h = surf(x_1, y_1, z_1);
+tau = qLog(q_f);
+theta = norm(tau);
+if theta > 1e-10
+    lambda = tau / theta;
+else
+    lambda = [1; 0; 0];
+end
+rotate(h, lambda, -rad2deg(theta), [0; 0; 0]);
 set(h, 'FaceAlpha', 0.4)
 [X,Y,Z]=cylinder([0 0.5],50 );
 axis([0 1,-1 1,-.5 .5])

@@ -89,7 +89,7 @@ for transfer_number = 1 : N_transfers
     MultiObj.obj_names = ["ToF [days]", "Delta V [km / s]"];
     
     %% Optimize Pareto front
-    options = optimoptions('paretosearch', 'ParetoSetSize', 60, 'UseParallel',true, 'MaxTime', 1200,'Display','iter',...
+    options = optimoptions('paretosearch', 'ParetoSetSize', 60, 'UseParallel',true, 'MaxTime', 30,'Display','iter',...
         'PlotFcn',{'psplotparetof','psplotparetox'}); % Could use custom plotting function that shows orbits
     fun = MultiObj.fun;
     lb = MultiObj.var_min;
@@ -171,7 +171,7 @@ plot_orbit_transfer_histories(Qtransfer_to_int.t / 60 / 60, x0_c_keplerian' ./ [
 figure
 plot_orbit_transfer_histories(Qtransfer_to_targ.t / 60 / 60, x0_c_keplerian' ./ [R_E, ones([1, 5])], Qtransfer_to_targ.x_keplerian_mass(1:6, :)' ./ [R_E, ones([1, 5])], Qtransfer_to_targ.u_cont');
 
-save("terminator_to_new_debris_Qtransfer.mat", "Qtransfer_to_targ", "Qtransfer_to_int")
+%save("terminator_to_new_debris_Qtransfer.mat", "Qtransfer_to_targ", "Qtransfer_to_int")
 
 %% Helper Functions
 function [c, ceq] = min_periapsis_constraint(a, e, min_r_p, R_E)

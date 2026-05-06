@@ -61,7 +61,7 @@ x_keplerian_c = [a_c; e_c; i_c; Omega_c; omega_c; M0_c];
 n_c = sqrt(mu_E / a_c ^ 3);
 
 % Rendezvous time
-tf = 800; % [s] (nondimensionalized)
+tf = 100; % [s] (nondimensionalized)
 
 % Initial conditions for spacecraft - specify orbit instead?
 % r_0 = [-0; -0.1; 20e-3]; % [km]
@@ -78,9 +78,10 @@ mu_E = 398600.4418; % [km3 / s2] Earth gravitational parameter
 v_0 = [b * n_c * cos(nu); -2 * b * n_c * sin(nu); c * n_c * cos(psi) * ones(size(nu))];
 %CWH_relative_orbit_EoM()
 
-theta_0 = [deg2rad(5); deg2rad(5); deg2rad(5)]; % [rad]
-R_0 = angle2dcm(theta_0(1), theta_0(2), theta_0(3));
-q_0 = qExp(RLog(R_0));
+% theta_0 = [deg2rad(5); deg2rad(5); deg2rad(5)]; % [rad]
+% R_0 = angle2dcm(theta_0(1), theta_0(2), theta_0(3));
+% q_0 = qExp(RLog(R_0));
+q_0 = point_at_vec(-r_0);
 w_0 = deg2rad([0; 0; 0]); % [rad / s]
 x_0 = [r_0; v_0; q_0; w_0; spacecraft_params.m_0] ./ nd_scalar;
 
@@ -93,8 +94,11 @@ q_f = qExp(RLog(R_f));
 w_f = deg2rad([0; 0; 0]); % [rad / s]
 x_f = [r_f; v_f; q_f; w_f] ./ nd_scalar(1:13);
 
+camera_LOS_constraint(0, x_0, [], [])
+camera_LOS_constraint(0, x_f, [], [])
+
 %% Initialize
-N = 200;
+N = 50;
 t_k_actual = linspace(0, tf, N);
 tspan = [0, tf];
 t_k = linspace(tspan(1), tspan(2), N);
@@ -184,11 +188,11 @@ nonconvex_constraints = [state_nonconvex_constraints, control_nonconvex_constrai
 
 %% Boundary conditions
 initial_bc = @(x, p) [x - x_0];
-% terminal_bc = @(x, p, x_ref, p_ref) [x(1:13) - x_f(1:13); 0]; % Don't constrain final mass
-terminal_bc = @(x, p, x_ref, p_ref) [4 * x(1) * nd_scalar(1) + 2 / n_c * x(5) * nd_scalar(5); 
-                                         x(2) * nd_scalar(2) - 2 / n_c * x(4) * nd_scalar(4); 
-                                         x([1:2, 7:13]') - x_f([1:2, 7:13]'); x(3); x(6); 0];
-                                         % x_ref(4) ^ 2 + 2 * x_ref(4) * (x(4) - x_ref(4)) + 1 / 4 * (x_ref(5) ^ 2 + 2 * x_ref(5) * (x(5) - x_ref(5))) - n_c ^ 2 * keep_out_distance ^ 2]; % Don't constrain final mass
+terminal_bc = @(x, p, x_ref, p_ref) [x(1:13) - x_f(1:13); 0]; % Don't constrain final mass
+% terminal_bc = @(x, p, x_ref, p_ref) [4 * x(1) * nd_scalar(1) + 2 / n_c * x(5) * nd_scalar(5); 
+%                                          x(2) * nd_scalar(2) - 2 / n_c * x(4) * nd_scalar(4); 
+%                                          x([1:2, 7:13]') - x_f([1:2, 7:13]'); x(3); x(6); 0];
+%                                          % x_ref(4) ^ 2 + 2 * x_ref(4) * (x(4) - x_ref(4)) + 1 / 4 * (x_ref(5) ^ 2 + 2 * x_ref(5) * (x(5) - x_ref(5))) - n_c ^ 2 * keep_out_distance ^ 2]; % Don't constrain final mass
 
 %% Specify Objective
 objective_min_fuel = @(x, u, p, x_ref, u_ref, p_ref) sum(norms(u(2:13, :), 1)) * delta_t / (spacecraft_params.Isp(2) * g_0) ...
@@ -514,4 +518,13 @@ function [q, w_diff] = q_look(r, tspan)
     tau_interp = qExp(interp1([0, 1]', [zeros([3, 1]), theta_diff]', linspace(0, 1, numel(tspan)))');
 
     q = q_mul_array(repmat(q_0, 1, numel(tspan)), tau_interp);
+end
+
+
+function [quat] = point_at_vec(T_vec)
+    T_vec = T_vec ./ vecnorm(T_vec);
+    w = 1 + T_vec(1, :);
+    xyz = cross([ones([1, size(T_vec, 2)]); zeros([2, size(T_vec, 2)])], T_vec); % cross b_x with T_vec
+    quat = [xyz; w];
+    quat = quat ./ vecnorm(quat);
 end
